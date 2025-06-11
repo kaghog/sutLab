@@ -1,1 +1,6 @@
-Update for Hannover data
+In progress:
+- Analysing the pipeline and check what we need to change for Hannover data
+
+
+Finished:
+- hannover.data.population.raw: Load the raw population data from the Hannover region from Administrative boundary data
