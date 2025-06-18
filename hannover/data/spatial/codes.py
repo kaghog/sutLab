@@ -28,9 +28,10 @@ def configure(context):
 
 def execute(context):
     # Load codes
-    df_codes = context.stage("hannover.data.population.raw")[["municipality_code"]]
+    df_codes = context.stage("hannover.data.population.raw")[["mikrobezirk_code"]]
 
     # Clean up identifiers
+    df_codes["municipality_code"] = "03241" + df_codes["mikrobezirk_code"].astype(str)
     df_codes["region_id"] = df_codes["municipality_code"].str[:2].astype("category")
     df_codes["departement_id"] = df_codes["municipality_code"].str[:5].astype("category")
     df_codes["commune_id"] = df_codes["municipality_code"].astype("category")

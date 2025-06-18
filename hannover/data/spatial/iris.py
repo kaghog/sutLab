@@ -8,10 +8,10 @@ def configure(context):
 
 def execute(context):
     # Load shapes
-    df = context.stage("hannover.data.population.raw")[["municipality_code", "geometry"]]
+    df = context.stage("hannover.data.population.raw")[["mikrobezirk_code", "geometry"]]
 
     # Clean up identifiers
-    df["commune_id"] = df["municipality_code"].astype("category")
+    df["commune_id"] = ("03241" + df["mikrobezirk_code"].astype(str)).astype("category")
 
     # Fake IRIS
     df["iris_id"] = df["commune_id"].astype(str) + "0000"
@@ -23,5 +23,7 @@ def execute(context):
     # Region dummu
     df["region_id"] = 1
     df["region_id"] = df["region_id"].astype("category")
+    
+    print(df)
 
     return df[["iris_id", "commune_id", "departement_id", "geometry"]]

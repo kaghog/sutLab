@@ -1,6 +1,12 @@
 In progress:
 - Analysing the pipeline and check what we need to change for Hannover data
+- Adapting the stages files to the Hannover pipeline
 
 
 Finished:
-- hannover.data.population.raw: Load the raw population data from the Hannover region from Administrative boundary data
+- hannover.data.population.raw: Load the raw population data from the Hannover region at Mikrobezirk level
+- hannover.data.census.population: Load the census data from the Hannover region at Mikrobezirk level
+- hannover.data.census.licenses: Load the licenses data for the Hannover region
+- hannover.data.census.employment: Create the employment data for the Hannover region based distribution on Munich
+- hannover.data.spatial.iris: Adjust spatial data and add iris code from the Hannover region at Mikrobezirk level
+- hannover.data.spatial.codes: Adjust spatial codes from the Hannover region at Mikrobezirk level

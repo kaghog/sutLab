@@ -13,13 +13,13 @@ def configure(context):
     context.stage("hannover.data.census.population")
 
     context.config("data_path")
-    context.config("hannover.bavarian_employment_path", "hannover/13111-004r.xlsx")
+    context.config("hannover.employment_path", "hannover/13111-004r.xlsx")
 
 def execute(context):
     # Load the Bavarian employment data from bavarian script -----------------------------------
     # Load data
     df_employment = pd.read_excel("{}/{}".format(
-        context.config("data_path"), context.config("hannover.bavarian_employment_path")
+        context.config("data_path"), context.config("hannover.employment_path")
     ), skiprows = 6, names = [
         "departement_id", "department_name", "age_class", 
         "all_total", "all_male", "all_female", 
@@ -128,22 +128,26 @@ def execute(context):
 
     # Merge with Hannover population and compute estimated employment
     df_hannover = context.stage("hannover.data.census.population")
-    df_merged = pd.merge(df_hannover, df_distribution, on=["age_class", "sex"], how="left")
+    df_hannover["departement_id"] = df_hannover["commune_id"].str[:5]
+    df_hannover_agg = df_hannover.groupby(["departement_id", "age_class", "sex"], as_index=False, observed=True)["weight"].sum()
+    df_merged = pd.merge(df_hannover_agg, df_distribution, on=["age_class", "sex"], how="left")
     df_merged["weight"] = (df_merged["weight"] * df_merged["employment_ratio"]).round()
 
-    # Formatting the final DataFrame
-    df_employment_hannover = df_merged[["commune_id", "age_class", "sex", "weight"]].copy()
-    df_employment_hannover["departement_id"] = df_employment_hannover["commune_id"].str[:5]
-    df_employment_hannover["sex"] = df_employment_hannover["sex"].astype("category")
-    df_employment_hannover = df_employment_hannover.dropna(subset=["weight"])
-    df_employment_hannover["weight"] = df_employment_hannover["weight"].astype(int)
-    df_employment = df_employment_hannover[["departement_id", "age_class", "sex", "weight"]]
+    # Formatting the dataFrame
+    df_merged = df_merged.dropna(subset=["weight"])
+    df_merged["weight"] = df_merged["weight"].astype(int)
+    df_merged["sex"] = df_merged["sex"].astype("category")
+    df_employment = df_merged[["departement_id", "age_class", "sex", "weight"]]
+
+    # print("df_employment:")
+    # print(df_employment)
+    # print(df_employment["weight"].sum(), "people employed in total")
 
     return df_employment
 
 
 def validate(context):
-    if not os.path.exists("{}/{}".format(context.config("data_path"), context.config("hannover.bavarian_employment_path"))):
+    if not os.path.exists("{}/{}".format(context.config("data_path"), context.config("hannover.employment_path"))):
         raise RuntimeError("Bavarian employment data is not available")
 
-    return os.path.getsize("{}/{}".format(context.config("data_path"), context.config("hannover.bavarian_employment_path")))
+    return os.path.getsize("{}/{}".format(context.config("data_path"), context.config("hannover.employment_path")))
