@@ -36,7 +36,7 @@ def execute(context):
 
     # Don't consider vehicle availability
     df["number_of_cars"] = 1
-    df["number_of_bicycles"] = 1
+    df["number_of_bikes"] = 1
 
     # Ignore PT subscription
     df["has_pt_subscription"] = False

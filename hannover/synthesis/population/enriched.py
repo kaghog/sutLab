@@ -62,7 +62,11 @@ def execute(context):
 
         for f, target in zip(filters, targets):
             current = df_persons.loc[f, "car_availability"].sum()
-            factor = target / current
+            # Handle division by zero when there is no person in the filter
+            if current == 0 or target == 0:
+                factor = 0
+            else:
+                factor = target / current
             df_persons.loc[f, "car_availability"] *= factor
             factors.append(factor)
 
@@ -70,13 +74,14 @@ def execute(context):
     print(df_persons["car_availability"].min(), df_persons["car_availability"].max())
     
     # BIKE AVAILABILITY
-    df_persons["bicycle_availability"] = 1.0
-    constraints = mid["bicycle_availability_constraints"]
+    df_persons["bike_availability"] = 1.0
+    constraints = mid["bike_availability_constraints"]
 
     filters = []
     targets = []
 
     for constraint in constraints:
+        
         f = np.ones((len(df_persons),), dtype = bool)
 
         if "zone" in constraint:
@@ -98,9 +103,13 @@ def execute(context):
         factors = []
 
         for f, target in zip(filters, targets):
-            current = df_persons.loc[f, "bicycle_availability"].sum()
-            factor = target / current
-            df_persons.loc[f, "bicycle_availability"] *= factor
+            current = df_persons.loc[f, "bike_availability"].sum()
+            # Handle division by zero when there is no person in the filter
+            if current == 0 or target == 0:
+                factor = 0
+            else:
+                factor = target / current
+            df_persons.loc[f, "bike_availability"] *= factor
             factors.append(factor)
 
     print("Factors", "min:", min(factors), "max:", max(factors), "mean:", np.mean(factors))
@@ -135,7 +144,11 @@ def execute(context):
 
         for f, target in zip(filters, targets):
             current = df_persons.loc[f, "has_pt_subscription"].sum()
-            factor = target / current
+            # Handle division by zero when there is no person in the filter
+            if current == 0 or target == 0:
+                factor = 0
+            else:
+                factor = target / current
             df_persons.loc[f, "has_pt_subscription"] *= factor
             factors.append(factor)
 
@@ -151,10 +164,10 @@ def execute(context):
     df_persons["car_availability"] = df_persons["car_availability"].astype("category")
 
     u = random.random_sample(len(df_persons))
-    selection = u < df_persons["bicycle_availability"]
-    df_persons["bicycle_availability"] = "none"
-    df_persons.loc[selection, "bicycle_availability"] = "all"
-    df_persons["bicycle_availability"] = df_persons["bicycle_availability"].astype("category")
+    selection = u < df_persons["bike_availability"]
+    df_persons["bike_availability"] = "none"
+    df_persons.loc[selection, "bike_availability"] = "all"
+    df_persons["bike_availability"] = df_persons["bike_availability"].astype("category")
 
     u = random.random_sample(len(df_persons))
     selection = u < df_persons["has_pt_subscription"]

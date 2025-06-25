@@ -7,3 +7,5 @@ output
 .idea
 
 config_local_*.yml
+
+*.xlsx

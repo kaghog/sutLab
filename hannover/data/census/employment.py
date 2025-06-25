@@ -138,11 +138,6 @@ def execute(context):
     df_merged["weight"] = df_merged["weight"].astype(int)
     df_merged["sex"] = df_merged["sex"].astype("category")
     df_employment = df_merged[["departement_id", "age_class", "sex", "weight"]]
-
-    # print("df_employment:")
-    # print(df_employment)
-    # print(df_employment["weight"].sum(), "people employed in total")
-
     return df_employment
 
 

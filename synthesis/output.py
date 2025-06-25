@@ -130,7 +130,7 @@ def execute(context):
     df_households = df_households[[
         "household_id",
         "car_availability", "bicycle_availability",
-        "number_of_cars", "number_of_bicycles",
+        "number_of_cars", "number_of_bikes",
         "income",
         "census_household_id"
     ]]

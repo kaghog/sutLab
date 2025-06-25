@@ -58,11 +58,11 @@ def execute(context):
     df_population = pd.merge(df_population, df_hts_persons[attributes], on = "hts_id")
 
     attributes = [
-        "hts_household_id", "number_of_bicycles"
+        "hts_household_id", "number_of_bikes"
     ]
 
-    if "number_of_bicycles" in df_population.columns:
-        attributes.remove("number_of_bicycles")
+    if "number_of_bikes" in df_population.columns:
+        attributes.remove("number_of_bikes")
 
     df_population = pd.merge(df_population, df_hts_households[attributes], on = "hts_household_id")
 
@@ -95,8 +95,8 @@ def execute(context):
 
     # Add bicycle availability
     df_population["bicycle_availability"] = "all"
-    df_population.loc[df_population["number_of_bicycles"] < df_population["household_size"], "bicycle_availability"] = "some"
-    df_population.loc[df_population["number_of_bicycles"] == 0, "bicycle_availability"] = "none"
+    df_population.loc[df_population["number_of_bikes"] < df_population["household_size"], "bicycle_availability"] = "some"
+    df_population.loc[df_population["number_of_bikes"] == 0, "bicycle_availability"] = "none"
     df_population["bicycle_availability"] = df_population["bicycle_availability"].astype("category")
     
     # Add age range for education

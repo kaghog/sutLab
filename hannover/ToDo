@@ -1,6 +1,5 @@
 In progress:
-- Analysing the pipeline and check what we need to change for Hannover data
-- Adapting the stages files to the Hannover pipeline
+- Changing real employment Hannover data
 
 
 Finished:
@@ -10,3 +9,6 @@ Finished:
 - hannover.data.census.employment: Create the employment data for the Hannover region based distribution on Munich
 - hannover.data.spatial.iris: Adjust spatial data and add iris code from the Hannover region at Mikrobezirk level
 - hannover.data.spatial.codes: Adjust spatial codes from the Hannover region at Mikrobezirk level
+- hannover.synthesis.population.enriched: Add cases where the factor are divided by 0
+- data.hts.entd.cleaned: Use ile-de-france script to clean the entd data and changed other stages to adapt it
+

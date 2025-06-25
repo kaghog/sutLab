@@ -1,5 +1,6 @@
 import data.hts.hts as hts
 import numpy as np
+import os
 
 """
 This stage filters out ENTD observations which live or work outside of
@@ -15,7 +16,7 @@ def execute(context):
     filter_entd = context.config("filter_hts")    
     df_codes = context.stage("data.spatial.codes")
     df_households, df_persons, df_trips = context.stage("data.hts.entd.cleaned")
-
+    
     if filter_entd :
         # Filter for non-residents
         requested_departments = df_codes["departement_id"].unique()

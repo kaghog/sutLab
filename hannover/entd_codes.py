@@ -18,6 +18,6 @@ def execute(context):
     values |= set(df_trips["origin_departement_id"])
     values |= set(df_trips["destination_departement_id"])
     
-    print(pd.DataFrame({ "departement_id": sorted(values) }))
+    values =  ['75', '77', '78', '91', '92', '93', '94', '95']
     
     return pd.DataFrame({ "departement_id": sorted(values) })
