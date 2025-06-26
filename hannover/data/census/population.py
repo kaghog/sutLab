@@ -58,10 +58,6 @@ def execute(context):
     df_zones = context.stage("hannover.data.spatial.codes")
     valid_communes = df_zones["commune_id"].unique()
     df_final = df_final[df_final["commune_id"].isin(valid_communes)].copy()
-
-    print("df population:")
-    print(df_final)
-    print(df_final["weight"].sum(), "people in total")
  
     return df_final[["commune_id", "sex", "age_class", "weight"]]
 

@@ -56,10 +56,6 @@ def execute(context):
             for item in parallel.imap(process_municipality, df_zones["commune_id"].values):
                 progress.update()
                 
-    print(df_zones["commune_id"].values)
-    print(df_zones.values.shape)
-    print(df_zones.head())
-    
     return df_zones["commune_id"].values
 
 def validate(context):

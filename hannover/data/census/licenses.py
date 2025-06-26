@@ -11,7 +11,6 @@ def configure(context):
     context.config("hannover.licenses_path", "germany/fe4_2024.xlsx")
 
     context.stage("hannover.data.spatial.codes")
-    # context.stage("bavaria.data.census.population")
 
 COUNT_COLUMN = "Fahrerlaubnisse bzw. Führerscheine"
 # COUNT_COLUMN = "Zusammen"
@@ -93,10 +92,6 @@ def execute(context):
     # Selection of districts
     df_codes = context.stage("hannover.data.spatial.codes")
     df_kreis = df_kreis[df_kreis["departement_id"].isin(df_codes["departement_id"])]
-    
-    # print(df_country)
-    # print(df_land)
-    # print(df_kreis)
 
     return df_country, df_land, df_kreis
 

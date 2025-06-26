@@ -1,12 +1,10 @@
-In progress:
-- Changing real employment Hannover data
 
 
 Finished:
 - hannover.data.population.raw: Load the raw population data from the Hannover region at Mikrobezirk level
 - hannover.data.census.population: Load the census data from the Hannover region at Mikrobezirk level
 - hannover.data.census.licenses: Load the licenses data for the Hannover region
-- hannover.data.census.employment: Create the employment data for the Hannover region based distribution on Munich
+- hannover.data.census.employment: Create the employment data for the Hannover region based real world data from 2023
 - hannover.data.spatial.iris: Adjust spatial data and add iris code from the Hannover region at Mikrobezirk level
 - hannover.data.spatial.codes: Adjust spatial codes from the Hannover region at Mikrobezirk level
 - hannover.synthesis.population.enriched: Add cases where the factor are divided by 0

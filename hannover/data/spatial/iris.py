@@ -23,7 +23,5 @@ def execute(context):
     # Region dummu
     df["region_id"] = 1
     df["region_id"] = df["region_id"].astype("category")
-    
-    print(df)
 
     return df[["iris_id", "commune_id", "departement_id", "geometry"]]
