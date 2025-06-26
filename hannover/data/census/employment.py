@@ -89,6 +89,8 @@ def execute(context):
 
     df_employment["weight"] = df_employment.apply(scale_weight, axis=1)
     df_employment["weight"] = df_employment["weight"].round().astype(int)
+    df_employment["age_class"] = df_employment["age_class"].astype(int)
+    df_employment["departement_id"] = df_employment["departement_id"].astype(str)
     df_employment = df_employment.drop(columns="initial_weight")
     
     return df_employment

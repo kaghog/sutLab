@@ -95,18 +95,5 @@ def execute(context):
     factor = df_licenses_country["weight"].sum() / df_licenses_kreis["weight"].sum()
     print("Adapting total with correction factor {}".format(factor))
     df_licenses_kreis["weight"] *= factor
-    
-    print("df_population:")
-    print(df_population)
-    print(df_population["weight"].sum(), "people in total")
-    print("df_employment:")
-    print(df_employment)
-    print(df_employment["weight"].sum(), "people employed in total")
-    print("df_licenses_country:")
-    print(df_licenses_country)
-    print(df_licenses_country["weight"].sum(), "licenses in total") 
-    print("df_licenses_kreis:")
-    print(df_licenses_kreis)
-    print(df_licenses_kreis["weight"].sum(), "licenses in total for kreis")
 
     return df_population, df_employment, df_licenses_country, df_licenses_kreis

@@ -30,9 +30,8 @@ def execute(context):
     # Compute proportional employment weight
     df_pop_mikro["weight"] = (df_pop_mikro["population_weight"] / total_population) * total_employment
     df_pop_mikro["weight"] = df_pop_mikro["weight"].round().astype(int)
-    df_pop_mikro["sex"] = df_pop_mikro["sex"].astype("category")
 
     # Final output
     df_result = df_pop_mikro[["commune_id", "weight"]]
-    
+
     return df_result
