@@ -21,7 +21,7 @@ describe this process.
 
 ### 1) Hannover administrative units
 
-- Use Shapefile of *SKH20_Mikrobezirke* which containing Mikrobezirke levels administrative units (390 areas that are similar in terms of population number)
+- Use Shapefile of *SKH20_Mikrobezirke* which contains Mikrobezirke levels administrative units (390 areas that are similar in terms of population number)
 - Put the following files into `/data/hannover`:
   - SKH20_Mikrobezirke.cpg
   - SKH20_Mikrobezirke.dbf
@@ -57,8 +57,6 @@ describe this process.
   - MiD2017_Wege.csv
 
 ### 5) OpenStreetMap (Hannover)
-
-This data set is *only needed if you run a MATSim simulation* or enable mode choice in the population synthesis.
 
 - [Geofabrik Niedersachsen](https://download.geofabrik.de/europe/germany/niedersachsen.html)
 - Download the data set for **Niedersachsen** in *osm.pbf* format ("Commonly used formats"), which is state of Hannover

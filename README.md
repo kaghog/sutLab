@@ -22,4 +22,4 @@ To run the pipeline successfully, you need to gather and prepare several input d
 
 For step-by-step instructions on gathering and structuring the necessary data, please refer to the [Data preparation](./docs/population.md).
 
-To run the analysis, add the stage 'analysis.hannover.ivt_style.analysis'. This will produce plots for comparison between HTS and synthesis.
+To run the analysis, add the stage 'analysis.hannover.ivt_style.analysis'. This will produce plots for comparison between HTS and synthesis data.
