@@ -50,46 +50,61 @@ def add_small_cdf(axes, r, c, act, x, y, lab = ["Synthetic", "HTS"]):
     return axes
 
 
-def plot_comparison_bar(context, imtitle, plottitle, ylabel, xlabel, lab, actual, synthetic, lablist = ['HTS', 'Synthetic'], t = 15, figsize = [12,7], dpi = 300, w = 0.35, xticksrot = False):
+def plot_comparison_bar(context, imtitle, plottitle, ylabel, xlabel, lab, actual, synthetic, census=None, lablist=['HTS', 'Synthetic', 'Census'], t=15, figsize=[12,7], dpi=300, w=0.25, xticksrot=False):
+    import matplotlib.pyplot as plt
+    import numpy as np
 
     plt.rcParams['axes.facecolor'] = "#ffffff"
     plt.rcParams['figure.figsize'] = figsize
     plt.rcParams['figure.dpi'] = dpi
 
     top = t
-    if not t is None:
+    if top is not None:
         labels = lab[:top]
         actual_means = actual[:top]
         synthetic_means = synthetic[:top]
+        census_means = census[:top] if census is not None else None
     else:
-       labels = lab
-       actual_means = actual
-       synthetic_means = synthetic
+        labels = lab
+        actual_means = actual
+        synthetic_means = synthetic
+        census_means = census if census is not None else None
 
     x = np.arange(len(labels))  # the label locations
-    width = w  # the width of the bars
+
+    if census is not None:
+        width = w  # width is narrower to fit 3 bars
+    else:
+        width = w + 0.1  # slightly wider if only two bars
 
     fig, ax = plt.subplots()
     fig.set_facecolor("#ffffff")
 
-    ax.bar(x - width/2, actual_means, width, label = lablist[0], color="#00205B", align = "center")
-    ax.bar(x + width/2, synthetic_means, width, label = lablist[1], color="#D3D3D3", align = "center")
+    # Plot bars
+    ax.bar(x - width, actual_means, width, label=lablist[0], color="#00205B", align="center")
+    ax.bar(x, synthetic_means, width, label=lablist[1], color="#D3D3D3", align="center")
+    
+    if census is not None:
+        ax.bar(x + width, census_means, width, label=lablist[2], color="#8FCB9B", align="center")
 
-    # Add some text for labels, title and custom x-axis tick labels, etc.
+    # Add labels and title
     ax.set_ylabel(ylabel)
     ax.set_title(plottitle)
     ax.set_xticks(x)
     ax.set_xlabel(xlabel)
 
     if xticksrot:
-        ax.set_xticklabels(labels, rotation = 45, ha = "right", rotation_mode='anchor')
+        ax.set_xticklabels(labels, rotation=45, ha="right", rotation_mode='anchor')
     else:
         ax.set_xticklabels(labels)
 
-    ax.legend(loc = 'upper right')
+    ax.legend(loc='upper right')
     fig.tight_layout()
     plt.savefig("%s/" % context.config("analysis_path") + imtitle)
     plt.close()
+
+
+
 
 
 def plot_comparison_hist_purpose(context, title, actual_df, synthetic_df, bins = np.linspace(0,25,120), dpi = 300, cols = 3, rows = 2):

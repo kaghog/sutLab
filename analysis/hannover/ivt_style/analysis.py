@@ -1,8 +1,8 @@
 import pandas as pd
 import numpy as np
 import geopandas as gpd
-import analysis.ivt_style.myutils as myutils
-import analysis.ivt_style.myplottools as myplottools
+import analysis.hannover.ivt_style.myutils as myutils
+import analysis.hannover.ivt_style.myplottools as myplottools
 import matplotlib.pyplot as plt
 #import data.constants as c
 import pyproj
@@ -21,6 +21,7 @@ def configure(context):
     # context.stage("data.hts.trips")
     # context.stage("data.hts.persons")
     # context.stage("synthesis.output")
+    context.stage("hannover.data.census.population")
     context.stage("data.hts.entd.filtered")
 
     context.config("weekend_scenario", False)
@@ -143,6 +144,11 @@ def import_data_actual(context, population_selector = None):
     return df_act, df_persons_no_trip
 
 
+    
+def import_data_census(context, population_selector = None):
+    df_population = context.stage("hannover.data.census.population")
+    return df_population
+    
 
 def aux_data_frame(df_act, df_syn, population_selector = None):
     if population_selector:
@@ -329,32 +335,56 @@ def activity_counts_per_purpose(context, all_CC, suffix = None):
                                     synthetic = counts["synthetic Count"], t = 20, xticksrot=True)
     
 
-def demographics_comparison(context, df_act, df_syn, suffix=None):
+def demographics_comparison(context, df_act, df_syn, df_census, suffix=None):
     
     # Age distribution comparison
-    bins = [0, 17, 24, 34, 44, 54, 64, 74, 150]
-    labels = ["<18", "18-24", "25-34", "35-44", "45-54", "55-64", "65-74", "75+"]
+    bins = [0, 6, 15, 18, 24, 30, 45, 65, 80, 150]
+    labels = ["0-5", "6-14", "15-17", "18-23", "24-29", "30-44", "45-64", "65-79", "80+"]
     act_age = pd.cut(df_act["age"], bins=bins, labels=labels)
     syn_age = pd.cut(df_syn["age"], bins=bins, labels=labels)
     act_counts = act_age.value_counts(sort=False, normalize=True) * 100
     syn_counts = syn_age.value_counts(sort=False, normalize=True) * 100
+    
+    # Census data processing
+    if df_census is not None:
+        age_class_to_label = dict(zip(bins[:-1], labels))
+        df_census["age_label"] = df_census["age_class"].map(age_class_to_label)
+        census_counts_raw = df_census.groupby("age_label")["weight"].sum()
+        census_counts = (census_counts_raw / census_counts_raw.sum()) * 100
+        # Reindex to ensure order matches labels
+        census_counts = census_counts.reindex(labels).fillna(0)
+
     title_figure = "agedistribution"
     title_plot = "Age distribution comparison "
     if suffix:
         title_plot += " - " + suffix
         title_figure += "_" + suffix
     title_figure += ".png"
-    myplottools.plot_comparison_bar(
-        context,
-        imtitle=title_figure,
-        plottitle=title_plot,
-        ylabel="Percentage",
-        xlabel="Age groups",
-        lab=labels,
-        actual=act_counts.values,
-        synthetic=syn_counts.values,
-        xticksrot=True
-    )
+    if df_census is None:
+        myplottools.plot_comparison_bar(
+            context,
+            imtitle=title_figure,
+            plottitle=title_plot,
+            ylabel="Percentage",
+            xlabel="Age groups",
+            lab=labels,
+            actual=act_counts.values,
+            synthetic=syn_counts.values,
+            xticksrot=True
+        )
+    else:
+        myplottools.plot_comparison_bar(
+            context,
+            imtitle=title_figure,
+            plottitle=title_plot,
+            ylabel="Percentage",
+            xlabel="Age groups",
+            lab=labels,
+            actual=act_counts.values,
+            synthetic=syn_counts.values,
+            census=census_counts.values,
+            xticksrot=True
+        )
 
     # Employment status comparison
     def employment_status(df):
@@ -604,7 +634,7 @@ def all_the_plot_distances(context, df_act_dist, df_syn_dist, suffix = None):
     myplottools.plot_comparison_cdf_purpose(context, dpc_title, df_act_dist, df_syn_dist, dpi = 300, cols = 3, rows = 2)
 
 
-def generate_plots(context, df_aux_act, df_aux_syn, df_act, df_syn, df_syn_no_trip, df_act_no_trip, suffix):
+def generate_plots(context, df_aux_act, df_aux_syn, df_act, df_syn, df_syn_no_trip, df_act_no_trip, suffix, df_census):
     syn_CC = df_aux_syn.groupby("chain").size().reset_index(name='count')
     act_CC = df_aux_act.groupby("chain")["weight_person"].sum().reset_index(name='count')
 
@@ -631,7 +661,7 @@ def generate_plots(context, df_aux_act, df_aux_syn, df_act, df_syn, df_syn_no_tr
     activity_counts_per_purpose(context, all_CC, suffix = suffix)
     
     # Demographics comparison
-    demographics_comparison(context, df_act, df_syn, suffix)
+    demographics_comparison(context, df_act, df_syn, df_census, suffix)
     
 
     # 2. CROWFLY DISTANCES
@@ -674,6 +704,7 @@ def execute(context):
     for population_selector, suffix in list(zip(pop_selectors, suffixes)):
         df_syn, df_syn_no_trip = import_data_synthetic(context, population_selector)
         df_act, df_act_no_trip = import_data_actual(context, population_selector)
+        df_census = import_data_census(context, population_selector)
         df_aux_act, df_aux_syn = aux_data_frame(df_act, df_syn)
 
-        generate_plots(context, df_aux_act, df_aux_syn, df_act, df_syn, df_syn_no_trip, df_act_no_trip, suffix)
+        generate_plots(context, df_aux_act, df_aux_syn, df_act, df_syn, df_syn_no_trip, df_act_no_trip, suffix, df_census)
