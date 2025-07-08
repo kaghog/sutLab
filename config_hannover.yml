@@ -7,7 +7,8 @@ working_directory: /set/your/path/to/cache
 # This section defines which parts of the pipeline should be run
 run:
   - synthesis.output
-  - matsim.output
+  #- matsim.output
+  - analysis.hannover.ivt_style.analysis
 
 # Here the configuraiton of the pipeline starts
 config:
@@ -41,4 +42,19 @@ config:
 # Overrides for the hannover pipeline compared to the Île-de-France pipeline
 aliases:
   data.census.filtered: hannover.ipf.attributed
+  synthesis.population.income.selected: hannover.income
+  synthesis.population.spatial.home.zones: hannover.homes
+  synthesis.locations.home.locations: hannover.locations.home
+  synthesis.locations.education: hannover.locations.education
+  synthesis.locations.secondary: hannover.locations.secondary
+  synthesis.locations.work: hannover.locations.work
+  data.od.weighted: hannover.gravity.model
+  data.spatial.iris: hannover.data.spatial.iris
+  data.spatial.codes: hannover.entd_codes
+  synthesis.population.spatial.primary.locations: hannover.locations.synthesis.replacement
+  synthesis.population.enriched: hannover.synthesis.population.enriched
+  matsim.simulation.prepare: hannover.matsim.simulation.prepare
+  data.hts.entd.raw: hannover.data.hts.entd.raw
+  data.hts.entd.filtered: hannover.data.hts.entd.filtered
+  data.hts.entd.cleaned: hannover.data.hts.entd.cleaned
 
