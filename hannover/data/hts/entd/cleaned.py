@@ -272,15 +272,6 @@ def execute(context):
     # Delete from df_trips and df_persons
     df_trips = df_trips[~df_trips["person_id"].isin(problematic_ids)].copy()
     df_persons = df_persons[~df_persons["person_id"].isin(problematic_ids)].copy()
-    
-    print(df_households.shape, df_persons.shape, df_trips.shape)
-    # print column names
-    print("Households:", df_households.columns.tolist())
-    print(df_households.head())
-    print("Persons:", df_persons.columns.tolist())
-    print(df_persons.head())
-    print("Trips:", df_trips.columns.tolist())
-    print(df_trips.head())
 
     return df_households, df_persons, df_trips
 

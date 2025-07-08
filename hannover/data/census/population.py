@@ -12,58 +12,41 @@ TODO: This could be replaced with a Germany-wide extract from GENESIS
 
 def configure(context):
     context.stage("hannover.data.spatial.codes")
-
-    context.config("data_path")
-    context.config("hannover.microbezirke_excel", "hannover/Age_gender_MBZ.xlsx")
+    context.stage("hannover.data.hts.entd.cleaned")
 
 def execute(context):
-    # Load the census data for Hannover
-    # "Mikrobezirk" =  "commune_id"
-    df_census = pd.read_excel("{}/{}".format(
-        context.config("data_path"), context.config("hannover.microbezirke_excel")
-    ), sheet_name = "Altersgruppen MBZ Geschlecht", skiprows = 6, names = [
-        "commune_id", "age_0_male", "age_6_male", "age_15_male","age_18_male", "age_24_male", "age_30_male", "age_45_male", "age_65_male", "age_80_male", 
-        "age_0_female", "age_6_female", "age_15_female","age_18_female", "age_24_female", "age_30_female", "age_45_female", "age_65_female", "age_80_female", 
-        "total",
-    ])
-
-    # Only keep rows where we have a value
-    df_census = df_census[~df_census["total"].isna()].copy()
-    # Only rows where 'mikrobezirk' contains only digits
-    df_census = df_census[df_census["commune_id"].astype(str).str.isdigit()].copy()
-
-    # Define age classes
-    age_classes = [0, 6, 15, 18, 24, 30, 45, 65, 80]
-    male_cols = [f"age_{age}_male" for age in age_classes]
-    female_cols = [f"age_{age}_female" for age in age_classes]
-
-    # Melt male and female separately
-    df_male = df_census[["commune_id"] + male_cols].melt(
-        id_vars="commune_id", var_name="age_class", value_name="weight")
-    df_male["sex"] = "male"
-    df_male["age_class"] = df_male["age_class"].str.extract(r"age_(\d+)_male").astype(int)
-
-    df_female = df_census[["commune_id"] + female_cols].melt(
-        id_vars="commune_id", var_name="age_class", value_name="weight")
-    df_female["sex"] = "female"
-    df_female["age_class"] = df_female["age_class"].str.extract(r"age_(\d+)_female").astype(int)
-
-    # Combine and clean
-    df_final = pd.concat([df_male, df_female], ignore_index=True)
-    df_final["sex"] = df_final["sex"].astype("category")
-    df_final["weight"] = df_final["weight"].astype(int)
-    df_final["commune_id"] = "03241" + df_final["commune_id"].astype(str) # Commune IDs = 03241 + mikrobezirk
+    # Extract commune_id column as a list of strings
+    df_codes = context.stage("hannover.data.spatial.codes")
+    commune_ids = df_codes["commune_id"].astype(str).tolist()
     
-    # Filter out invalid commune_ids
-    df_zones = context.stage("hannover.data.spatial.codes")
-    valid_communes = df_zones["commune_id"].unique()
-    df_final = df_final[df_final["commune_id"].isin(valid_communes)].copy()
+    # Define age classes
+    age_classes = [6, 15, 18, 24, 30, 45, 65, 80]
+    
+    _, df_persons, _ = context.stage("hannover.data.hts.entd.cleaned")
+
+    # Assign age_class to each person in df_persons
+    df_persons = df_persons.copy()
+    df_persons["age_class"] = pd.cut(
+        df_persons["age"],
+        bins=age_classes + [np.inf],  # ensure ages beyond last bin are included
+        labels=age_classes,
+        right=False  # left inclusive, right exclusive
+    )
+
+    # Group by sex and age_class to get counts (weights)
+    df_dist = df_persons.groupby(["sex", "age_class"]).size().reset_index(name="weight")
+
+    # Ensure age_class is integer for consistency
+    df_dist["age_class"] = df_dist["age_class"].astype(int)
+
+    # Create a dataframe of commune_ids
+    commune_df = pd.DataFrame({"commune_id": commune_ids})
+
+    # Cross join commune_df with df_dist to replicate distribution
+    df_dist["key"] = 1
+    commune_df["key"] = 1
+
+    df_result = pd.merge(commune_df, df_dist, on="key").drop(columns="key")
  
-    return df_final[["commune_id", "sex", "age_class", "weight"]]
+    return df_result[["commune_id", "sex", "age_class", "weight"]]
 
-
-def validate(context):
-    if not os.path.exists("{}/{}".format(context.config("data_path"), context.config("hannover.microbezirke_excel"))):
-        raise RuntimeError("Hannover census data is not available")
-
-    return os.path.getsize("{}/{}".format(context.config("data_path"), context.config("hannover.microbezirke_excel")))

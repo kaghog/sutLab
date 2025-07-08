@@ -37,7 +37,7 @@ def execute(context):
     }
 
     # Calculate total employment based on actual population × 2023 employment rate
-    employment_rate_2023 = 222619 / 556139
+    employment_rate_2023 = 10761 / 23308
     total_population = df_population["weight"].sum()
     total_employment_est = total_population * employment_rate_2023
 

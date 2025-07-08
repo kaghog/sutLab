@@ -9,7 +9,6 @@ This stage loads the driving license ownership information for Germany.
 def configure(context):
     context.config("data_path")
     context.config("hannover.licenses_path", "germany/fe4_2024.xlsx")
-
     context.stage("hannover.data.spatial.codes")
 
 COUNT_COLUMN = "Fahrerlaubnisse bzw. Führerscheine"
@@ -92,7 +91,7 @@ def execute(context):
     # Selection of districts
     df_codes = context.stage("hannover.data.spatial.codes")
     df_kreis = df_kreis[df_kreis["departement_id"].isin(df_codes["departement_id"])]
-
+    
     return df_country, df_land, df_kreis
 
 def clean_age_class(age_class):
