@@ -1,52 +1,52 @@
 import pandas as pd
 import numpy as np
 import geopandas as gpd
-import zipfile
-import os
+
 
 """
-This stage loads the raw census data for Bavaria.
+This stage loads the raw census data for Hannover provided at Bezirk level.
 
-TODO: This could be replaced with a Germany-wide extract from GENESIS
 """
 
 def configure(context):
     context.stage("hannover.data.spatial.codes")
-    context.stage("hannover.data.hts.entd.cleaned")
+    context.config("data_path")
+    context.stage("hannover.data.census.raw")
 
 def execute(context):
-    # Extract commune_id column as a list of strings
-    df_codes = context.stage("hannover.data.spatial.codes")
-    commune_ids = df_codes["commune_id"].astype(str).tolist()
     
-    # Define age classes
-    age_classes = [6, 15, 18, 24, 30, 45, 65, 80]
-    
-    _, df_persons, _ = context.stage("hannover.data.hts.entd.cleaned")
-
-    # Assign age_class to each person in df_persons
-    df_persons = df_persons.copy()
-    df_persons["age_class"] = pd.cut(
-        df_persons["age"],
-        bins=age_classes + [np.inf],  # ensure ages beyond last bin are included
-        labels=age_classes,
-        right=False  # left inclusive, right exclusive
+    df = context.stage("hannover.data.census.raw")
+    # Melt to long format for both sexes
+    df_long = pd.wide_to_long(
+        df,
+        stubnames=["male", "female"],
+        i="commune_id",
+        j="age_class",
+        sep="_",
+        suffix='\\d+'
     )
+    df_long = df_long.reset_index()
 
-    # Group by sex and age_class to get counts (weights)
-    df_dist = df_persons.groupby(["sex", "age_class"]).size().reset_index(name="weight")
+    #define commune_id - "03241" is used to identify Hannover region
+    df_long["commune_id"] = "03241" + df_long["mikrobezirk_code"].astype(str)
+    df_long["commune_id"] = df_long["commune_id"].astype("category")
 
-    # Ensure age_class is integer for consistency
-    df_dist["age_class"] = df_dist["age_class"].astype(int)
+    df_male = df_long[["commune_id", "age_class", "male"]].rename(columns={"male": "weight"})
+    df_male["sex"] = "male"
+    df_female = df_long[["commune_id", "age_class", "female"]].rename(columns={"female": "weight"})
+    df_female["sex"] = "female"
 
-    # Create a dataframe of commune_ids
-    commune_df = pd.DataFrame({"commune_id": commune_ids})
+    df_result = pd.concat([df_male, df_female], ignore_index=True)
+    df_result = df_result[df_result["weight"].notna()]
 
-    # Cross join commune_df with df_dist to replicate distribution
-    df_dist["key"] = 1
-    commune_df["key"] = 1
+    #cleaning
+    df_result["weight"] = df_result["weight"].astype(str).str.replace(",", "")
+    df_result["weight"] = df_result["weight"].replace("-", 0)
+    df_result["weight"] = df_result["weight"].astype(int)
+    df_result["sex"] = df_result["sex"].astype("category")
+    df_result["age_class"] = df_result["age_class"].astype(int)
 
-    df_result = pd.merge(commune_df, df_dist, on="key").drop(columns="key")
- 
+    print(df_result[["commune_id", "sex", "age_class", "weight"]])
+    
     return df_result[["commune_id", "sex", "age_class", "weight"]]
 

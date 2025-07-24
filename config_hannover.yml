@@ -50,11 +50,11 @@ aliases:
   synthesis.locations.work: hannover.locations.work
   data.od.weighted: hannover.gravity.model
   data.spatial.iris: hannover.data.spatial.iris
-  data.spatial.codes: hannover.entd_codes
+  data.spatial.codes: hannover.entd_codes #confirm if needed
   synthesis.population.spatial.primary.locations: hannover.locations.synthesis.replacement
-  synthesis.population.enriched: hannover.synthesis.population.enriched
+  #synthesis.population.enriched: hannover.synthesis.population.enriched #taken from munich mid aggregate
   matsim.simulation.prepare: hannover.matsim.simulation.prepare
   data.hts.entd.raw: hannover.data.hts.entd.raw
-  data.hts.entd.filtered: hannover.data.hts.entd.filtered
-  data.hts.entd.cleaned: hannover.data.hts.entd.cleaned
+  data.hts.entd.filtered: hannover.data.entd.mid.filtered
+  data.hts.entd.cleaned: hannover.data.entd.mid.cleaned
 

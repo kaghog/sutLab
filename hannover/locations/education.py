@@ -58,4 +58,6 @@ def execute(context):
     df["location_id"] = np.arange(len(df))
     df["location_id"] = "edu_" + df["location_id"].astype(str)
 
+    #TODO compare with actual school locations data given. Cehck also for buildings file 
+
     return df
