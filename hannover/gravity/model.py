@@ -27,7 +27,7 @@ def evaluate_gravity(population, employees, friction):
     converged = False
 
     # Perform maximum 100 iterations (but convergence will hopefully happen earlier)
-    for iteration in range(int(1e6)):
+    for iteration in range(int(1e2)):
         # Backup to calculate change
         previous_production = np.copy(production)
         previous_attraction = np.copy(attraction)
@@ -88,25 +88,48 @@ def execute(context):
         "weight": "employees"
     })[["destination_id", "employees"]]
 
+    
+
     # Aggregate population
     df_population = df_population.groupby("origin_id")["population"].sum().reset_index()
-
+    
     # Find the set of used municipalities (also taking into account zero flows)
     municipalities = set(df_population["origin_id"])
     municipalities |= set(df_employees["destination_id"])
     municipalities |= set(df_distances["origin_id"])
     municipalities |= set(df_distances["destination_id"])
     municipalities = sorted(list(municipalities))
+
+    
+    print(type(municipalities))  # Should be list
+    print(set(type(m) for m in municipalities))  
+
+
+    df_pop = df_distances.copy()
+    nan_rows = df_pop[df_pop.isnull().any(axis=1)]
+    nan_columns = nan_rows.columns[nan_rows.isnull().any(axis=0)]
+    print(nan_rows[nan_columns])
+    assert not df_pop.isnull().values.any(), "df_pop contains NaNs!"
     
     # Make sure we have all municipalities in all data sets
     df_population = df_population.set_index("origin_id").reindex(municipalities).fillna(0.0)
     df_employees = df_employees.set_index("destination_id").reindex(municipalities).fillna(0.0)
-    df_distances = df_distances.set_index(["origin_id", "destination_id"]).reindex(pd.MultiIndex.from_product([
-        municipalities, municipalities
-    ]))
+
+    full_pairs = pd.MultiIndex.from_product([municipalities, municipalities], names=["origin_id", "destination_id"])
+    df_distances = df_distances.set_index(["origin_id", "destination_id"]).reindex(full_pairs).fillna(0.0).reset_index()
+
+    assert not df_distances.isnull().values.any(), "Df distance 3 contains NaNs!"
+    # NaNs are generated because there are municipalities pairs that don't match from running the below
+    # df_distances = df_distances.set_index(["origin_id", "destination_id"]).reindex(pd.MultiIndex.from_product([
+    #     municipalities, municipalities
+    # ]))
 
     # Transform from a list into a matrix
     distances = df_distances["distance_km"].values.reshape((len(municipalities), len(municipalities)))
+
+    # Check for nan in distance matrix
+    
+    assert not np.isnan(distances).any(), "Distance matrix contains NaNs!"
 
     # Run model
     population = df_population["population"] 

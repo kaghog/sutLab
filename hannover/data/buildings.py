@@ -11,7 +11,7 @@ This stage loads the raw data from the Hannover building registry.
 
 def configure(context):
     context.config("data_path")
-    context.config("hannover.buildings_path", "hannover/buildings/buildings_Hannover_20km.shp")
+    context.config("hannover.buildings_path", "buildings/buildings_Hannover_20km.shp")
     
     context.stage("hannover.data.spatial.iris")
 
@@ -20,7 +20,7 @@ def execute(context):
     df_combined = []
     
     start_index = 0
-    df_buildings = gpd.read_file(os.path.join(context.config("data_path"), context.config("hannover.buildings_path")))
+    df_buildings = gpd.read_file("{}/{}".format(context.config("data_path"), context.config("hannover.buildings_path")))
         
     # Weighting by area
     df_buildings["weight"] = df_buildings.area
@@ -55,7 +55,6 @@ def execute(context):
 
     if len(missing_zones) > 0:
         print("Adding {} centroids as buildings for missing municipalities".format(len(missing_zones)))
-
         df_missing = df_zones[df_zones["commune_id"].isin(missing_zones)][["commune_id", "iris_id", "geometry"]].copy()
         df_missing["geometry"] = df_missing["geometry"].centroid
         df_missing["building_id"] = np.arange(len(df_missing)) + start_index

@@ -13,7 +13,7 @@ def configure(context):
 
 def execute(context):
     # Load shapes
-    gdf_mikrobezirke = gpd.read_file(os.path.join(context.config("data_path"), context.config("hannover.population_shp")))[["MIKROBZNR", "geometry"]]
+    gdf_mikrobezirke = gpd.read_file("{}/{}".format(context.config("data_path"), context.config("hannover.population_shp")))[["MIKROBZNR", "geometry"]]
 
     # Rename
     df_population = gdf_mikrobezirke.rename(columns = { 

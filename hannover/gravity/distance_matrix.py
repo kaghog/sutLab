@@ -13,6 +13,7 @@ def configure(context):
 def execute(context):
     # One municipality per "IRIS"
     df_municipalities = context.stage("hannover.data.spatial.iris")
+    #assert not df_municipalities.isnull().values.any(), "Df muni contains NaNs!"
     municipalities = df_municipalities["commune_id"].values
         
     # Initialize matrix to zero
@@ -36,4 +37,6 @@ def execute(context):
     municipalities, municipalities
     ], names = ["origin_id", "destination_id"])).reset_index()
    
+    assert not df_distances.isnull().values.any(), "Df distances contains NaNs!"
+    
     return df_distances

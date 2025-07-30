@@ -11,10 +11,11 @@ TODO: This could be replaced with a Germany-wide extract from GENESIS
 
 def configure(context):
     context.config("data_path")
-    context.config("hannover.population_path", "Age_gender_MBZ.xlsx")
+    context.config("hannover.population_path", "census/Age_gender_MBZ.xlsx")
 
 def execute(context):
-    EXCEL_PATH = "Z:\\Simulation\\01_Inputs\\Hannover\\Sociodemographic data\\Age_gender_MBZ.xlsx"
+    EXCEL_PATH = "{}/{}".format(context.config("data_path"),context.config("hannover.population_path"))
+    print(f"Loading census data from {EXCEL_PATH}")
     SHEET_NAME = "Altersgruppen MBZ Geschlecht"
     AGE_GROUPS = [
         (0, "0 bis 5 Jahre"),

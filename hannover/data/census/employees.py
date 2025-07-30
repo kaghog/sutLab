@@ -34,4 +34,6 @@ def execute(context):
     # Final output
     df_result = df_pop_mikro[["commune_id", "weight"]]
 
+    assert not df_result.isnull().values.any(), "df_employees contains NaNs!"
+
     return df_result
