@@ -336,13 +336,23 @@ def activity_counts_per_purpose(context, all_CC, suffix = None):
     
 
 def demographics_comparison(context, df_act, df_syn, df_census, suffix=None):
+
+    def weight_counts(df, column, weight_column='weight_person'):
+        """
+        Compute weighted counts for a given column in the dataframe.
+        """
+        counts = df.groupby(column)[weight_column].sum()
+        counts = counts / counts.sum() * 100
+        return counts
     
     # Age distribution comparison
     bins = [0, 6, 15, 18, 24, 30, 45, 65, 80, 150]
     labels = ["0-5", "6-14", "15-17", "18-23", "24-29", "30-44", "45-64", "65-79", "80+"]
-    act_age = pd.cut(df_act["age"], bins=bins, labels=labels)
+    df_act['age_bin'] = pd.cut(df_act["age"], bins=bins, labels=labels)
+    act_counts = df_act.groupby('age_bin')['weight_person'].sum()
+    act_counts = act_counts / act_counts.sum() * 100
+
     syn_age = pd.cut(df_syn["age"], bins=bins, labels=labels)
-    act_counts = act_age.value_counts(sort=False, normalize=True) * 100
     syn_counts = syn_age.value_counts(sort=False, normalize=True) * 100
     
     # Census data processing
@@ -389,9 +399,12 @@ def demographics_comparison(context, df_act, df_syn, df_census, suffix=None):
     # Employment status comparison
     def employment_status(df):
         return df["employed"].replace({ False: "unemployed", True: "employed"})
-    act_employment = employment_status(df_act)
+    df_act["employment_status"] = employment_status(df_act)
+    #act_counts = act_employment.value_counts(normalize=True) * 100
+    act_counts = weight_counts(df_act, "employment_status")
+    df_act.drop(columns=["employment_status"], inplace=True)
+
     syn_employment = employment_status(df_syn)
-    act_counts = act_employment.value_counts(normalize=True) * 100
     syn_counts = syn_employment.value_counts(normalize=True) * 100
     title_figure = "employmentstatus"
     title_plot = "Employment status comparison "
@@ -417,9 +430,13 @@ def demographics_comparison(context, df_act, df_syn, df_census, suffix=None):
         return df["has_license"].replace({False: "No", True: "Yes"})
     def _has_driving_license(df):
         return df["has_driving_license"].replace({False: "No", True: "Yes"})
-    act_license = has_driving_license(df_act)
+    
+    df_act["act_license"] = has_driving_license(df_act)
+    act_counts = weight_counts(df_act, "act_license")
+    #act_counts = act_license.value_counts(normalize=True) * 100
+    df_act.drop(columns=["act_license"], inplace=True)
+
     syn_license = _has_driving_license(df_syn)
-    act_counts = act_license.value_counts(normalize=True) * 100
     syn_counts = syn_license.value_counts(normalize=True) * 100
     title_figure = "drivinglicense"
     title_plot = "Driving license comparison "
@@ -442,9 +459,13 @@ def demographics_comparison(context, df_act, df_syn, df_census, suffix=None):
     # Public transport subscription
     def has_pt_subscription(df):
         return df["has_pt_subscription"].replace({False: "No", True: "Yes"})
-    act_pt = has_pt_subscription(df_act)
+    
+    df_act["act_pt"] = has_pt_subscription(df_act)
+    act_counts = weight_counts(df_act, "act_pt")
+    #act_counts = act_pt.value_counts(normalize=True) * 100
+    df_act.drop(columns=["act_pt"], inplace=True)
+
     syn_pt = has_pt_subscription(df_syn)
-    act_counts = act_pt.value_counts(normalize=True) * 100
     syn_counts = syn_pt.value_counts(normalize=True) * 100
     title_figure = "ptsubscription"
     title_plot = "Public transport subscription comparison "
