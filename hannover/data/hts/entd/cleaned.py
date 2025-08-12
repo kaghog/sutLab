@@ -24,7 +24,7 @@ PURPOSE_MAP = [
     ("8", "home"),
     ("9", "other"),
     ("10", "other"),
-    ("99", "other"),
+    ("99", "other"), #unknown
 ]
 
 MODES_MAP = [
@@ -33,7 +33,7 @@ MODES_MAP = [
     ("3", "car_passenger"),
     ("4", "car"), # taxi
     ("5", "pt"),
-    ("9", "pt"), # no information assume pt
+    ("9", "pt"), # no information assume pt for unknown
     ("703", "pt"), # Other assume pt
 ]
 
@@ -272,6 +272,20 @@ def execute(context):
     # Delete from df_trips and df_persons
     df_trips = df_trips[~df_trips["person_id"].isin(problematic_ids)].copy()
     df_persons = df_persons[~df_persons["person_id"].isin(problematic_ids)].copy()
+
+        # Filter out persons for which we do not have sufficient information
+    unknown_ids = set(df_trips[
+        (df_trips["mode"] == "unknown") | (df_trips["preceding_purpose"] == "unknown")
+        | (df_trips["following_purpose"] == "unknown")
+    ]["person_id"])
+
+    print("  Removed %d persons with trips with unknown mode or unknown purpose" % len(unknown_ids))
+    df_trips = df_trips[~df_trips["person_id"].isin(unknown_ids)]
+    df_persons = df_persons[~df_persons["person_id"].isin(unknown_ids)].copy()
+
+    print(len(set(df_persons["person_id"].values) - set(df_trips["person_id"].values)), "raw number of persons without trips")
+    print(df_trips.head())
+    print(df_persons.shape)
 
     return df_households, df_persons, df_trips
 
