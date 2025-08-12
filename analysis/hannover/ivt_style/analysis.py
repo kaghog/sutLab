@@ -22,7 +22,7 @@ def configure(context):
     # context.stage("data.hts.persons")
     # context.stage("synthesis.output")
     context.stage("hannover.data.census.population")
-    context.stage("data.hts.entd.filtered")
+    context.stage("data.hts.entd.reweighted")
 
     context.config("weekend_scenario", False)
     context.config("specific_weekend_scenario", "all") # options are "all", "saturday", "sunday"
@@ -39,6 +39,7 @@ def import_data_synthetic(context, population_selector = None):
     filepath = "%s/%shouseholds.csv" %  (context.config("output_path"), context.config("output_prefix"))
     df_hhl = pd.read_csv(filepath, encoding = "latin1", sep = ";")
 
+
     df_syn = df_persons.merge(df_hhl, left_on="person_id", right_on="household_id")
     df_syn = df_persons.merge(df_trips, left_on="person_id", right_on="person_id")
     
@@ -47,6 +48,7 @@ def import_data_synthetic(context, population_selector = None):
     df_persons_no_trip = df_persons_no_trip.set_index(["person_id"])
     df_persons_no_trip = df_persons_no_trip[df_persons_no_trip["age"] >= 6]
     df_syn = df_syn[df_syn["age"]>=6]
+    print(df_persons_no_trip.shape, "persons without trip in synpop")
 
     if population_selector:
         if "age_selector" in population_selector.keys():
@@ -75,7 +77,7 @@ def import_data_synthetic(context, population_selector = None):
 
 
 def import_data_actual(context, population_selector = None):
-    df_act_households , df_act_persons, df_act_trips = context.stage("data.hts.entd.filtered")
+    df_act_households , df_act_persons, df_act_trips = context.stage("data.hts.entd.reweighted")
     
     # First ensure number_of_vehicles is numeric and convert to boolean
     df_act_households["number_of_vehicles"] = pd.to_numeric(df_act_households["number_of_vehicles"], errors="coerce").fillna(0)
@@ -122,6 +124,7 @@ def import_data_actual(context, population_selector = None):
     t_id = df_act_trips["person_id"].values.tolist()
     df_persons_no_trip = df_act_persons[np.logical_not(df_act_persons["person_id"].isin(t_id))]
     df_persons_no_trip = df_persons_no_trip.set_index(["person_id"])
+    print(df_persons_no_trip.shape, "persons without trip in hts")
 
     if population_selector:
         if "age_selector" in population_selector.keys():
