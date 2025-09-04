@@ -2,13 +2,18 @@
 ## based on the synpp package
 
 # This is the path to a directory where the pipeline can store temporary data
-working_directory: /set/your/path/to/cache
+working_directory: cache
 
 # This section defines which parts of the pipeline should be run
 run:
-  - synthesis.output
-  #- matsim.output
-  - analysis.hannover.ivt_style.analysis
+  #- synthesis.output
+   - matsim.output
+  #- analysis.hannover.ivt_style.analysis
+  #- hannover.locations.education
+  #- hannover.data.hts.entd.cleaned
+  #- analysis.hannover.analysis_new
+  #- analysis.synthesis.sociodemographics.chains
+
 
 # Here the configuraiton of the pipeline starts
 config:
@@ -20,23 +25,31 @@ config:
 
   # Define sampling rate and random seed for the output population
   sampling_rate: 0.01
+  acquisition_sample_size: 1
   random_seed: 1234
  
   # Paths to the input data and where the output should be stored
-  data_path: /set/your/path/to/data
-  output_path: /set/your/path/to/output
+  data_path: ./raw_data/Hannover
+  output_path: output
   output_prefix: hannover_1pct_
+  hannover.population_shp: /admin_units/Mikrobezirke/SKH20_Mikrobezirke.shp
+  hannover.buildings_path: /buildings/buildings_Hannover_20km.shp
+  osm_path_hannover: osm/niedersachsen-latest.osm.pbf
+  check_spatial_codes: True
+  analysis_path: output/analysis
+  osmconvert_binary: osmconvert
 
   # Only interesting if you run the simulation
-  java_memory: 12G
+  java_memory: 64G
 
   # Defaults for Hannover
   home_location_sampling: weighted
-  mode_choice: false
+  mode_choice: true
   matching_attributes: ["sex", "age_class", "has_license"]
 
   gtfs_path: gtfs
   osm_path: osm
+  osmosis_binary: osmosis/bin
 
 
 # Overrides for the hannover pipeline compared to the Île-de-France pipeline
@@ -50,11 +63,14 @@ aliases:
   synthesis.locations.work: hannover.locations.work
   data.od.weighted: hannover.gravity.model
   data.spatial.iris: hannover.data.spatial.iris
-  data.spatial.codes: hannover.entd_codes #confirm if needed
+  data.spatial.codes: hannover.entd_codes
   synthesis.population.spatial.primary.locations: hannover.locations.synthesis.replacement
   #synthesis.population.enriched: hannover.synthesis.population.enriched #taken from munich mid aggregate
   matsim.simulation.prepare: hannover.matsim.simulation.prepare
+  #analysis.statistics: analysis.hannover.statistics
   data.hts.entd.raw: hannover.data.hts.entd.raw
-  data.hts.entd.filtered: hannover.data.entd.mid.filtered
-  data.hts.entd.cleaned: hannover.data.entd.mid.cleaned
+  data.hts.entd.filtered: hannover.data.hts.entd.filtered
+  data.hts.entd.cleaned: hannover.data.hts.entd.cleaned
+  matsim.simulation.prepare: matsim.scenario.prepare
+  
 
