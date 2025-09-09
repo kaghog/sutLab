@@ -367,6 +367,30 @@ def demographics_comparison(context, df_act, df_syn, df_census, suffix=None):
         # Reindex to ensure order matches labels
         census_counts = census_counts.reindex(labels).fillna(0)
 
+        # Calculate differences
+        diff_hts = syn_counts - act_counts
+        diff_census = syn_counts - census_counts
+
+        # Create the difference plot
+        title_figure_diff = "agedistribution_differences"
+        title_plot_diff = "Age Distribution Differences from Synthetic"
+        if suffix:
+            title_plot_diff += " - " + suffix
+            title_figure_diff += "_" + suffix
+        title_figure_diff += ".png"
+
+        myplottools.plot_distribution_differences(
+            context,
+            imtitle=title_figure_diff,
+            plottitle=title_plot_diff,
+            ylabel="Difference (Percentage Points)",
+            xlabel="Age groups",
+            lab=labels,
+            diff_actual=diff_hts.values,
+            diff_census=diff_census.values,
+            xticksrot=True
+        )
+
     title_figure = "agedistribution"
     title_plot = "Age distribution comparison "
     if suffix:
@@ -399,6 +423,44 @@ def demographics_comparison(context, df_act, df_syn, df_census, suffix=None):
             xticksrot=True
         )
 
+        # Graph 1: Synthetic and HTS
+        title_figure_syn_hts = "agedistribution_syn_hts"
+        title_plot_syn_hts = "Age distribution comparison (Synthetic vs HTS) "
+        if suffix:
+            title_plot_syn_hts += " - " + suffix
+            title_figure_syn_hts += "_" + suffix
+        title_figure_syn_hts += ".png"
+        myplottools.plot_comparison_bar(
+            context,
+            imtitle=title_figure_syn_hts,
+            plottitle=title_plot_syn_hts,
+            ylabel="Percentage",
+            xlabel="Age groups",
+            lab=labels,
+            actual=act_counts.values,
+            synthetic=syn_counts.values,
+            xticksrot=True
+        )
+
+        # Graph 2: Synthetic and Census
+        title_figure_syn_census = "agedistribution_syn_census"
+        title_plot_syn_census = "Age distribution comparison (Synthetic vs Census) "
+        if suffix:
+            title_plot_syn_census += " - " + suffix
+            title_figure_syn_census += "_" + suffix
+        title_figure_syn_census += ".png"
+        myplottools.plot_comparison_bar(
+            context,
+            imtitle=title_figure_syn_census,
+            plottitle=title_plot_syn_census,
+            ylabel="Percentage",
+            xlabel="Age groups",
+            lab=labels,
+            synthetic=syn_counts.values,
+            census=census_counts.values,
+            xticksrot=True
+        )
+
     # Employment status comparison
     def employment_status(df):
         return df["employed"].replace({ False: "unemployed", True: "employed"})
@@ -414,7 +476,6 @@ def demographics_comparison(context, df_act, df_syn, df_census, suffix=None):
     if suffix:
         title_plot += " - " + suffix
         title_figure += "_" + suffix
-        
     title_figure += ".png"
     myplottools.plot_comparison_bar(
         context,
@@ -487,9 +548,6 @@ def demographics_comparison(context, df_act, df_syn, df_census, suffix=None):
         synthetic=syn_counts.values,
         xticksrot=True
     )
-
-    
-    
 
 
 def compute_distances_synthetic(df_syn, threshold = 25):

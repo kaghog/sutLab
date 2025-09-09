@@ -9,3 +9,6 @@ output
 config_local_*.yml
 
 *.xlsx
+
+pyproject.toml
+sutlab.egg-info/*

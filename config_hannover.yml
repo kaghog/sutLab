@@ -6,15 +6,16 @@ working_directory: cache
 
 # This section defines which parts of the pipeline should be run
 run:
-  #- synthesis.output
-   - matsim.output
-  #- analysis.hannover.ivt_style.analysis
+  - synthesis.output
+  # - matsim.output
+  - analysis.hannover.ivt_style.analysis
   #- hannover.locations.education
   #- hannover.data.hts.entd.cleaned
-  #- analysis.hannover.analysis_new
+  # - analysis.hannover.analysis_new
   #- analysis.synthesis.sociodemographics.chains
 
 
+flowchart_path: output/flowchart
 # Here the configuraiton of the pipeline starts
 config:
   # Some general configuration
@@ -29,7 +30,7 @@ config:
   random_seed: 1234
  
   # Paths to the input data and where the output should be stored
-  data_path: ./raw_data/Hannover
+  data_path: ../data/hannover
   output_path: output
   output_prefix: hannover_1pct_
   hannover.population_shp: /admin_units/Mikrobezirke/SKH20_Mikrobezirke.shp
@@ -37,14 +38,16 @@ config:
   osm_path_hannover: osm/niedersachsen-latest.osm.pbf
   check_spatial_codes: True
   analysis_path: output/analysis
-  osmconvert_binary: osmconvert
+  osmconvert_binary: /home/lmg/Documents/Code/sut-lab/sutLab/osmconvert
+
+  dryrun: true
 
   # Only interesting if you run the simulation
-  java_memory: 64G
+  java_memory: 14G
 
   # Defaults for Hannover
   home_location_sampling: weighted
-  mode_choice: true
+  mode_choice: false #false for now to solve bicycle problem
   matching_attributes: ["sex", "age_class", "has_license"]
 
   gtfs_path: gtfs

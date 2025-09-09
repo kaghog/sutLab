@@ -50,7 +50,7 @@ def add_small_cdf(axes, r, c, act, x, y, lab = ["Synthetic", "HTS"]):
     return axes
 
 
-def plot_comparison_bar(context, imtitle, plottitle, ylabel, xlabel, lab, actual, synthetic, census=None, lablist=['HTS', 'Synthetic', 'Census'], t=15, figsize=[12,7], dpi=300, w=0.25, xticksrot=False):
+def plot_comparison_bar(context, imtitle, plottitle, ylabel, xlabel, lab, actual=None, synthetic=None, census=None, lablist=['HTS', 'Synthetic', 'Census'], t=15, figsize=[12,7], dpi=300, w=0.25, xticksrot=False):
     import matplotlib.pyplot as plt
     import numpy as np
 
@@ -61,31 +61,36 @@ def plot_comparison_bar(context, imtitle, plottitle, ylabel, xlabel, lab, actual
     top = t
     if top is not None:
         labels = lab[:top]
-        actual_means = actual[:top]
-        synthetic_means = synthetic[:top]
-        census_means = census[:top] if census is not None else None
     else:
         labels = lab
-        actual_means = actual
-        synthetic_means = synthetic
-        census_means = census if census is not None else None
 
+    datasets = {
+        'actual': actual[:top] if actual is not None and top is not None else actual,
+        'synthetic': synthetic[:top] if synthetic is not None and top is not None else synthetic,
+        'census': census[:top] if census is not None and top is not None else census
+    }
+    
+    colors = {'actual': "#00205B", 'synthetic': "#D3D3D3", 'census': "#8FCB9B"}
+    legend_labels = {'actual': lablist[0], 'synthetic': lablist[1], 'census': lablist[2]}
+
+    # Filter out None datasets
+    active_datasets = {k: v for k, v in datasets.items() if v is not None}
+    num_bars = len(active_datasets)
+    
     x = np.arange(len(labels))  # the label locations
-
-    if census is not None:
-        width = w  # width is narrower to fit 3 bars
+    
+    if num_bars > 1:
+        width = w / num_bars * 2.5
     else:
-        width = w + 0.1  # slightly wider if only two bars
+        width = 0.5
 
     fig, ax = plt.subplots()
     fig.set_facecolor("#ffffff")
 
     # Plot bars
-    ax.bar(x - width, actual_means, width, label=lablist[0], color="#00205B", align="center")
-    ax.bar(x, synthetic_means, width, label=lablist[1], color="#D3D3D3", align="center")
-    
-    if census is not None:
-        ax.bar(x + width, census_means, width, label=lablist[2], color="#8FCB9B", align="center")
+    for i, (key, data) in enumerate(active_datasets.items()):
+        offset = width * (i - (num_bars - 1) / 2)
+        ax.bar(x + offset, data, width, label=legend_labels[key], color=colors[key], align="center")
 
     # Add labels and title
     ax.set_ylabel(ylabel)
@@ -104,7 +109,55 @@ def plot_comparison_bar(context, imtitle, plottitle, ylabel, xlabel, lab, actual
     plt.close()
 
 
+def plot_distribution_differences(context, imtitle, plottitle, ylabel, xlabel, lab, diff_actual, diff_census, lablist=['Synthetic vs HTS', 'Synthetic vs Census'], t=15, figsize=[12,7], dpi=300, w=0.35, xticksrot=False):
+    """
+    Plots the differences between distributions as a bar chart.
+    """
+    import matplotlib.pyplot as plt
+    import numpy as np
 
+    plt.rcParams['axes.facecolor'] = "#ffffff"
+    plt.rcParams['figure.figsize'] = figsize
+    plt.rcParams['figure.dpi'] = dpi
+
+    top = t
+    if top is not None:
+        labels = lab[:top]
+        diff_actual_means = diff_actual[:top]
+        diff_census_means = diff_census[:top]
+    else:
+        labels = lab
+        diff_actual_means = diff_actual
+        diff_census_means = diff_census
+
+    x = np.arange(len(labels))  # the label locations
+    width = w
+
+    fig, ax = plt.subplots()
+    fig.set_facecolor("#ffffff")
+
+    # Plot bars
+    ax.bar(x - width/2, diff_actual_means, width, label=lablist[0], color="#00205B", align="center")
+    ax.bar(x + width/2, diff_census_means, width, label=lablist[1], color="#8FCB9B", align="center")
+
+    # Add a horizontal line at y=0 to emphasize the difference
+    ax.axhline(0, color='grey', linewidth=0.8)
+
+    # Add labels and title
+    ax.set_ylabel(ylabel)
+    ax.set_title(plottitle)
+    ax.set_xticks(x)
+    ax.set_xlabel(xlabel)
+
+    if xticksrot:
+        ax.set_xticklabels(labels, rotation=45, ha="right", rotation_mode='anchor')
+    else:
+        ax.set_xticklabels(labels)
+
+    ax.legend(loc='upper right')
+    fig.tight_layout()
+    plt.savefig("%s/" % context.config("analysis_path") + imtitle)
+    plt.close()
 
 
 def plot_comparison_hist_purpose(context, title, actual_df, synthetic_df, bins = np.linspace(0,25,120), dpi = 300, cols = 3, rows = 2):
