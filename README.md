@@ -36,15 +36,24 @@ In case you are using a Mac machine there are minoconda paths within the `enviro
 
 For settign up the python environment:
 - Install `Python 3.10.13`
-- Install packages in `euler_requirements.txt`
-- How to do this in detail on our Euler server can be found [here](https://gitlab.ethz.ch/csfm/csfm-documentation/-/wikis/MATSim/Eqasim-on-Euler).
+- Install packages in `euler_requirements.txt` similar to what is in the `environment.yml [path]` file. You can use venv for this.
+- To do this on the Euler server, conda would not work. One should use venv.
+- First load the module stacks needed. 
+    - `module load stack/2024-06`
+    - `module load gcc/12.2.0`
+    - `module load python/3.10.13`
+- Create the environment using venv. Example: 
+    - `$ python -m venv --system-site-packages /path_to/myenv`
+    - `$ source /path_to/myenv/bin/activate`
+    - `$ python -m pip install -r euler_requirements.txt`
+You can always pip install other packages into the environmnet needed at anytime. While workign on Euler it is advised not to store your cache or outputs in your dome directory but in the `/cluster/scratch/your-user-name` directory. Also before running the `run.sh` script you need to load a module that allows access to the internet through the compute node:
+```module load eth_proxy```
 
 # Run
 
 Once you have set up your environment, all dependencies should have been installed, including synpp. At this point, all you need to do is adjust the config file (**DO NOT MODIFY** `config.yml`) to run the stages you required, and then:
 
 `python3 -m synpp config.yml`
-
 
 
 # Data preparation and usage
