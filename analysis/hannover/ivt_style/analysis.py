@@ -93,26 +93,11 @@ def import_data_actual(context, population_selector = None):
     # Fill missing households with False (if person household_id not in households df)
     df_act_persons["car_availability"] = df_act_persons["car_availability"].fillna(False)
 
-    # df_act_persons = context.stage("data.microcensus.persons")
-
-    # # TODO: for sociodemographics we should actually use all persons
-    # # including those filtered in trips (?) Milos feb '24
-
-    # df_act_trips = context.stage("data.microcensus.trips")[0]
-    # Merging with person information, correcting trips with erroneous purpose
-
     df_act_persons.rename(columns = {"person_weight": "weight_person"}, inplace = True)
     df_px = df_act_persons[["person_id", "weight_person", "employed", "studies",
                                                 "age", "sex", "car_availability", "has_license", "has_pt_subscription", "socioprofessional_class"]]
     df_act = df_act_trips.merge(df_px, on=["person_id"], how='left')
 
-    # TODO: do we need this and why? Milos Feb '24
-    # df_act.loc[(df_act["purpose"]=='work') & (df_act["age"] < 16), "purpose"] = "other"
-
-    #separate trip purposes into O-D
-    # df_act["following_purpose"] = df_act["purpose"]
-    # df_act["preceding_purpose"] = df_act["following_purpose"].shift(1)
-    # df_act.loc[df_act["trip_id"] == 1, "preceding_purpose"] = "home"
     df_act["preceding_purpose"] = df_act["preceding_purpose"].astype(str)
     df_act["following_purpose"] = df_act["following_purpose"].astype(str)
     df_act["od"] = df_act["preceding_purpose"] + "_" + df_act["following_purpose"]
@@ -342,38 +327,34 @@ def activity_counts_per_purpose(context, all_CC, suffix = None):
 
 def demographics_comparison(context, df_act, df_syn, df_census, suffix=None):
 
-    def weight_counts(df, column, weight_column='weight_person'):
-        """
-        Compute weighted counts for a given column in the dataframe.
-        """
-        counts = df.groupby(column)[weight_column].sum()
-        counts = counts / counts.sum() * 100
-        return counts
-    
-    # Age distribution comparison
+    # -------- Age distribution comparison (robust, aligned) --------
     bins = [0, 6, 15, 18, 24, 30, 45, 65, 80, 150]
     labels = ["0-5", "6-14", "15-17", "18-23", "24-29", "30-44", "45-64", "65-79", "80+"]
-    df_act['age_bin'] = pd.cut(df_act["age"], bins=bins, labels=labels)
-    act_counts = df_act.groupby('age_bin')['weight_person'].sum()
-    act_counts = act_counts / act_counts.sum() * 100
 
-    syn_age = pd.cut(df_syn["age"], bins=bins, labels=labels)
-    syn_counts = syn_age.value_counts(sort=False, normalize=True) * 100
-    
-    # Census data processing
+    # Cut ages into labeled bins
+    df_act['age_bin'] = pd.cut(df_act["age"], bins=bins, labels=labels)
+    df_syn['age_bin'] = pd.cut(df_syn["age"], bins=bins, labels=labels)
+
+    # Weighted HTS counts, unweighted synthetic counts; both as percentages
+    act_counts = myplottools.compute_counts(df_act['age_bin'], weights=df_act['weight_person'], categories=labels)
+    syn_counts = myplottools.compute_counts(df_syn['age_bin'], weights=None, categories=labels)
+
+    # Prepare variable to satisfy linters; will be overwritten if census provided
+    census_counts = pd.Series(index=labels, dtype=float)
+
+    # Census data processing and alignment
     if df_census is not None:
         age_class_to_label = dict(zip(bins[:-1], labels))
         df_census["age_label"] = df_census["age_class"].map(age_class_to_label)
         census_counts_raw = df_census.groupby("age_label")["weight"].sum()
         census_counts = (census_counts_raw / census_counts_raw.sum()) * 100
-        # Reindex to ensure order matches labels
         census_counts = census_counts.reindex(labels).fillna(0)
 
-        # Calculate differences
+        # Calculate differences (Synthetic - Reference)
         diff_hts = syn_counts - act_counts
         diff_census = syn_counts - census_counts
 
-        # Create the difference plot
+        # Plot differences
         title_figure_diff = "agedistribution_differences"
         title_plot_diff = "Age Distribution Differences from Synthetic"
         if suffix:
@@ -393,6 +374,7 @@ def demographics_comparison(context, df_act, df_syn, df_census, suffix=None):
             xticksrot=True
         )
 
+    # Main age plots (two-way or three-way)
     title_figure = "agedistribution"
     title_plot = "Age distribution comparison "
     if suffix:
@@ -463,18 +445,18 @@ def demographics_comparison(context, df_act, df_syn, df_census, suffix=None):
             xticksrot=True
         )
 
-    # Employment status comparison
+    # -------- Employment status comparison --------
     def employment_status(df):
         return df["employed"].replace({ False: "unemployed", True: "employed"})
+
     df_act["employment_status"] = employment_status(df_act)
-    #act_counts = act_employment.value_counts(normalize=True) * 100
-    act_counts = weight_counts(df_act, "employment_status")
+    act_counts = myplottools.compute_counts(df_act["employment_status"], weights=df_act["weight_person"], categories=["unemployed", "employed"])  # fixed order
     df_act.drop(columns=["employment_status"], inplace=True)
 
     syn_employment = employment_status(df_syn)
-    syn_counts = syn_employment.value_counts(normalize=True) * 100
-    # Align category order with HTS
-    syn_counts = syn_counts.reindex(act_counts.index).fillna(0)
+    syn_counts = myplottools.compute_counts(syn_employment, weights=None, categories=act_counts.index.tolist())
+    syn_counts = myplottools.align_series(act_counts, syn_counts)
+
     title_figure = "employmentstatus"
     title_plot = "Employment status comparison "
     if suffix:
@@ -492,22 +474,15 @@ def demographics_comparison(context, df_act, df_syn, df_census, suffix=None):
         synthetic=syn_counts.values,
         xticksrot=True
     )
-    
-    # Driving license
-    def has_driving_license(df):
-        return df["has_license"].replace({False: "No", True: "Yes"})
-    def _has_driving_license(df):
-        return df["has_driving_license"].replace({False: "No", True: "Yes"})
-    
-    df_act["act_license"] = has_driving_license(df_act)
-    act_counts = weight_counts(df_act, "act_license")
-    #act_counts = act_license.value_counts(normalize=True) * 100
-    df_act.drop(columns=["act_license"], inplace=True)
 
-    syn_license = _has_driving_license(df_syn)
-    syn_counts = syn_license.value_counts(normalize=True) * 100
-    # Align category order with HTS (typically ["No","Yes"]) to avoid swapped bars
-    syn_counts = syn_counts.reindex(act_counts.index).fillna(0)
+    # -------- Driving license (HTS as reference, add Census third series) --------
+    act_license_labels = myplottools.map_bool_to_labels(df_act["has_license"], yes_label="Yes", no_label="No")
+    act_counts = myplottools.compute_counts(act_license_labels, weights=df_act["weight_person"], categories=["No", "Yes"])  # fixed order
+
+    syn_license_labels = myplottools.map_bool_to_labels(df_syn.get("has_driving_license", pd.Series(index=df_syn.index, dtype=bool)), yes_label="Yes", no_label="No")
+    syn_counts = myplottools.compute_counts(syn_license_labels, weights=None, categories=act_counts.index.tolist())
+    syn_counts = myplottools.align_series(act_counts, syn_counts)
+
     title_figure = "drivinglicense"
     title_plot = "Driving license comparison "
     if suffix:
@@ -515,8 +490,8 @@ def demographics_comparison(context, df_act, df_syn, df_census, suffix=None):
         title_figure += "_" + suffix
     title_figure += ".png"
 
-    print("ACT: \n", act_counts)
-    print("SYN: \n", syn_counts)
+    # print("ACT: \n", act_counts)
+    # print("SYN: \n", syn_counts)
 
     myplottools.plot_comparison_bar(
         context,
@@ -537,7 +512,6 @@ def demographics_comparison(context, df_act, df_syn, df_census, suffix=None):
         total_license = df_licenses_country["weight"].sum()
         census_yes = 100.0 * (total_license / total_pop) if total_pop > 0 else 0.0
         census_no = 100.0 - census_yes
-        # Align order with labels used above (act_counts.index typically ["No","Yes"])
         import pandas as _pd
         census_counts = _pd.Series({"No": census_no, "Yes": census_yes})
         census_counts = census_counts.reindex(act_counts.index).fillna(0)
@@ -562,22 +536,16 @@ def demographics_comparison(context, df_act, df_syn, df_census, suffix=None):
             xticksrot=True
         )
     except Exception as _e:
-        # Keep original plot if census data is unavailable; optionally log
         print("Warning: could not add census driving license plot:", _e)
-    
-    # Public transport subscription
-    def has_pt_subscription(df):
-        return df["has_pt_subscription"].replace({False: "No", True: "Yes"})
-    
-    df_act["act_pt"] = has_pt_subscription(df_act)
-    act_counts = weight_counts(df_act, "act_pt")
-    #act_counts = act_pt.value_counts(normalize=True) * 100
-    df_act.drop(columns=["act_pt"], inplace=True)
 
-    syn_pt = has_pt_subscription(df_syn)
-    syn_counts = syn_pt.value_counts(normalize=True) * 100
-    # Align category order with HTS
-    syn_counts = syn_counts.reindex(act_counts.index).fillna(0)
+    # -------- Public transport subscription --------
+    act_pt_labels = myplottools.map_bool_to_labels(df_act["has_pt_subscription"], yes_label="Yes", no_label="No")
+    act_counts = myplottools.compute_counts(act_pt_labels, weights=df_act["weight_person"], categories=["No", "Yes"])  # fixed order
+
+    syn_pt_labels = myplottools.map_bool_to_labels(df_syn["has_pt_subscription"], yes_label="Yes", no_label="No")
+    syn_counts = myplottools.compute_counts(syn_pt_labels, weights=None, categories=act_counts.index.tolist())
+    syn_counts = myplottools.align_series(act_counts, syn_counts)
+
     title_figure = "ptsubscription"
     title_plot = "Public transport subscription comparison "
     if suffix:
@@ -595,6 +563,7 @@ def demographics_comparison(context, df_act, df_syn, df_census, suffix=None):
         synthetic=syn_counts.values,
         xticksrot=True
     )
+
 
 
 def compute_distances_synthetic(df_syn, threshold = 25):
@@ -641,33 +610,49 @@ def compare_dist_from_home(context, df_syn, df_act, target_purpose = "education"
     for i in range(len(pers_educ_syn)):
         pid = pers_educ_syn[i]
         df_pers = df_syn_educ[df_syn_educ["person_id"] == pid]
+        dist = 0.0
         for _, row in df_pers.iterrows():
-             dist = row["crowfly_distance"]
+            dist = float(row.get("crowfly_distance", 0.0))
         dic_syn["dist_home_educ"][i] = dist
             
     for i in range(len(pers_educ_act)):
         pid = pers_educ_act[i]
-       
         df_pers = df_act_educ[df_act_educ["person_id"] == pid]
-        home_x = None
-        educ_y = None
-        for index, row in df_pers.iterrows():
-            if row["origin_purpose"] != target_purpose:
-                home_x = row["origin_x"]
-                home_y = row["origin_y"]
-            elif row["following_purpose"] != target_purpose:
-                home_x = row["destination_x"]
-                home_y = row["destination_y"]
-            if row["origin_purpose"] == target_purpose:
-                educ_x = row["origin_x"]
-                educ_y = row["origin_y"]
-            elif row["following_purpose"] == target_purpose:
-                educ_x = row["destination_x"]
-                educ_y = row["destination_y"]
-            if educ_y is not None and home_y is not None:
+        home_x = 0.0
+        home_y = 0.0
+        educ_x = 0.0
+        educ_y = 0.0
+        have_home = False
+        have_educ = False
+        last_weight = 0.0
+        for _, row in df_pers.iterrows():
+            last_weight = float(row.get("weight_person", 0.0))
+            if row.get("origin_purpose") != target_purpose:
+                home_x = float(row.get("origin_x", home_x))
+                home_y = float(row.get("origin_y", home_y))
+                have_home = True
+            elif row.get("following_purpose") != target_purpose:
+                home_x = float(row.get("destination_x", home_x))
+                home_y = float(row.get("destination_y", home_y))
+                have_home = True
+            if row.get("origin_purpose") == target_purpose:
+                educ_x = float(row.get("origin_x", educ_x))
+                educ_y = float(row.get("origin_y", educ_y))
+                have_educ = True
+            elif row.get("following_purpose") == target_purpose:
+                educ_x = float(row.get("destination_x", educ_x))
+                educ_y = float(row.get("destination_y", educ_y))
+                have_educ = True
+            if have_home and have_educ:
                 break
-        dic_act["dist_home_educ"][i] = 0.001 * np.sqrt(((home_x - educ_x) ** 2 + (home_y - educ_y) ** 2))
-        dic_act["weight_person"][i] = row["weight_person"]
+        if have_home and have_educ:
+            dist_val = 0.001 * float(np.sqrt(((home_x - educ_x) ** 2 + (home_y - educ_y) ** 2)))
+            weight_val = last_weight
+        else:
+            dist_val = 0.0
+            weight_val = 0.0
+        dic_act["dist_home_educ"][i] = dist_val
+        dic_act["weight_person"][i] = weight_val
 
     dist_df_syn = pd.DataFrame.from_dict(dic_syn)
     dist_df_act = pd.DataFrame.from_dict(dic_act)

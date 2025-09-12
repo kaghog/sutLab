@@ -109,6 +109,73 @@ def plot_comparison_bar(context, imtitle, plottitle, ylabel, xlabel, lab, actual
     plt.close()
 
 
+# ---------- New utilities to standardize analysis pipelines ----------
+
+def align_series(actual, other):
+    """
+    Align 'other' Series to have the same index and order as 'actual'.
+    Any missing categories are filled with 0. Useful to avoid swapped bars when
+    plotting multiple series side-by-side.
+
+    Parameters
+    - actual: pd.Series with desired index and order
+    - other: pd.Series to be reindexed
+
+    Returns
+    - pd.Series aligned to actual.index, with NaN replaced by 0
+    """
+    import pandas as pd  # local import to keep module lightweight
+    if actual is None or other is None:
+        return other
+    # Ensure Series
+    if not hasattr(other, "reindex"):
+        other = pd.Series(other)
+    return other.reindex(actual.index).fillna(0)
+
+
+def compute_counts(series, weights=None, categories=None, normalize=True, to_percent=True):
+    """
+    Compute counts for a categorical Series, optionally using weights and a
+    fixed category order. Returns a pd.Series with percentages by default.
+
+    Parameters
+    - series: pd.Series of labels
+    - weights: optional pd.Series of weights (same length)
+    - categories: optional list specifying desired category order
+    - normalize: whether to normalize to sum=1 (before percentage scaling)
+    - to_percent: if True, multiply normalized values by 100
+    """
+    import pandas as pd
+    # Always return a Series; if input is None, return zeros for categories or empty series
+    if series is None:
+        if categories is not None:
+            return pd.Series(0.0, index=pd.Index(categories, name=None))
+        return pd.Series(dtype=float)
+    if categories is not None:
+        cat = pd.Categorical(series, categories=categories, ordered=True)
+    else:
+        cat = series
+    if weights is None:
+        counts = pd.Series(cat).value_counts(sort=False, dropna=False)
+    else:
+        # weighted counts per category
+        df = pd.DataFrame({"cat": cat, "w": weights})
+        counts = df.groupby("cat")["w"].sum()
+    if normalize:
+        total = counts.sum()
+        counts = (counts / total) if total != 0 else counts * 0.0
+    if to_percent:
+        counts = counts * 100.0
+    return counts
+
+
+def map_bool_to_labels(series, yes_label="Yes", no_label="No"):
+    """Map a boolean Series to labeled strings (No/Yes)."""
+    if series is None:
+        return None
+    return series.replace({False: no_label, True: yes_label})
+
+
 def plot_distribution_differences(context, imtitle, plottitle, ylabel, xlabel, lab, diff_actual, diff_census, lablist=['Synthetic vs HTS', 'Synthetic vs Census'], t=15, figsize=[12,7], dpi=300, w=0.35, xticksrot=False):
     """
     Plots the differences between distributions as a bar chart.
@@ -268,8 +335,8 @@ def plot_mode_share(context, title, df_syn, df2, amdf2, dpi = 300):
     ax.set_xticklabels(labels)
     ax.legend()
 
-    autolabel(rects1)
-    autolabel(rects2)
+    autolabel(rects1, ax)
+    autolabel(rects2, ax)
 
     fig.tight_layout()
     plt.savefig("%s/" % context.config("analysis_path") + title)
