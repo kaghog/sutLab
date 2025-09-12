@@ -40,14 +40,12 @@ config:
   analysis_path: output/analysis
   osmconvert_binary: /home/lmg/Documents/Code/sut-lab/sutLab/osmconvert
 
-  dryrun: true
-
   # Only interesting if you run the simulation
   java_memory: 14G
 
   # Defaults for Hannover
   home_location_sampling: weighted
-  mode_choice: false #false for now to solve bicycle problem
+  mode_choice: false # disable mode choice model for now
   matching_attributes: ["sex", "age_class", "has_license"]
 
   gtfs_path: gtfs
@@ -68,7 +66,7 @@ aliases:
   data.spatial.iris: hannover.data.spatial.iris
   data.spatial.codes: hannover.entd_codes
   synthesis.population.spatial.primary.locations: hannover.locations.synthesis.replacement
-  #synthesis.population.enriched: hannover.synthesis.population.enriched #taken from munich mid aggregate
+  synthesis.population.enriched: hannover.synthesis.population.enriched
   matsim.simulation.prepare: hannover.matsim.simulation.prepare
   #analysis.statistics: analysis.hannover.statistics
   data.hts.entd.raw: hannover.data.hts.entd.raw
