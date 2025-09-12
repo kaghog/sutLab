@@ -22,6 +22,8 @@ def configure(context):
     # context.stage("data.hts.persons")
     # context.stage("synthesis.output")
     context.stage("hannover.data.census.population")
+    # Also prepare census license totals for comparison plots
+    context.stage("hannover.ipf.prepare")
     context.stage("data.hts.entd.reweighted")
 
     context.config("weekend_scenario", False)
@@ -471,6 +473,8 @@ def demographics_comparison(context, df_act, df_syn, df_census, suffix=None):
 
     syn_employment = employment_status(df_syn)
     syn_counts = syn_employment.value_counts(normalize=True) * 100
+    # Align category order with HTS
+    syn_counts = syn_counts.reindex(act_counts.index).fillna(0)
     title_figure = "employmentstatus"
     title_plot = "Employment status comparison "
     if suffix:
@@ -502,12 +506,18 @@ def demographics_comparison(context, df_act, df_syn, df_census, suffix=None):
 
     syn_license = _has_driving_license(df_syn)
     syn_counts = syn_license.value_counts(normalize=True) * 100
+    # Align category order with HTS (typically ["No","Yes"]) to avoid swapped bars
+    syn_counts = syn_counts.reindex(act_counts.index).fillna(0)
     title_figure = "drivinglicense"
     title_plot = "Driving license comparison "
     if suffix:
         title_plot += " - " + suffix
         title_figure += "_" + suffix
     title_figure += ".png"
+
+    print("ACT: \n", act_counts)
+    print("SYN: \n", syn_counts)
+
     myplottools.plot_comparison_bar(
         context,
         imtitle=title_figure,
@@ -519,6 +529,41 @@ def demographics_comparison(context, df_act, df_syn, df_census, suffix=None):
         synthetic=syn_counts.values,
         xticksrot=True
     )
+
+    # Additional plot including Census (IPF) as third series
+    try:
+        df_population, df_employment, df_licenses_country, df_licenses_kreis = context.stage("hannover.ipf.prepare")
+        total_pop = df_population["weight"].sum()
+        total_license = df_licenses_country["weight"].sum()
+        census_yes = 100.0 * (total_license / total_pop) if total_pop > 0 else 0.0
+        census_no = 100.0 - census_yes
+        # Align order with labels used above (act_counts.index typically ["No","Yes"])
+        import pandas as _pd
+        census_counts = _pd.Series({"No": census_no, "Yes": census_yes})
+        census_counts = census_counts.reindex(act_counts.index).fillna(0)
+
+        title_figure_all = "drivinglicense_all"
+        title_plot_all = "Driving license comparison (HTS vs Synthetic vs Census) "
+        if suffix:
+            title_plot_all += " - " + suffix
+            title_figure_all += "_" + suffix
+        title_figure_all += ".png"
+
+        myplottools.plot_comparison_bar(
+            context,
+            imtitle=title_figure_all,
+            plottitle=title_plot_all,
+            ylabel="Percentage",
+            xlabel="Has driving license",
+            lab=act_counts.index,
+            actual=act_counts.values,
+            synthetic=syn_counts.values,
+            census=census_counts.values,
+            xticksrot=True
+        )
+    except Exception as _e:
+        # Keep original plot if census data is unavailable; optionally log
+        print("Warning: could not add census driving license plot:", _e)
     
     # Public transport subscription
     def has_pt_subscription(df):
@@ -531,6 +576,8 @@ def demographics_comparison(context, df_act, df_syn, df_census, suffix=None):
 
     syn_pt = has_pt_subscription(df_syn)
     syn_counts = syn_pt.value_counts(normalize=True) * 100
+    # Align category order with HTS
+    syn_counts = syn_counts.reindex(act_counts.index).fillna(0)
     title_figure = "ptsubscription"
     title_plot = "Public transport subscription comparison "
     if suffix:
