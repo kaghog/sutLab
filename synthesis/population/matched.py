@@ -6,6 +6,7 @@ import numba
 
 import data.hts.egt.cleaned
 import data.hts.entd.cleaned
+import analysis.marginals as marginals
 
 import multiprocessing as mp
 
@@ -182,7 +183,8 @@ def execute(context):
     except ValueError: pass
 
     # Define matching attributes
-    AGE_BOUNDARIES = [14, 29, 44, 59, 74, 1000]
+    # Use the global analysis age class bounds to ensure perfect alignment across pipeline
+    AGE_BOUNDARIES = marginals.AGE_CLASS_BOUNDS
 
     if "age_class" in columns:
         df_target["age_class"] = np.digitize(df_target["age"], AGE_BOUNDARIES, right = True)

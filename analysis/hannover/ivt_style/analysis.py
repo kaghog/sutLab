@@ -10,6 +10,11 @@ import pyproj
 import data.spatial.utils
 from tqdm import tqdm
 import data.hts.entd.cleaned
+import warnings
+
+# Suppress NetworkX FutureWarning about node_link_data/edges kwarg emitted upstream by dependencies.
+# We don't call node_link_data here; this avoids noisy logs until upstream sets edges explicitly.
+warnings.filterwarnings("ignore", message=r".*edges kwarg.*node_link_data.*", category=FutureWarning)
 
 
 def configure(context):
@@ -42,21 +47,31 @@ def import_data_synthetic(context, population_selector = None):
     df_hhl = pd.read_csv(filepath, encoding = "latin1", sep = ";")
 
 
-    df_syn = df_persons.merge(df_hhl, left_on="person_id", right_on="household_id")
-    df_syn = df_persons.merge(df_trips, left_on="person_id", right_on="person_id")
+    # Add activity flag: whether a person has at least one trip
+    df_persons["is_active"] = df_persons["person_id"].isin(df_trips["person_id"]).astype(bool)
+
+    # NOTE (kept for reference): legacy merges that dropped non-travelers.
+    # df_syn = df_persons.merge(df_hhl, left_on="person_id", right_on="household_id")
+    # df_syn = df_persons.merge(df_trips, left_on="person_id", right_on="person_id")
+
+    # Debug: how many persons are covered by trips vs. total persons
+    total_persons = len(df_persons)
+    persons_in_trips = df_trips["person_id"].nunique()
+    print(f"[DEBUG] Synthetic persons total={total_persons}, in trips={persons_in_trips} ({persons_in_trips/total_persons*100:.2f}%)")
     
     t_id = df_trips["person_id"].values.tolist()
     df_persons_no_trip = df_persons[np.logical_not(df_persons["person_id"].isin(t_id))]
     df_persons_no_trip = df_persons_no_trip.set_index(["person_id"])
-    df_persons_no_trip = df_persons_no_trip[df_persons_no_trip["age"] >= 6]
-    df_syn = df_syn[df_syn["age"]>=6]
     print(df_persons_no_trip.shape, "persons without trip in synpop")
+    # print(f"[DEBUG] Synthetic df_syn rows={len(df_syn)}; unique persons in df_syn={df_syn['person_id'].nunique()}")
 
     if population_selector:
         if "age_selector" in population_selector.keys():
             age_min = population_selector["age_selector"][0]
             age_max = population_selector["age_selector"][1]
-            df_syn = df_syn[(df_syn["age"] <= age_max) & (df_syn["age"] >= age_min)]
+            # Apply filters to both persons and trips (keep person-level intact)
+            df_persons = df_persons[(df_persons["age"] <= age_max) & (df_persons["age"] >= age_min)]
+            df_trips = df_trips[(df_trips["age"] <= age_max) & (df_trips["age"] >= age_min)]
             df_persons_no_trip = df_persons_no_trip[(df_persons_no_trip["age"] <= age_max) & (df_persons_no_trip["age"] >= age_min)]
             print("INFO excluding agents NOT between the age of ", age_min, " and ", age_max)
         if "gender_selector" in population_selector.keys():
@@ -65,17 +80,20 @@ def import_data_synthetic(context, population_selector = None):
                 g = 0
             else:
                 g = 1
-            df_syn = df_syn[df_syn["sex"] == g]
+            df_persons = df_persons[df_persons["sex"] == g]
+            df_trips = df_trips[df_trips["sex"] == g]
             df_persons_no_trip = df_persons_no_trip[df_persons_no_trip["sex"] == g]
             print("INFO only considering ", gender, " agents.")
         if "canton_selector" in population_selector.keys():
             cantons = population_selector["canton_selector"]
-            df_syn = df_syn[df_syn["canton_id"].isin(cantons)]
+            df_persons = df_persons[df_persons["canton_id"].isin(cantons)]
+            df_trips = df_trips[df_trips["canton_id"].isin(cantons)]
             df_persons_no_trip = df_persons_no_trip[df_persons_no_trip["canton_id"].isin(cantons)]
             print("INFO only considering agents living in cantons n° ", cantons)
 
-    # df_syn contains everyone even those without trips (Milos feb '24)
-    return df_syn, df_persons_no_trip   
+    # Return person-level dataframe with is_active and the trips dataframe.
+    # df_syn (merged persons-trips) is deprecated in favor of is_active flag.
+    return df_persons, df_trips, df_persons_no_trip   
 
 
 def import_data_actual(context, population_selector = None):
@@ -109,14 +127,21 @@ def import_data_actual(context, population_selector = None):
     df_act.sort_index(inplace=True)
 
     t_id = df_act_trips["person_id"].values.tolist()
+    # Tag active persons (with at least one trip)
+    df_act_persons["is_active"] = df_act_persons["person_id"].isin(t_id).astype(bool)
     df_persons_no_trip = df_act_persons[np.logical_not(df_act_persons["person_id"].isin(t_id))]
     df_persons_no_trip = df_persons_no_trip.set_index(["person_id"])
     print(df_persons_no_trip.shape, "persons without trip in hts")
+    # Debug: size and coverage
+    total_hts_persons = len(df_act_persons)
+    persons_in_trips = df_act_trips["person_id"].nunique()
+    print(f"[DEBUG] HTS persons total={total_hts_persons}, in trips={persons_in_trips} ({persons_in_trips/total_hts_persons*100:.2f}%)")
 
     if population_selector:
         if "age_selector" in population_selector.keys():
             age_min = population_selector["age_selector"][0]
             age_max = population_selector["age_selector"][1]
+            # Filter trip-level by person age via merged attributes
             df_act = df_act[(df_act["age"] <= age_max) & (df_act["age"] >= age_min)]
             df_persons_no_trip = df_persons_no_trip[(df_persons_no_trip["age"] <= age_max) & (df_persons_no_trip["age"] >= age_min)]
             print("INFO excluding agents NOT between the age of ", age_min, " and ", age_max)
@@ -131,7 +156,9 @@ def import_data_actual(context, population_selector = None):
             print("INFO only considering ", gender, " agents.")
 
     # df_act contains only those that have trips
-    return df_act, df_persons_no_trip
+    # Legacy return was (df_act_trip_merged, df_persons_no_trip). We now return the
+    # person-level dataframe (with is_active) alongside the trips and the no-trip view.
+    return df_act_persons, df_act_trips, df_persons_no_trip
 
 
     
@@ -140,36 +167,41 @@ def import_data_census(context, population_selector = None):
     return df_population
     
 
-def aux_data_frame(df_act, df_syn, population_selector = None):
-    if population_selector:
-        if "age_selector" in population_selector.keys():
-            age_min = population_selector["age_selector"][0]
-            age_max = population_selector["age_selector"][1]
-            df_act = df_act[(df_act["age"] <= age_max) & (df_act["age"] >= age_min)]
-            df_syn = df_syn[(df_syn["age"] <= age_max) & (df_syn["age"] >= age_min)]
-            print("INFO excluding agents NOT between the age of ", age_min, " and ", age_max)
-        if "gender_selector" in population_selector.keys():
-            gender = population_selector["gender_selector"]
-            df_act = df_act[df_act["sex"] == gender]
-            df_syn = df_syn[df_syn["sex"] == gender]
-            print("INFO only considering ", gender, " agents.")
+def aux_data_frame(df_act_trips, df_syn_trips, df_act_persons, df_syn_persons, population_selector = None):
+    # NOTE: Any population selection should be applied upstream on person-level frames
+    # and then propagated to trips via person_id. This block is kept as a comment
+    # to document the previous approach that attempted to filter here.
+    # if population_selector:
+    #     if "age_selector" in population_selector.keys():
+    #         age_min = population_selector["age_selector"][0]
+    #         age_max = population_selector["age_selector"][1]
+    #         print("INFO excluding agents NOT between the age of ", age_min, " and ", age_max)
+    #     if "gender_selector" in population_selector.keys():
+    #         gender = population_selector["gender_selector"]
+    #         print("INFO only considering ", gender, " agents.")
 
-    df_act["person_id"] = df_act.index
-    pers_ids = df_act["person_id"].unique()
-    df_act = df_act.reset_index(drop=True)
+    # Work on a local reset copy to avoid mutating caller's df_act
+    # Use trip-level frames for chain summaries; merge person weights onto trips
+    df_act_reset = df_act_trips.reset_index()  # brings index name 'person_id' as a column
+    if 'weight_person' not in df_act_reset.columns and 'weight_person' in df_act_persons.columns:
+        df_act_reset = df_act_reset.merge(
+            df_act_persons[['person_id','weight_person']], on='person_id', how='left'
+        )
+    pers_ids = df_act_reset["person_id"].unique()
 
     df_aux_act = pd.DataFrame({
         "person_id": pers_ids,
-        "weight_person": df_act.groupby("person_id")["weight_person"].mean(),
-        "chain": "home-" + df_act.groupby("person_id")["following_purpose"].apply(lambda x: "-".join(x))
-    })
+        # If weight_person missing (e.g., no merge), default to 1.0 via fillna below
+        "weight_person": df_act_reset.groupby("person_id")["weight_person"].mean(),
+        "chain": "home-" + df_act_reset.groupby("person_id")["following_purpose"].apply(lambda x: "-".join(x))
+    }).fillna({"weight_person": 1.0})
 
-    pers_ids = df_syn["person_id"].unique()
+    pers_ids = df_syn_trips["person_id"].unique()
 
     df_aux_syn = pd.DataFrame({
         "person_id": pers_ids,
         "weights": 1,
-        "chain": "home-" + df_syn.groupby("person_id")["following_purpose"].apply(lambda x: "-".join(x))
+    "chain": "home-" + df_syn_trips.groupby("person_id")["following_purpose"].apply(lambda x: "-".join(x))
     })
 
     return df_aux_act, df_aux_syn
@@ -273,7 +305,7 @@ def activity_counts_per_purpose(context, all_CC, suffix = None):
                     purposes.append(act)
             for p in purposes:
                 cpt_purpose = acts.count(p)
-                if cpt_purpose > 0 :
+                if cpt_purpose > 0:
                     identifier = p + " - " + str(cpt_purpose) 
                     if cpt_purpose > 1:
                         identifier += " times"
@@ -325,19 +357,47 @@ def activity_counts_per_purpose(context, all_CC, suffix = None):
                                     synthetic = counts["synthetic Count"], t = 20, xticksrot=True)
     
 
-def demographics_comparison(context, df_act, df_syn, df_census, suffix=None):
+def demographics_comparison(context, df_act_persons, df_syn_persons, df_census, suffix=None, use_active_only=False):
 
-    # -------- Age distribution comparison (robust, aligned) --------
+    # Age bins (Hannover): keep 0-5 and 6-14 separate
     bins = [0, 6, 15, 18, 24, 30, 45, 65, 80, 150]
     labels = ["0-5", "6-14", "15-17", "18-23", "24-29", "30-44", "45-64", "65-79", "80+"]
 
-    # Cut ages into labeled bins
-    df_act['age_bin'] = pd.cut(df_act["age"], bins=bins, labels=labels)
-    df_syn['age_bin'] = pd.cut(df_syn["age"], bins=bins, labels=labels)
+
+    # Use person-level frames directly; 'is_active' marks who has trips
+    cols_act = [c for c in ["person_id", "age", "weight_person", "is_active", "has_license", "has_pt_subscription", "employed"] if c in df_act_persons.columns]
+    cols_syn = [c for c in ["person_id", "age", "is_active", "has_driving_license", "has_pt_subscription", "employed"] if c in df_syn_persons.columns]
+    df_act_persons = df_act_persons[cols_act].drop_duplicates(subset=["person_id"]).copy()
+    df_syn_persons = df_syn_persons[cols_syn].drop_duplicates(subset=["person_id"]).copy()
+
+    # Optional: restrict to active persons for plotting
+    if use_active_only:
+        if "is_active" in df_act_persons.columns:
+            df_act_persons = df_act_persons[df_act_persons["is_active"]]
+        if "is_active" in df_syn_persons.columns:
+            df_syn_persons = df_syn_persons[df_syn_persons["is_active"]]
+
+    # Cut ages into labeled bins (person-level)
+    df_act_persons['age_bin'] = pd.cut(df_act_persons["age"], bins=bins, labels=labels)
+    df_syn_persons['age_bin'] = pd.cut(df_syn_persons["age"], bins=bins, labels=labels)
+
+    # Debug: bins and basic distributions before weighting/percentages
+    print(f"[DEBUG] Age bins used: {bins}")
+    print("[DEBUG] HTS age_bin value_counts (raw, person-level, incl. no-trip):\n", df_act_persons['age_bin'].value_counts(dropna=False))
+    print("[DEBUG] SYN age_bin value_counts (raw, person-level, incl. no-trip):\n", df_syn_persons['age_bin'].value_counts(dropna=False))
 
     # Weighted HTS counts, unweighted synthetic counts; both as percentages
-    act_counts = myplottools.compute_counts(df_act['age_bin'], weights=df_act['weight_person'], categories=labels)
-    syn_counts = myplottools.compute_counts(df_syn['age_bin'], weights=None, categories=labels)
+    act_counts = myplottools.compute_counts(df_act_persons['age_bin'], weights=df_act_persons['weight_person'], categories=labels)
+    syn_counts = myplottools.compute_counts(df_syn_persons['age_bin'], weights=None, categories=labels)
+    # Align to labels only (drop possible NaN bucket from unweighted path)
+    import pandas as _pd
+    act_counts = _pd.Series(act_counts).reindex(labels).fillna(0)
+    syn_counts = _pd.Series(syn_counts).reindex(labels).fillna(0)
+
+    # Debug: sums should be ~100, show small deviations
+    print(f"[DEBUG] HTS percent sum={act_counts.sum():.6f}; SYN percent sum={syn_counts.sum():.6f}")
+    if df_census is None:
+        print("[DEBUG] Census is None in demographics_comparison; plotting will be HTS vs SYN only.")
 
     # Prepare variable to satisfy linters; will be overwritten if census provided
     census_counts = pd.Series(index=labels, dtype=float)
@@ -350,9 +410,25 @@ def demographics_comparison(context, df_act, df_syn, df_census, suffix=None):
         census_counts = (census_counts_raw / census_counts_raw.sum()) * 100
         census_counts = census_counts.reindex(labels).fillna(0)
 
+        # Debug: census distribution sanity
+        print("[DEBUG] Census counts sum=", census_counts.sum())
+        print("[DEBUG] Census age_label distribution (percent):\n", census_counts)
+
         # Calculate differences (Synthetic - Reference)
         diff_hts = syn_counts - act_counts
         diff_census = syn_counts - census_counts
+
+        # Debug: show biggest gaps
+        ordered_labels = list(labels)
+        df_debug = pd.DataFrame({
+            "label": ordered_labels,
+            "pct_hts": act_counts.reindex(ordered_labels).values,
+            "pct_syn": syn_counts.reindex(ordered_labels).values,
+            "pct_census": census_counts.reindex(ordered_labels).values,
+            "gap_syn_minus_census": (syn_counts - census_counts).reindex(ordered_labels).values,
+            "gap_hts_minus_census": (act_counts - census_counts).reindex(ordered_labels).values,
+        })
+        print("[DEBUG] Age distribution table (percentages and gaps vs census):\n", df_debug)
 
         # Plot differences
         title_figure_diff = "agedistribution_differences"
@@ -445,15 +521,16 @@ def demographics_comparison(context, df_act, df_syn, df_census, suffix=None):
             xticksrot=True
         )
 
-    # -------- Employment status comparison --------
+    # -------- Employment status comparison (person-level) --------
     def employment_status(df):
         return df["employed"].replace({ False: "unemployed", True: "employed"})
 
-    df_act["employment_status"] = employment_status(df_act)
-    act_counts = myplottools.compute_counts(df_act["employment_status"], weights=df_act["weight_person"], categories=["unemployed", "employed"])  # fixed order
-    df_act.drop(columns=["employment_status"], inplace=True)
+    df_act_persons_local = df_act_persons.copy()
+    df_act_persons_local["employment_status"] = employment_status(df_act_persons_local)
+    act_counts = myplottools.compute_counts(df_act_persons_local["employment_status"], weights=df_act_persons_local["weight_person"], categories=["unemployed", "employed"])  # fixed order
 
-    syn_employment = employment_status(df_syn)
+    syn_persons_local = df_syn_persons.copy()
+    syn_employment = employment_status(syn_persons_local)
     syn_counts = myplottools.compute_counts(syn_employment, weights=None, categories=act_counts.index.tolist())
     syn_counts = myplottools.align_series(act_counts, syn_counts)
 
@@ -476,10 +553,10 @@ def demographics_comparison(context, df_act, df_syn, df_census, suffix=None):
     )
 
     # -------- Driving license (HTS as reference, add Census third series) --------
-    act_license_labels = myplottools.map_bool_to_labels(df_act["has_license"], yes_label="Yes", no_label="No")
-    act_counts = myplottools.compute_counts(act_license_labels, weights=df_act["weight_person"], categories=["No", "Yes"])  # fixed order
+    act_license_labels = myplottools.map_bool_to_labels(df_act_persons.get("has_license"), yes_label="Yes", no_label="No")
+    act_counts = myplottools.compute_counts(act_license_labels, weights=df_act_persons.get("weight_person"), categories=["No", "Yes"])  # fixed order
 
-    syn_license_labels = myplottools.map_bool_to_labels(df_syn.get("has_driving_license", pd.Series(index=df_syn.index, dtype=bool)), yes_label="Yes", no_label="No")
+    syn_license_labels = myplottools.map_bool_to_labels(df_syn_persons.get("has_driving_license"), yes_label="Yes", no_label="No")
     syn_counts = myplottools.compute_counts(syn_license_labels, weights=None, categories=act_counts.index.tolist())
     syn_counts = myplottools.align_series(act_counts, syn_counts)
 
@@ -539,10 +616,10 @@ def demographics_comparison(context, df_act, df_syn, df_census, suffix=None):
         print("Warning: could not add census driving license plot:", _e)
 
     # -------- Public transport subscription --------
-    act_pt_labels = myplottools.map_bool_to_labels(df_act["has_pt_subscription"], yes_label="Yes", no_label="No")
-    act_counts = myplottools.compute_counts(act_pt_labels, weights=df_act["weight_person"], categories=["No", "Yes"])  # fixed order
+    act_pt_labels = myplottools.map_bool_to_labels(df_act_persons.get("has_pt_subscription"), yes_label="Yes", no_label="No")
+    act_counts = myplottools.compute_counts(act_pt_labels, weights=df_act_persons.get("weight_person"), categories=["No", "Yes"])  # fixed order
 
-    syn_pt_labels = myplottools.map_bool_to_labels(df_syn["has_pt_subscription"], yes_label="Yes", no_label="No")
+    syn_pt_labels = myplottools.map_bool_to_labels(df_syn_persons.get("has_pt_subscription"), yes_label="Yes", no_label="No")
     syn_counts = myplottools.compute_counts(syn_pt_labels, weights=None, categories=act_counts.index.tolist())
     syn_counts = myplottools.align_series(act_counts, syn_counts)
 
@@ -748,7 +825,7 @@ def all_the_plot_distances(context, df_act_dist, df_syn_dist, suffix = None):
     myplottools.plot_comparison_cdf_purpose(context, dpc_title, df_act_dist, df_syn_dist, dpi = 300, cols = 3, rows = 2)
 
 
-def generate_plots(context, df_aux_act, df_aux_syn, df_act, df_syn, df_syn_no_trip, df_act_no_trip, suffix, df_census):
+def generate_plots(context, df_aux_act, df_aux_syn, df_act_trips, df_syn_trips, df_act_persons, df_syn_persons, df_syn_no_trip, df_act_no_trip, suffix, df_census):
     syn_CC = df_aux_syn.groupby("chain").size().reset_index(name='count')
     act_CC = df_aux_act.groupby("chain")["weight_person"].sum().reset_index(name='count')
 
@@ -774,8 +851,8 @@ def generate_plots(context, df_aux_act, df_aux_syn, df_act, df_syn, df_syn_no_tr
     # Number of activities per purposes
     activity_counts_per_purpose(context, all_CC, suffix = suffix)
     
-    # Demographics comparison
-    demographics_comparison(context, df_act, df_syn, df_census, suffix)
+    # Demographics comparison (include no-trip persons)
+    demographics_comparison(context, df_act_persons, df_syn_persons, df_census, suffix)
     
 
     # 2. CROWFLY DISTANCES
@@ -816,9 +893,9 @@ def execute(context):
     suffixes      = [suff_all]
 
     for population_selector, suffix in list(zip(pop_selectors, suffixes)):
-        df_syn, df_syn_no_trip = import_data_synthetic(context, population_selector)
-        df_act, df_act_no_trip = import_data_actual(context, population_selector)
+        df_syn_persons, df_syn_trips, df_syn_no_trip = import_data_synthetic(context, population_selector)
+        df_act_persons, df_act_trips, df_act_no_trip = import_data_actual(context, population_selector)
         df_census = import_data_census(context, population_selector)
-        df_aux_act, df_aux_syn = aux_data_frame(df_act, df_syn)
+        df_aux_act, df_aux_syn = aux_data_frame(df_act_trips, df_syn_trips, df_act_persons, df_syn_persons)
 
-        generate_plots(context, df_aux_act, df_aux_syn, df_act, df_syn, df_syn_no_trip, df_act_no_trip, suffix, df_census)
+        generate_plots(context, df_aux_act, df_aux_syn, df_act_trips, df_syn_trips, df_act_persons, df_syn_persons, df_syn_no_trip, df_act_no_trip, suffix, df_census)

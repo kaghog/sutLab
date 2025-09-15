@@ -38,6 +38,7 @@ def execute(context):
     age_bins = [
         (-np.inf, 5),
         (6, 14),
+        # (-np.inf, 14),
         (15, 17),
         (18, 23),
         (24, 29),

@@ -3,6 +3,18 @@ import matplotlib.pyplot as plt
 
 #plt.rcParams.update({'font.size': 18})
 
+# ---- Centralized color constants ----
+COLOR_SYNTHETIC = "#D3D3D3"
+COLOR_ACTUAL_HTS = "#00205B"
+COLOR_CENSUS = "#E69F00"
+
+# Convenience mapping used by some plotting helpers
+COLORS = {
+    'synthetic': COLOR_SYNTHETIC,
+    'actual': COLOR_ACTUAL_HTS,  # HTS
+    'census': COLOR_CENSUS,
+}
+
 def autolabel(rects, ax):
     """Attach a text label above each bar in *rects*, displaying its height."""
     for rect in rects:
@@ -16,8 +28,10 @@ def autolabel(rects, ax):
 
 
 def add_small_hist(axes, r, c, act, x, y, bins, lab = ["Synthetic", "HTS"]):
-    axes[r,c].hist(x, bins, alpha=0.5, label=lab[0], density=True)
-    axes[r,c].hist(y["crowfly_distance"], bins, weights=y["weight_person"], alpha=0.5, label=lab[1], density=True)
+    # Synthetic histogram (unweighted)
+    axes[r,c].hist(x, bins, alpha=0.5, label=lab[0], density=True, color=COLOR_SYNTHETIC)
+    # HTS histogram (weighted)
+    axes[r,c].hist(y["crowfly_distance"], bins, weights=y["weight_person"], alpha=0.5, label=lab[1], density=True, color=COLOR_ACTUAL_HTS)
     axes[r,c].set_ylabel("Percentage")
     axes[r,c].set_xlabel("Crowfly Distance [km]")
     axes[r,c].set_title("Activity: " + act.capitalize())
@@ -25,12 +39,13 @@ def add_small_hist(axes, r, c, act, x, y, bins, lab = ["Synthetic", "HTS"]):
     return axes
 
 
-def add_small_cdf(axes, r, c, act, x, y, lab = ["Synthetic", "HTS"]):
+def add_small_cdf(axes, r, c, act, x, y, bins=None, lab = ["Synthetic", "HTS"]):
     x_data = np.array(x, dtype=np.float64)
     x_sorted = np.argsort(x_data)
     x_weights = np.array([1.0 for i in range(len(x))], dtype=np.float64)
     x_cdf = np.cumsum(x_weights[x_sorted])
-    x_cdf /= x_cdf[-1]
+    if len(x_cdf) > 0:
+        x_cdf /= x_cdf[-1]
 
     y_data = np.array(y["crowfly_distance"], dtype=np.float64)
     y_sorted = np.argsort(y_data)
@@ -40,8 +55,9 @@ def add_small_cdf(axes, r, c, act, x, y, lab = ["Synthetic", "HTS"]):
     if len(y_cdf) >0:
         y_cdf /= y_cdf[-1]
 
-    axes[r,c].plot(y_data[y_sorted], y_cdf, label=lab[1], color = "#A3A3A3")
-    axes[r,c].plot(x_data[x_sorted], x_cdf, label=lab[0], color="#00205B")   
+    # HTS as blue, Synthetic as gray
+    axes[r,c].plot(y_data[y_sorted], y_cdf, label=lab[1], color=COLOR_ACTUAL_HTS)
+    axes[r,c].plot(x_data[x_sorted], x_cdf, label=lab[0], color=COLOR_SYNTHETIC)
 
     axes[r,c].set_ylabel("Probability")
     axes[r,c].set_xlabel("Crowfly Distance [km]")
@@ -70,7 +86,7 @@ def plot_comparison_bar(context, imtitle, plottitle, ylabel, xlabel, lab, actual
         'census': census[:top] if census is not None and top is not None else census
     }
     
-    colors = {'actual': "#00205B", 'synthetic': "#D3D3D3", 'census': "#8FCB9B"}
+    colors = {'actual': COLOR_ACTUAL_HTS, 'synthetic': COLOR_SYNTHETIC, 'census': COLOR_CENSUS}
     legend_labels = {'actual': lablist[0], 'synthetic': lablist[1], 'census': lablist[2]}
 
     # Filter out None datasets
@@ -203,9 +219,9 @@ def plot_distribution_differences(context, imtitle, plottitle, ylabel, xlabel, l
     fig, ax = plt.subplots()
     fig.set_facecolor("#ffffff")
 
-    # Plot bars
-    ax.bar(x - width/2, diff_actual_means, width, label=lablist[0], color="#00205B", align="center")
-    ax.bar(x + width/2, diff_census_means, width, label=lablist[1], color="#8FCB9B", align="center")
+    # Plot bars (HTS difference in blue, Census difference in gold)
+    ax.bar(x - width/2, diff_actual_means, width, label=lablist[0], color=COLOR_ACTUAL_HTS, align="center")
+    ax.bar(x + width/2, diff_census_means, width, label=lablist[1], color=COLOR_CENSUS, align="center")
 
     # Add a horizontal line at y=0 to emphasize the difference
     ax.axhline(0, color='grey', linewidth=0.8)
@@ -221,6 +237,73 @@ def plot_distribution_differences(context, imtitle, plottitle, ylabel, xlabel, l
     else:
         ax.set_xticklabels(labels)
 
+    ax.legend(loc='upper right')
+    fig.tight_layout()
+    plt.savefig("%s/" % context.config("analysis_path") + imtitle)
+    plt.close()
+
+
+def plot_horizontal_comparison(context, imtitle, plottitle, xlabel, labels, synthetic=None, actual=None, census=None, lablist=['Synthetic', 'HTS', 'Census'], figsize=[10, 10], dpi=300, bar_height=0.7):
+    """
+    Grouped horizontal bar chart for side-by-side comparison of up to three series
+    (Synthetic, HTS, Census). Missing series values can be NaN and will be skipped
+    per-bar gracefully.
+
+    Parameters
+    - labels: list of category strings (y-axis)
+    - synthetic/actual/census: sequences of values (percentages), same length as labels
+    - lablist: legend labels for [Synthetic, HTS, Census]
+    - bar_height: total height allocated to one category; split among active datasets
+    """
+    import numpy as np
+    import matplotlib.pyplot as plt
+
+    plt.rcParams['figure.figsize'] = figsize
+    plt.rcParams['figure.dpi'] = dpi
+
+    series = []
+    legend_labels = []
+    colors = []
+    if synthetic is not None:
+        series.append(np.array(synthetic, dtype=float))
+        legend_labels.append(lablist[0])
+        colors.append(COLOR_SYNTHETIC)
+    if actual is not None:
+        series.append(np.array(actual, dtype=float))
+        legend_labels.append(lablist[1])
+        colors.append(COLOR_ACTUAL_HTS)
+    if census is not None:
+        series.append(np.array(census, dtype=float))
+        legend_labels.append(lablist[2])
+        colors.append(COLOR_CENSUS)
+
+    n = len(labels)
+    y = np.arange(n)
+    k = len(series)
+    if k == 0:
+        return
+
+    # Height of each sub-bar within a category
+    sub_h = bar_height / k
+
+    fig, ax = plt.subplots()
+    fig.set_facecolor("#ffffff")
+
+    # Center the grouped bars around each y position
+    offsets = np.linspace(-bar_height/2 + sub_h/2, bar_height/2 - sub_h/2, k)
+
+    for i, vals in enumerate(series):
+        # Mask NaNs per value to skip drawing
+        mask = ~np.isnan(vals)
+        # For stable plotting, set NaNs to 0; they won't render if masked
+        vals_plot = np.where(mask, vals, 0.0)
+        ax.barh(y[mask] + offsets[i], vals_plot[mask], height=sub_h, color=colors[i], label=legend_labels[i])
+
+    ax.set_xlabel(xlabel)
+    ax.set_yticks(y)
+    ax.set_yticklabels(labels)
+    ax.set_title(plottitle)
+    ax.invert_yaxis()  # top item first
     ax.legend(loc='upper right')
     fig.tight_layout()
     plt.savefig("%s/" % context.config("analysis_path") + imtitle)
@@ -325,8 +408,8 @@ def plot_mode_share(context, title, df_syn, df2, amdf2, dpi = 300):
     width = 0.35  # the width of the bars
 
     fig, ax = plt.subplots()
-    rects1 = ax.bar(x - width/2, y2, width, label='HTS',color="#00205B")
-    rects2 = ax.bar(x + width/2, y1, width, label='Synthetic',color="#D3D3D3")
+    rects1 = ax.bar(x - width/2, y2, width, label='HTS', color=COLOR_ACTUAL_HTS)
+    rects2 = ax.bar(x + width/2, y1, width, label='Synthetic', color=COLOR_SYNTHETIC)
 
     # Add some text for labels, title and custom x-axis tick labels, etc.
     ax.set_ylabel('Percentage')

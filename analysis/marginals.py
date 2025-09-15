@@ -2,6 +2,7 @@ import itertools
 import numpy as np
 import pandas as pd
 
+## we are using different age bins for analysis, should this stay the same?
 AGE_CLASS_BOUNDS = [14, 29, 44, 59, 74, np.inf]
 AGE_CLASS_LABELS = ["<15", "15-29", "30-44", "45-59", "60-74", "75+"]
 
