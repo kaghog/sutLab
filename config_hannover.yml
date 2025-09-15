@@ -2,17 +2,20 @@
 ## based on the synpp package
 
 # This is the path to a directory where the pipeline can store temporary data
-working_directory: cache
+working_directory: ../cache
 
 # This section defines which parts of the pipeline should be run
 run:
-  - synthesis.output
-  # - matsim.output
-  - analysis.hannover.ivt_style.analysis
+  #- synthesis.output
+  # - matsim.simulation.prepare
+  - matsim.output
+  #- analysis.hannover.ivt_style.analysis
   #- hannover.locations.education
   #- hannover.data.hts.entd.cleaned
   # - analysis.hannover.analysis_new
   #- analysis.synthesis.sociodemographics.chains
+  # - matsim.runtime.eqasim
+  # - matsim.runtime.pt2matsim
 
 
 flowchart_path: output/flowchart
@@ -30,15 +33,15 @@ config:
   random_seed: 1234
  
   # Paths to the input data and where the output should be stored
-  data_path: ../data/hannover
-  output_path: output
+  data_path: ../raw_data/Hannover
+  output_path: ../output
   output_prefix: hannover_1pct_
   hannover.population_shp: /admin_units/Mikrobezirke/SKH20_Mikrobezirke.shp
   hannover.buildings_path: /buildings/buildings_Hannover_20km.shp
   osm_path_hannover: osm/niedersachsen-latest.osm.pbf
   check_spatial_codes: True
   analysis_path: output/analysis
-  osmconvert_binary: /home/lmg/Documents/Code/sut-lab/sutLab/osmconvert
+  osmconvert_binary: /cluster/work/adey/kaghog/SUT/sutLab/osmconvert
 
   # Only interesting if you run the simulation
   java_memory: 14G
@@ -72,6 +75,5 @@ aliases:
   data.hts.entd.raw: hannover.data.hts.entd.raw
   data.hts.entd.filtered: hannover.data.hts.entd.filtered
   data.hts.entd.cleaned: hannover.data.hts.entd.cleaned
-  matsim.simulation.prepare: matsim.scenario.prepare
-  
+  matsim.simulation.prepare: matsim.simulation.prepare
 
