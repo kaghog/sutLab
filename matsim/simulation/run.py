@@ -16,7 +16,7 @@ def execute(context):
     )
 
     # Run routing
-    eqasim.run(context, "org.eqasim.bavaria.RunSimulation", [
+    eqasim.run(context, "org.sutlab.hannover.RunSimulation", [
         "--config-path", config_path,
         "--config:controler.lastIteration", str(1),
         "--config:controler.writeEventsInterval", str(1),
