@@ -40,7 +40,7 @@ config:
   osm_path_hannover: osm/niedersachsen-latest.osm.pbf
   check_spatial_codes: True
   analysis_path: output/analysis
-  osmconvert_binary: /cluster/work/adey/kaghog/SUT/sutLab/osmconvert
+  osmconvert_binary: osmconvert
 
   # Only interesting if you run the simulation
   java_memory: 64G
@@ -68,11 +68,12 @@ aliases:
   data.spatial.iris: hannover.data.spatial.iris
   data.spatial.codes: hannover.entd_codes
   synthesis.population.spatial.primary.locations: hannover.locations.synthesis.replacement
-  #synthesis.population.enriched: hannover.synthesis.population.enriched #taken from munich mid aggregate
-  matsim.simulation.prepare: hannover.matsim.simulation.prepare
+  #synthesis.population.enriched: hannover.synthesis.population.enriched #taken from munich mid aggregate 
   #analysis.statistics: analysis.hannover.statistics
   data.hts.entd.raw: hannover.data.hts.entd.raw
   data.hts.entd.filtered: hannover.data.hts.entd.filtered
   data.hts.entd.cleaned: hannover.data.hts.entd.cleaned
-  matsim.simulation.prepare: matsim.simulation.prepare
+  matsim.simulation.prepare: hannover.matsim.simulation.prepare
+  matsim.simulation.run: hannover.matsim.simulation.run
+
 
