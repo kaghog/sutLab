@@ -29,13 +29,12 @@ def autolabel(rects, ax):
 
 def add_small_hist(axes, r, c, act, x, y, bins, lab = ["Synthetic", "HTS"]):
     # Synthetic histogram (unweighted)
-    axes[r,c].hist(x, bins, alpha=0.5, label=lab[0], density=True, color=COLOR_SYNTHETIC)
+    axes[r,c].hist(x, bins, alpha=0.5, density=True, color=COLOR_SYNTHETIC)
     # HTS histogram (weighted)
-    axes[r,c].hist(y["crowfly_distance"], bins, weights=y["weight_person"], alpha=0.5, label=lab[1], density=True, color=COLOR_ACTUAL_HTS)
+    axes[r,c].hist(y["crowfly_distance"], bins, weights=y["weight_person"], alpha=0.5, density=True, color=COLOR_ACTUAL_HTS)
     axes[r,c].set_ylabel("Percentage")
     axes[r,c].set_xlabel("Crowfly Distance [km]")
-    axes[r,c].set_title("Activity: " + act.capitalize())
-    axes[r,c].legend(loc="best")
+    axes[r,c].set_title(act.capitalize())
     return axes
 
 
@@ -56,13 +55,13 @@ def add_small_cdf(axes, r, c, act, x, y, bins=None, lab = ["Synthetic", "HTS"]):
         y_cdf /= y_cdf[-1]
 
     # HTS as blue, Synthetic as gray
-    axes[r,c].plot(y_data[y_sorted], y_cdf, label=lab[1], color=COLOR_ACTUAL_HTS)
-    axes[r,c].plot(x_data[x_sorted], x_cdf, label=lab[0], color=COLOR_SYNTHETIC)
+    axes[r,c].plot(y_data[y_sorted], y_cdf, color=COLOR_ACTUAL_HTS)
+    axes[r,c].plot(x_data[x_sorted], x_cdf, color=COLOR_SYNTHETIC)
 
     axes[r,c].set_ylabel("Probability")
     axes[r,c].set_xlabel("Crowfly Distance [km]")
-    axes[r,c].set_title("Activity: " + act.capitalize())
-    axes[r,c].legend(loc="best")
+    axes[r,c].set_title(act.capitalize())
+    # Legend will be added once to the entire figure, not per subplot
     return axes
 
 
@@ -247,7 +246,7 @@ def plot_horizontal_comparison(context, imtitle, plottitle, xlabel, labels, synt
     """
     Grouped horizontal bar chart for side-by-side comparison of up to three series
     (Synthetic, HTS, Census). Missing series values can be NaN and will be skipped
-    per-bar gracefully.
+    per-bar gracefully. Bars are positioned dynamically without gaps for missing data.
 
     Parameters
     - labels: list of category strings (y-axis)
@@ -283,110 +282,261 @@ def plot_horizontal_comparison(context, imtitle, plottitle, xlabel, labels, synt
     if k == 0:
         return
 
-    # Height of each sub-bar within a category
-    sub_h = bar_height / k
-
     fig, ax = plt.subplots()
     fig.set_facecolor("#ffffff")
 
-    # Center the grouped bars around each y position
-    offsets = np.linspace(-bar_height/2 + sub_h/2, bar_height/2 - sub_h/2, k)
-
-    for i, vals in enumerate(series):
-        # Mask NaNs per value to skip drawing
-        mask = ~np.isnan(vals)
-        # For stable plotting, set NaNs to 0; they won't render if masked
-        vals_plot = np.where(mask, vals, 0.0)
-        ax.barh(y[mask] + offsets[i], vals_plot[mask], height=sub_h, color=colors[i], label=legend_labels[i])
+    # Track which legend labels have been used to ensure each appears only once
+    legend_labels_used = set()
+    
+    # For each label, determine which series have valid data and position bars dynamically
+    for j in range(n):
+        valid_indices = []
+        valid_values = []
+        valid_colors = []
+        valid_labels = []
+        
+        # Check which series have valid (non-NaN) data for this label
+        for i in range(k):
+            if not np.isnan(series[i][j]):
+                valid_indices.append(i)
+                valid_values.append(series[i][j])
+                valid_colors.append(colors[i])
+                valid_labels.append(legend_labels[i])
+        
+        # If no valid data for this label, skip
+        if len(valid_values) == 0:
+            continue
+            
+        # Position bars for valid series only (no gaps)
+        k_valid = len(valid_values)
+        sub_h = bar_height / k_valid
+        offsets = np.linspace(-bar_height/2 + sub_h/2, bar_height/2 - sub_h/2, k_valid)
+        
+        # Draw bars for this label
+        for idx, (val, color, label) in enumerate(zip(valid_values, valid_colors, valid_labels)):
+            # Only add to legend if this label hasn't been used yet
+            label_for_legend = label if label not in legend_labels_used else None
+            if label_for_legend is not None:
+                legend_labels_used.add(label)
+            ax.barh(y[j] + offsets[idx], val, height=sub_h, color=color, label=label_for_legend)
 
     ax.set_xlabel(xlabel)
     ax.set_yticks(y)
     ax.set_yticklabels(labels)
     ax.set_title(plottitle)
     ax.invert_yaxis()  # top item first
-    ax.legend(loc='upper right')
+    
+    # Get legend handles and labels, maintain original order
+    handles, labels_legend = ax.get_legend_handles_labels()
+    
+    # Ensure legend appears in the original order (Synthetic, HTS, Census)
+    ordered_handles = []
+    ordered_labels = []
+    for original_label in legend_labels:  # This preserves the original order
+        for handle, label in zip(handles, labels_legend):
+            if label == original_label and label not in ordered_labels:
+                ordered_handles.append(handle)
+                ordered_labels.append(label)
+                break
+    
+    ax.legend(ordered_handles, ordered_labels, loc='upper right')
     fig.tight_layout()
     plt.savefig("%s/" % context.config("analysis_path") + imtitle)
     plt.close()
 
 
 def plot_comparison_hist_purpose(context, title, actual_df, synthetic_df, bins = np.linspace(0,25,120), dpi = 300, cols = 3, rows = 2):
-    modelist = synthetic_df["following_purpose"].unique()
-    rows = (len(modelist) // 3) + (len(modelist) % 3 != 0)
+    # Sort purposes with "Other" at the end for better visual presentation
+    purposes = synthetic_df["following_purpose"].unique()
+    purposes_sorted = []
+    other_purposes = []
+    
+    for purpose in sorted(purposes):
+        if purpose.lower() == 'other':
+            other_purposes.append(purpose)
+        else:
+            purposes_sorted.append(purpose)
+    
+    modelist = purposes_sorted + other_purposes  # "Other" comes last
+    
+    # Calculate actual rows needed
+    actual_rows = (len(modelist) // cols) + (len(modelist) % cols != 0)
+    
     plt.rcParams['figure.dpi'] = dpi
-    fig, axes = plt.subplots(nrows=rows, ncols=cols, figsize = (5*cols, 3*rows))
+    fig, axes = plt.subplots(nrows=actual_rows, ncols=cols, figsize = (5*cols, 3*actual_rows))
+    
+    # Ensure axes is 2D array even for single row
+    if actual_rows == 1:
+        axes = axes.reshape(1, -1)
+    
     idx=0
-    for r in range(rows):
+    for r in range(actual_rows):
         for c in range(cols):
             if idx < len(modelist):
-                x = synthetic_df[synthetic_df["following_purpose"]==modelist[idx]]["crowfly_distance"]
-                y = actual_df[actual_df["purpose"]==modelist[idx]][["crowfly_distance", "weight_person"]]
-                axes = add_small_hist(axes, r, c, modelist[idx], x, y, bins)
+                purpose = modelist[idx]
+                x = synthetic_df[synthetic_df["following_purpose"]==purpose]["crowfly_distance"]
+                y = actual_df[actual_df["purpose"]==purpose][["crowfly_distance", "weight_person"]]
+                axes = add_small_hist(axes, r, c, purpose, x, y, bins)
                 idx = idx + 1   
-     
+            else:
+                # Hide unused subplots
+                axes[r, c].set_visible(False)
+    
+    # Add a single legend for the entire figure positioned on the right
+    # Create dummy plots for legend
+    import matplotlib.lines as mlines
+    hts_line = mlines.Line2D([], [], color=COLOR_ACTUAL_HTS, label='HTS')
+    synthetic_line = mlines.Line2D([], [], color=COLOR_SYNTHETIC, label='Synthetic')
+    fig.legend(handles=[hts_line, synthetic_line], loc='center right', bbox_to_anchor=(0.98, 0.5))
+    
+    fig.suptitle("Distribution of Distances by Activity", fontsize=14)
     fig.tight_layout()
-    plt.savefig("%s/" % context.config("analysis_path") + title)
+    fig.subplots_adjust(right=0.85)  # Make room for legend on the right
+    plt.savefig("%s/" % context.config("analysis_path") + title, bbox_inches='tight', dpi=dpi)
     plt.close()
 
 
 
 def plot_comparison_hist_mode(context, title, actual_df, synthetic_df, bins = np.linspace(0,25,120), dpi = 300, cols = 3, rows = 2):
     modelist = synthetic_df["mode"].unique()
+    
+    # Calculate actual rows needed based on number of modes
+    actual_rows = (len(modelist) // cols) + (len(modelist) % cols != 0)
+    
     plt.rcParams['figure.dpi'] = dpi
-    fig, axes = plt.subplots(nrows=rows, ncols=cols)
+    fig, axes = plt.subplots(nrows=actual_rows, ncols=cols, figsize=(5*cols, 3*actual_rows))
+    
+    # Ensure axes is 2D array even for single row
+    if actual_rows == 1:
+        axes = axes.reshape(1, -1)
+    
     idx=0
-    for r in range(rows):
+    for r in range(actual_rows):
         for c in range(cols):
-            x = synthetic_df[synthetic_df["mode"]==modelist[idx]]["crowfly_distance"]
-            y = actual_df[actual_df["mode"]==modelist[idx]][["crowfly_distance", "weight_person"]]        
-            axes = add_small_hist(axes, r, c, modelist[idx], x, y, bins)
-            idx=idx+1
-            if idx==5:
-                break
+            if idx < len(modelist):
+                x = synthetic_df[synthetic_df["mode"]==modelist[idx]]["crowfly_distance"]
+                y = actual_df[actual_df["mode"]==modelist[idx]][["crowfly_distance", "weight_person"]]        
+                axes = add_small_hist(axes, r, c, modelist[idx], x, y, bins)
+                idx=idx+1
+            else:
+                axes[r, c].set_visible(False)
 
-    fig.delaxes(axes[1,2])        
+    # Add a single legend for the entire figure positioned on the right
+    # Create dummy plots for legend  
+    from matplotlib.patches import Rectangle
+    hts_patch = Rectangle((0,0),1,1, fc=COLOR_ACTUAL_HTS, alpha=0.5, label='HTS')
+    synthetic_patch = Rectangle((0,0),1,1, fc=COLOR_SYNTHETIC, alpha=0.5, label='Synthetic')
+    fig.legend(handles=[hts_patch, synthetic_patch], loc='center right', bbox_to_anchor=(0.98, 0.5))
+    
+    fig.suptitle("Distribution of Distances by Mode", fontsize=14)
     fig.tight_layout()
-    plt.savefig("%s/" % context.config("analysis_path") + title)
+    fig.subplots_adjust(right=0.85)  # Make room for legend on the right
+    plt.savefig("%s/" % context.config("analysis_path") + title, bbox_inches='tight', dpi=dpi)
     plt.close()
 
 
 
 def plot_comparison_cdf_purpose(context, title, actual_df, synthetic_df, dpi = 300, cols = 3, rows = 2):
-    modelist = synthetic_df["following_purpose"].unique()
-    rows = (len(modelist) // 3) + (len(modelist) % 3 != 0)
+    import pandas as pd
+    
+    # Sort purposes with "Other" at the end for better visual presentation
+    purposes = synthetic_df["following_purpose"].unique()
+    purposes_sorted = []
+    other_purposes = []
+    
+    for purpose in sorted(purposes):
+        if purpose.lower() == 'other':
+            other_purposes.append(purpose)
+        else:
+            purposes_sorted.append(purpose)
+    
+    modelist = purposes_sorted + other_purposes  # "Other" comes last
+    
+    # Calculate actual rows needed
+    actual_rows = (len(modelist) // cols) + (len(modelist) % cols != 0)
+    
     plt.rcParams['figure.dpi'] = dpi
-    fig, axes = plt.subplots(nrows=rows, ncols=cols, figsize = (5*cols, 3*rows))
+    fig, axes = plt.subplots(nrows=actual_rows, ncols=cols, figsize = (5*cols, 3*actual_rows))
+    
+    # Ensure axes is 2D array even for single row
+    if actual_rows == 1:
+        axes = axes.reshape(1, -1)
+    
     idx=0
-    for r in range(rows):
+    for r in range(actual_rows):
         for c in range(cols):
             if idx < len(modelist):
-                x = synthetic_df[synthetic_df["following_purpose"]==modelist[idx]]["crowfly_distance"]
-                y = actual_df[actual_df["purpose"]==modelist[idx]][["crowfly_distance", "weight_person"]]
-                axes = add_small_cdf(axes, r, c, modelist[idx], x, y)
-                idx = idx + 1   
-     
+                purpose = modelist[idx]
+                x = synthetic_df[synthetic_df["following_purpose"]==purpose]["crowfly_distance"]
+                
+                # Check if actual_df has data for this purpose and required columns
+                if actual_df is not None and len(actual_df) > 0:
+                    # Try 'purpose' column first, then 'following_purpose' as fallback
+                    purpose_col = 'purpose' if 'purpose' in actual_df.columns else 'following_purpose'
+                    if purpose_col in actual_df.columns:
+                        y = actual_df[actual_df[purpose_col]==purpose][["crowfly_distance", "weight_person"]]
+                        if len(y) == 0:  # No HTS data for this purpose
+                            y = pd.DataFrame(columns=["crowfly_distance", "weight_person"])
+                    else:
+                        y = pd.DataFrame(columns=["crowfly_distance", "weight_person"])
+                else:
+                    y = pd.DataFrame(columns=["crowfly_distance", "weight_person"])
+                
+                axes = add_small_cdf(axes, r, c, purpose, x, y)
+                idx = idx + 1
+            else:
+                # Hide unused subplots
+                axes[r, c].set_visible(False)
+    
+    # Add a single legend for the entire figure positioned on the right
+    # Create dummy plots for legend
+    import matplotlib.lines as mlines
+    hts_line = mlines.Line2D([], [], color=COLOR_ACTUAL_HTS, label='HTS')
+    synthetic_line = mlines.Line2D([], [], color=COLOR_SYNTHETIC, label='Synthetic')
+    fig.legend(handles=[hts_line, synthetic_line], loc='center right', bbox_to_anchor=(0.98, 0.5))
+    
+    fig.suptitle("Distribution of Distances by Activity", fontsize=14)
     fig.tight_layout()
-    plt.savefig("%s/" % context.config("analysis_path") + title)
+    fig.subplots_adjust(right=0.85)  # Make room for legend on the right
+    plt.savefig("%s/" % context.config("analysis_path") + title, bbox_inches='tight', dpi=dpi)
     plt.close()
 
 
 def plot_comparison_cdf_mode(context, title, actual_df, synthetic_df, bins = np.linspace(0,25,120), dpi = 300, cols = 3, rows = 2):
     modelist = synthetic_df["mode"].unique()
+    
+    # Calculate actual rows needed based on number of modes
+    actual_rows = (len(modelist) // cols) + (len(modelist) % cols != 0)
+    
     plt.rcParams['figure.dpi'] = dpi
-    fig, axes = plt.subplots(nrows=rows, ncols=cols)
+    fig, axes = plt.subplots(nrows=actual_rows, ncols=cols, figsize=(5*cols, 3*actual_rows))
+    
+    # Ensure axes is 2D array even for single row
+    if actual_rows == 1:
+        axes = axes.reshape(1, -1)
+    
     idx=0
-    for r in range(rows):
+    for r in range(actual_rows):
         for c in range(cols):
-            x = synthetic_df[synthetic_df["mode"]==modelist[idx]]["crowfly_distance"]
-            y = actual_df[actual_df["mode"]==modelist[idx]][["crowfly_distance", "weight_person"]]        
-            axes = add_small_cdf(axes, r, c, modelist[idx], x, y, bins)
-            idx=idx+1
-            if idx==5:
-                break
+            if idx < len(modelist):
+                x = synthetic_df[synthetic_df["mode"]==modelist[idx]]["crowfly_distance"]
+                y = actual_df[actual_df["mode"]==modelist[idx]][["crowfly_distance", "weight_person"]]        
+                axes = add_small_cdf(axes, r, c, modelist[idx], x, y, bins)
+                idx=idx+1
+            else:
+                axes[r, c].set_visible(False)
 
-    fig.delaxes(axes[1,2])        
+    # Add a single legend for the entire figure positioned on the right
+    # Create dummy plots for legend
+    import matplotlib.lines as mlines
+    hts_line = mlines.Line2D([], [], color=COLOR_ACTUAL_HTS, label='HTS')
+    synthetic_line = mlines.Line2D([], [], color=COLOR_SYNTHETIC, label='Synthetic')
+    fig.legend(handles=[hts_line, synthetic_line], loc='center right', bbox_to_anchor=(0.98, 0.5))
+    
+    fig.suptitle("Distribution of Distances by Mode", fontsize=14)
     fig.tight_layout()
-    plt.savefig("%s/" % context.config("analysis_path") + title)
+    fig.subplots_adjust(right=0.85)  # Make room for legend on the right
+    plt.savefig("%s/" % context.config("analysis_path") + title, bbox_inches='tight', dpi=dpi)
     plt.close()
 
 
@@ -423,4 +573,63 @@ def plot_mode_share(context, title, df_syn, df2, amdf2, dpi = 300):
 
     fig.tight_layout()
     plt.savefig("%s/" % context.config("analysis_path") + title)
+    plt.close()
+
+
+def add_synthetic_cdf(axes, r, c, act, x, label="Synthetic"):
+    """Add synthetic-only CDF plot to subplot"""
+    x_data = np.array(x, dtype=np.float64)
+    x_sorted = np.argsort(x_data)
+    x_weights = np.array([1.0 for i in range(len(x))], dtype=np.float64)
+    x_cdf = np.cumsum(x_weights[x_sorted])
+    if len(x_cdf) > 0:
+        x_cdf /= x_cdf[-1]
+
+    # Plot synthetic as dark blue line
+    axes[r,c].plot(x_data[x_sorted], x_cdf, label=label, color=COLOR_ACTUAL_HTS, linewidth=2)
+
+    axes[r,c].set_ylabel("Probability")
+    axes[r,c].set_xlabel("Crowfly Distance [km]")
+    axes[r,c].set_title(act.capitalize())
+    axes[r,c].legend(loc="lower right")
+    axes[r,c].grid(True, alpha=0.3)
+    axes[r,c].set_xlim(0, 25)  # Match your reference image range
+    axes[r,c].set_ylim(0, 1)
+    return axes
+
+
+def plot_synthetic_cdf_purpose(context, title, synthetic_df, dpi=300, cols=3, rows=2):
+    """Plot synthetic-only CDF by purpose in 2x3 grid layout"""
+    import matplotlib.pyplot as plt
+    
+    purposes = synthetic_df["following_purpose"].unique()
+    # Sort purposes for consistent ordering
+    purposes = sorted(purposes)
+    
+    plt.rcParams['figure.dpi'] = dpi
+    fig, axes = plt.subplots(nrows=rows, ncols=cols, figsize=(5*cols, 3*rows))
+    
+    # Ensure axes is 2D array even for single row
+    if rows == 1:
+        axes = axes.reshape(1, -1)
+    
+    idx = 0
+    for r in range(rows):
+        for c in range(cols):
+            if idx < len(purposes):
+                purpose = purposes[idx]
+                x = synthetic_df[synthetic_df["following_purpose"] == purpose]["crowfly_distance"]
+                if len(x) > 0:  # Only plot if we have data
+                    axes = add_synthetic_cdf(axes, r, c, purpose, x)
+                else:
+                    # Hide empty subplots
+                    axes[r, c].set_visible(False)
+                idx += 1
+            else:
+                # Hide unused subplots
+                axes[r, c].set_visible(False)
+    
+    fig.suptitle("Distribution of Distances by Activity", fontsize=14, y=0.98)
+    fig.tight_layout()
+    plt.savefig(f"{context.config('analysis_path')}/{title}", bbox_inches='tight', dpi=dpi)
     plt.close()

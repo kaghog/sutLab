@@ -57,7 +57,7 @@ def import_data_synthetic(context, population_selector = None):
     # Debug: how many persons are covered by trips vs. total persons
     total_persons = len(df_persons)
     persons_in_trips = df_trips["person_id"].nunique()
-    print(f"[DEBUG] Synthetic persons total={total_persons}, in trips={persons_in_trips} ({persons_in_trips/total_persons*100:.2f}%)")
+    # print(f"[DEBUG] Synthetic persons total={total_persons}, in trips={persons_in_trips} ({persons_in_trips/total_persons*100:.2f}%)")
     
     t_id = df_trips["person_id"].values.tolist()
     df_persons_no_trip = df_persons[np.logical_not(df_persons["person_id"].isin(t_id))]
@@ -97,7 +97,16 @@ def import_data_synthetic(context, population_selector = None):
 
 
 def import_data_actual(context, population_selector = None):
-    df_act_households , df_act_persons, df_act_trips = context.stage("data.hts.entd.reweighted")
+    try:
+        hts_data = context.stage("data.hts.entd.reweighted")
+        if hts_data is None or any(x is None for x in hts_data):
+            print("WARNING: HTS data is not available - returning None")
+            return None, None, None
+        
+        df_act_households , df_act_persons, df_act_trips = hts_data
+    except Exception as e:
+        print(f"WARNING: Could not load HTS data: {e}")
+        return None, None, None
     
     # First ensure number_of_vehicles is numeric and convert to boolean
     df_act_households["number_of_vehicles"] = pd.to_numeric(df_act_households["number_of_vehicles"], errors="coerce").fillna(0)
@@ -135,7 +144,7 @@ def import_data_actual(context, population_selector = None):
     # Debug: size and coverage
     total_hts_persons = len(df_act_persons)
     persons_in_trips = df_act_trips["person_id"].nunique()
-    print(f"[DEBUG] HTS persons total={total_hts_persons}, in trips={persons_in_trips} ({persons_in_trips/total_hts_persons*100:.2f}%)")
+    # print(f"[DEBUG] HTS persons total={total_hts_persons}, in trips={persons_in_trips} ({persons_in_trips/total_hts_persons*100:.2f}%)")
 
     if population_selector:
         if "age_selector" in population_selector.keys():
@@ -382,9 +391,9 @@ def demographics_comparison(context, df_act_persons, df_syn_persons, df_census, 
     df_syn_persons['age_bin'] = pd.cut(df_syn_persons["age"], bins=bins, labels=labels)
 
     # Debug: bins and basic distributions before weighting/percentages
-    print(f"[DEBUG] Age bins used: {bins}")
-    print("[DEBUG] HTS age_bin value_counts (raw, person-level, incl. no-trip):\n", df_act_persons['age_bin'].value_counts(dropna=False))
-    print("[DEBUG] SYN age_bin value_counts (raw, person-level, incl. no-trip):\n", df_syn_persons['age_bin'].value_counts(dropna=False))
+    # print(f"[DEBUG] Age bins used: {bins}")
+    # print("[DEBUG] HTS age_bin value_counts (raw, person-level, incl. no-trip):\n", df_act_persons['age_bin'].value_counts(dropna=False))
+    # print("[DEBUG] SYN age_bin value_counts (raw, person-level, incl. no-trip):\n", df_syn_persons['age_bin'].value_counts(dropna=False))
 
     # Weighted HTS counts, unweighted synthetic counts; both as percentages
     act_counts = myplottools.compute_counts(df_act_persons['age_bin'], weights=df_act_persons['weight_person'], categories=labels)
@@ -395,7 +404,7 @@ def demographics_comparison(context, df_act_persons, df_syn_persons, df_census, 
     syn_counts = _pd.Series(syn_counts).reindex(labels).fillna(0)
 
     # Debug: sums should be ~100, show small deviations
-    print(f"[DEBUG] HTS percent sum={act_counts.sum():.6f}; SYN percent sum={syn_counts.sum():.6f}")
+    # print(f"[DEBUG] HTS percent sum={act_counts.sum():.6f}; SYN percent sum={syn_counts.sum():.6f}")
     if df_census is None:
         print("[DEBUG] Census is None in demographics_comparison; plotting will be HTS vs SYN only.")
 
@@ -411,8 +420,8 @@ def demographics_comparison(context, df_act_persons, df_syn_persons, df_census, 
         census_counts = census_counts.reindex(labels).fillna(0)
 
         # Debug: census distribution sanity
-        print("[DEBUG] Census counts sum=", census_counts.sum())
-        print("[DEBUG] Census age_label distribution (percent):\n", census_counts)
+        # print("[DEBUG] Census counts sum=", census_counts.sum())
+        # print("[DEBUG] Census age_label distribution (percent):\n", census_counts)
 
         # Calculate differences (Synthetic - Reference)
         diff_hts = syn_counts - act_counts
@@ -428,7 +437,7 @@ def demographics_comparison(context, df_act_persons, df_syn_persons, df_census, 
             "gap_syn_minus_census": (syn_counts - census_counts).reindex(ordered_labels).values,
             "gap_hts_minus_census": (act_counts - census_counts).reindex(ordered_labels).values,
         })
-        print("[DEBUG] Age distribution table (percentages and gaps vs census):\n", df_debug)
+        # print("[DEBUG] Age distribution table (percentages and gaps vs census):\n", df_debug)
 
         # Plot differences
         title_figure_diff = "agedistribution_differences"
@@ -642,9 +651,173 @@ def demographics_comparison(context, df_act_persons, df_syn_persons, df_census, 
     )
 
 
+def summary_horizontal(context, df_act_persons, df_syn_persons, df_census, suffix=None, use_active_only=False):
+    """
+    Build a single horizontal summary plot with the following comparisons:
+    - syn vs census: age, sex, employment
+    - syn vs hts: driving license, pt subscription
+
+    All metrics are expressed as percentages of persons (HTS/Census weighted; Synthetic unweighted).
+    Studies comparison has been removed to avoid showing artificially enriched data.
+    """
+    import pandas as _pd
+
+    # Optionally restrict to active persons
+    if use_active_only:
+        if "is_active" in df_act_persons.columns:
+            df_act_persons = df_act_persons[df_act_persons["is_active"]]
+        if "is_active" in df_syn_persons.columns:
+            df_syn_persons = df_syn_persons[df_syn_persons["is_active"]]
+
+    labels_all = []
+    syn_vals = []
+    hts_vals = []
+    cen_vals = []
+
+    # ---------- Age (syn vs census) ----------
+    age_bins = [0, 6, 15, 18, 24, 30, 45, 65, 80, 150]
+    age_labels = ["0-5", "6-14", "15-17", "18-23", "24-29", "30-44", "45-64", "65-79", "80+"]
+    if "age" in df_syn_persons.columns:
+        syn_age = _pd.cut(df_syn_persons["age"], bins=age_bins, labels=age_labels)
+        syn_age_pct = myplottools.compute_counts(syn_age, categories=age_labels)
+    else:
+        syn_age_pct = _pd.Series([float("nan")] * len(age_labels), index=age_labels)
+
+    cen_age_pct = _pd.Series([float("nan")] * len(age_labels), index=age_labels)
+    if df_census is not None and {"age_class", "weight"}.issubset(df_census.columns):
+        # Map integer lower bounds to labels used above
+        lower_to_label = dict(zip(age_bins[:-1], age_labels))
+        df_c = df_census.copy()
+        df_c["age_label"] = df_c["age_class"].map(lower_to_label)
+        cen_age_raw = df_c.groupby("age_label")["weight"].sum()
+        cen_age_pct = (cen_age_raw / cen_age_raw.sum() * 100.0).reindex(age_labels).fillna(0)
+
+    labels_all.extend([f"Age {l}" for l in age_labels])
+    syn_vals.extend(list(syn_age_pct.reindex(age_labels).values))
+    hts_vals.extend([float("nan")] * len(age_labels))
+    cen_vals.extend(list(cen_age_pct.reindex(age_labels).values))
+
+    # ---------- Sex (syn vs census) ----------
+    sex_labels = ["Female", "Male"]
+    # Synthetic: sex can be string or numeric (1 male, 2 female) depending on pipeline
+    syn_sex_series = df_syn_persons.get("sex")
+    if syn_sex_series is not None:
+        syn_sex_norm = syn_sex_series.replace({1: "male", 2: "female", 0: "male"}).astype(str).str.lower()
+        syn_sex_lab = syn_sex_norm.replace({"female": "Female", "male": "Male"})
+        syn_sex_pct = myplottools.compute_counts(syn_sex_lab, categories=sex_labels)
+    else:
+        syn_sex_pct = _pd.Series([float("nan")] * 2, index=sex_labels)
+
+    cen_sex_pct = _pd.Series([float("nan")] * 2, index=sex_labels)
+    if df_census is not None and {"sex", "weight"}.issubset(df_census.columns):
+        cen_sex_norm = df_census["sex"].astype(str).str.lower()
+        cen_sex_lab = cen_sex_norm.replace({"female": "Female", "male": "Male"})
+        tmp = _pd.DataFrame({"label": cen_sex_lab, "w": df_census["weight"]})
+        cen_raw = tmp.groupby("label")["w"].sum()
+        cen_sex_pct = (cen_raw / cen_raw.sum() * 100.0).reindex(sex_labels).fillna(0)
+
+    labels_all.extend(sex_labels)
+    syn_vals.extend(list(syn_sex_pct.reindex(sex_labels).values))
+    hts_vals.extend([float("nan")] * len(sex_labels))
+    cen_vals.extend(list(cen_sex_pct.reindex(sex_labels).values))
+
+    # ---------- Employment (syn vs census) ----------
+    emp_labels = ["Unemployed", "Employed"]
+    syn_emp_series = df_syn_persons.get("employed")
+    if syn_emp_series is not None:
+        syn_emp_lab = syn_emp_series.replace({False: "Unemployed", True: "Employed"})
+        syn_emp_pct = myplottools.compute_counts(syn_emp_lab, categories=emp_labels)
+    else:
+        syn_emp_pct = _pd.Series([float("nan")] * 2, index=emp_labels)
+
+    cen_emp_pct = _pd.Series([float("nan")] * 2, index=emp_labels)
+    try:
+        # Pull employment and population from IPF preparation
+        df_population, df_employment, _df_licenses_country, _df_licenses_kreis = context.stage("hannover.ipf.prepare")
+        total_pop = float(df_population["weight"].sum())
+        total_emp = float(df_employment["weight"].sum())
+        if total_pop > 0:
+            cen_emp_pct = _pd.Series({
+                "Unemployed": max(0.0, (1.0 - total_emp / total_pop) * 100.0),
+                "Employed": min(100.0, (total_emp / total_pop) * 100.0)
+            }).reindex(emp_labels)
+    except Exception as _e:
+        print("[WARN] Could not derive Census employment distribution:", _e)
+
+    labels_all.extend(emp_labels)
+    syn_vals.extend(list(syn_emp_pct.reindex(emp_labels).values))
+    hts_vals.extend([float("nan")] * len(emp_labels))
+    cen_vals.extend(list(cen_emp_pct.reindex(emp_labels).values))
+
+    # ---------- Driving license (syn vs HTS) ----------
+    lic_labels = ["Driving license No", "Driving license Yes"]
+    syn_lic_series = df_syn_persons.get("has_driving_license")
+    if syn_lic_series is None and "has_license" in df_syn_persons.columns:
+        syn_lic_series = df_syn_persons["has_license"]
+    syn_lic_lab = _pd.Series(syn_lic_series).replace({False: "Driving license No", True: "Driving license Yes"}) if syn_lic_series is not None else None
+    syn_lic_pct = myplottools.compute_counts(syn_lic_lab, categories=lic_labels) if syn_lic_lab is not None else _pd.Series([float("nan")] * 2, index=lic_labels)
+
+    act_lic_series = df_act_persons.get("has_license")
+    act_lic_lab = _pd.Series(act_lic_series).replace({False: "Driving license No", True: "Driving license Yes"}) if act_lic_series is not None else None
+    _wcol = "weight_person" if "weight_person" in df_act_persons.columns else ("person_weight" if "person_weight" in df_act_persons.columns else None)
+    _wser = df_act_persons[_wcol] if _wcol is not None else None
+    act_lic_pct = myplottools.compute_counts(act_lic_lab, weights=_wser, categories=lic_labels) if act_lic_lab is not None else _pd.Series([float("nan")] * 2, index=lic_labels)
+
+    labels_all.extend(lic_labels)
+    syn_vals.extend(list(syn_lic_pct.reindex(lic_labels).values))
+    hts_vals.extend(list(act_lic_pct.reindex(lic_labels).values))
+    cen_vals.extend([float("nan")] * len(lic_labels))
+
+    # ---------- PT subscription (syn vs HTS) ----------
+    pts_labels = ["PT Subscription No", "PT Subscription Yes"]
+    syn_pts_series = df_syn_persons.get("has_pt_subscription")
+    syn_pts_lab = _pd.Series(syn_pts_series).replace({False: "PT Subscription No", True: "PT Subscription Yes"}) if syn_pts_series is not None else None
+    syn_pts_pct = myplottools.compute_counts(syn_pts_lab, categories=pts_labels) if syn_pts_lab is not None else _pd.Series([float("nan")] * 2, index=pts_labels)
+
+    act_pts_series = df_act_persons.get("has_pt_subscription")
+    act_pts_lab = _pd.Series(act_pts_series).replace({False: "PT Subscription No", True: "PT Subscription Yes"}) if act_pts_series is not None else None
+    _wcol2 = "weight_person" if "weight_person" in df_act_persons.columns else ("person_weight" if "person_weight" in df_act_persons.columns else None)
+    _wser2 = df_act_persons[_wcol2] if _wcol2 is not None else None
+    act_pts_pct = myplottools.compute_counts(act_pts_lab, weights=_wser2, categories=pts_labels) if act_pts_lab is not None else _pd.Series([float("nan")] * 2, index=pts_labels)
+
+    labels_all.extend(pts_labels)
+    syn_vals.extend(list(syn_pts_pct.reindex(pts_labels).values))
+    hts_vals.extend(list(act_pts_pct.reindex(pts_labels).values))
+    cen_vals.extend([float("nan")] * len(pts_labels))
+
+    # ---- Plot ----
+    imtitle = "summary_horizontal"
+    plottitle = "Hannover sociodemographic summary"
+    if suffix:
+        imtitle += f"_{suffix}"
+        plottitle += f" - {suffix}"
+    imtitle += ".png"
+
+    myplottools.plot_horizontal_comparison(
+        context,
+        imtitle=imtitle,
+        plottitle=plottitle,
+        xlabel="Percentage of population (%)",
+        labels=labels_all,
+        synthetic=syn_vals,
+        actual=hts_vals,
+        census=cen_vals,
+        lablist=["Synthetic", "HTS", "Census"],
+        figsize=[10, max(8, int(len(labels_all) * 0.35))],
+        dpi=300,
+        bar_height=0.7
+    )
+
 
 def compute_distances_synthetic(df_syn, threshold = 25):
-    df_syn["crowfly_distance"] = 0.001 * np.array(df_syn["crowfly_distance"])
+    # Use euclidean_distance if available, otherwise try crowfly_distance
+    if "euclidean_distance" in df_syn.columns:
+        df_syn["crowfly_distance"] = 0.001 * np.array(df_syn["euclidean_distance"])
+    elif "crowfly_distance" in df_syn.columns:
+        df_syn["crowfly_distance"] = 0.001 * np.array(df_syn["crowfly_distance"])
+    else:
+        print("WARNING: No distance column found in synthetic data")
+        return df_syn
 
     # Only consider crowfly distances shorter than <threshold> km
     df_syn_dist = df_syn[df_syn["crowfly_distance"] < threshold]
@@ -653,11 +826,8 @@ def compute_distances_synthetic(df_syn, threshold = 25):
 
 
 def compute_distances_actual(df_act, threshold = 25):
-    # Compute the distances
-    df_act["crowfly_distance"] = 0.001 * np.sqrt(
-        (df_act["origin_x"] - df_act["destination_x"])**2 + 
-        (df_act["origin_y"] - df_act["destination_y"])**2
-    )
+    # Use routed_distance from HTS data (already in meters) as approximation for crowfly distance
+    df_act["crowfly_distance"] = df_act["routed_distance"] / 1000.0  # Convert meters to km
     
     df_act_dist = df_act[df_act["crowfly_distance"] < threshold]
     df_act_dist = df_act_dist[df_act_dist["crowfly_distance"] > 0]
@@ -743,14 +913,14 @@ def compare_dist_from_home(context, df_syn, df_act, target_purpose = "education"
     x_sorted = np.argsort(x_data)
     x_weights = np.array([1.0 for i in range(len(syn))], dtype=np.float64)
     x_cdf = np.cumsum(x_weights[x_sorted])
-    if len(x_cdf) >= 1:
+    if len(x_cdf) >= 1 and x_cdf[-1] > 0:
         x_cdf /= x_cdf[-1]
 
     y_data = np.array(act, dtype=np.float64)
     y_sorted = np.argsort(y_data)
     y_weights = np.array(act_w, dtype=np.float64)
     y_cdf = np.cumsum(y_weights[y_sorted])
-    if len(y_cdf) >= 1:
+    if len(y_cdf) >= 1 and y_cdf[-1] > 0:
         y_cdf /= y_cdf[-1]
 
     ax.plot(y_data[y_sorted], y_cdf, label="Actual", color = "#A3A3A3")
@@ -767,7 +937,9 @@ def compare_dist_from_home(context, df_syn, df_act, target_purpose = "education"
     ax.set_xlabel("Crowfly Distance [km]")
     ax.legend(loc="best")
     ax.set_title(plottitle)
+    plt.tight_layout()
     plt.savefig("%s/" % context.config("analysis_path") + imtitle)
+    plt.close()
     return syn, act, act_w
 
 
@@ -816,18 +988,49 @@ def all_the_plot_distances(context, df_act_dist, df_syn_dist, suffix = None):
         dmc_title += "_" + suffix
         
     dph_title += ".png"
-    dph_title += ".png"
+    dmh_title += ".png"  # Fixed: was duplicating dph_title
     dpc_title += ".png"
     dmc_title += ".png"
     
+    print("INFO generating distance histograms and CDFs by purpose")
+    # Generate 2x3 layout (original)
     myplottools.plot_comparison_hist_purpose(context, dph_title, df_act_dist, df_syn_dist, bins = np.linspace(0,25,120), dpi = 300, cols = 3, rows = 2)
-
     myplottools.plot_comparison_cdf_purpose(context, dpc_title, df_act_dist, df_syn_dist, dpi = 300, cols = 3, rows = 2)
+    
+    # Generate 3x2 layout (alternative)
+    dph_title_3x2 = dph_title.replace(".png", "_3x2.png")
+    dpc_title_3x2 = dpc_title.replace(".png", "_3x2.png")
+    myplottools.plot_comparison_hist_purpose(context, dph_title_3x2, df_act_dist, df_syn_dist, bins = np.linspace(0,25,120), dpi = 300, cols = 2, rows = 3)
+    myplottools.plot_comparison_cdf_purpose(context, dpc_title_3x2, df_act_dist, df_syn_dist, dpi = 300, cols = 2, rows = 3)
+    
+    # Only generate mode plots if mode data exists in both datasets
+    if "mode" in df_syn_dist.columns and "mode" in df_act_dist.columns:
+        print("INFO generating distance histograms and CDFs by mode")
+        # Generate 2x3 layout (original)
+        myplottools.plot_comparison_hist_mode(context, dmh_title, df_act_dist, df_syn_dist, bins = np.linspace(0,25,120), dpi = 300, cols = 3, rows = 2)
+        myplottools.plot_comparison_cdf_mode(context, dmc_title, df_act_dist, df_syn_dist, dpi = 300, cols = 3, rows = 2)
+        
+        # Generate 3x2 layout (alternative)
+        dmh_title_3x2 = dmh_title.replace(".png", "_3x2.png")
+        dmc_title_3x2 = dmc_title.replace(".png", "_3x2.png")
+        myplottools.plot_comparison_hist_mode(context, dmh_title_3x2, df_act_dist, df_syn_dist, bins = np.linspace(0,25,120), dpi = 300, cols = 2, rows = 3)
+        myplottools.plot_comparison_cdf_mode(context, dmc_title_3x2, df_act_dist, df_syn_dist, dpi = 300, cols = 2, rows = 3)
+    else:
+        print("INFO skipping mode distance plots - mode data not available in both datasets")
 
 
 def generate_plots(context, df_aux_act, df_aux_syn, df_act_trips, df_syn_trips, df_act_persons, df_syn_persons, df_syn_no_trip, df_act_no_trip, suffix, df_census):
+    # Handle case where HTS data is not available
+    hts_available = df_act_trips is not None and df_act_persons is not None
+    
     syn_CC = df_aux_syn.groupby("chain").size().reset_index(name='count')
-    act_CC = df_aux_act.groupby("chain")["weight_person"].sum().reset_index(name='count')
+    
+    if hts_available and len(df_aux_act) > 0:
+        act_CC = df_aux_act.groupby("chain")["weight_person"].sum().reset_index(name='count')
+    else:
+        # Create empty HTS data for compatibility
+        act_CC = pd.DataFrame(columns=["chain", "weight_person"])
+        act_CC = act_CC.groupby("chain")["weight_person"].sum().reset_index(name='count')
 
     act_CC.columns = ["Chain", "actual Count"]
     syn_CC.columns = ["Chain", "synthetic Count"]
@@ -839,7 +1042,11 @@ def generate_plots(context, df_aux_act, df_aux_syn, df_act_trips, df_syn_trips, 
     syn_CC.loc[len(syn_CC) + 1] = pd.Series({"Chain": "home", "synthetic Count": df_syn_no_trip.shape[0] })
    
     #act_CC = myutils.process_actual_activity_chain_counts(df_act, df_aux)
-    act_CC.loc[len(act_CC) + 1] = pd.Series({"Chain": "home", "actual Count": np.sum(df_act_no_trip["weight_person"].values.tolist())})
+    if hts_available and df_act_no_trip is not None:
+        act_no_trip_weight = np.sum(df_act_no_trip["weight_person"].values.tolist())
+    else:
+        act_no_trip_weight = 0.0
+    act_CC.loc[len(act_CC) + 1] = pd.Series({"Chain": "home", "actual Count": act_no_trip_weight})
 
     # Merging together, comparing
     all_CC = pd.merge(syn_CC, act_CC, on = "Chain", how = "outer")
@@ -853,36 +1060,110 @@ def generate_plots(context, df_aux_act, df_aux_syn, df_act_trips, df_syn_trips, 
     
     # Demographics comparison (include no-trip persons)
     demographics_comparison(context, df_act_persons, df_syn_persons, df_census, suffix)
+    # New consolidated horizontal summary plot
+    summary_horizontal(context, df_act_persons, df_syn_persons, df_census, suffix)
     
 
     # 2. CROWFLY DISTANCES
+    print("INFO starting crowfly distance analysis...")
     
-    # 2.1. Compute the distances
-    # df_syn_dist = compute_distances_synthetic(df_syn)
-    # df_act_dist = compute_distances_actual(df_act) 
-    
-    # 2.2 Prepare for plotting
-    # df_act_dist["x"] = df_act_dist["weight_person"] * df_act_dist["crowfly_distance"]
+    try:
+        # 2.1. Compute the distances
+        print("INFO computing crowfly distances for synthetic data")
+        df_syn_dist = compute_distances_synthetic(df_syn_trips.copy())
+        
+        # Compute HTS distances if data is available
+        if hts_available:
+            print("INFO computing crowfly distances for HTS data")
+            df_act_dist = compute_distances_actual(df_act_trips.reset_index().copy())
+            print(f"INFO distances computed - Synthetic: {df_syn_dist.shape}, HTS: {df_act_dist.shape}")
+        else:
+            print("INFO HTS data not available - synthetic distances only")
+            df_act_dist = None
+            print(f"INFO distances computed - Synthetic: {df_syn_dist.shape}, HTS: None")
+        
+        # 2.2 Prepare for plotting: weighted mean distances by purpose
+        print("INFO preparing distance data for plotting")
+        
+        if hts_available and df_act_dist is not None:
+            # For HTS: weight by person_weight
+            df_act_dist_with_weight = df_act_dist.copy()
+            if "weight_person" not in df_act_dist_with_weight.columns:
+                # Merge person weights if not already present
+                df_act_dist_with_weight = df_act_dist_with_weight.merge(
+                    df_act_persons[["person_id", "weight_person"]].drop_duplicates("person_id"),
+                    on="person_id", how="left"
+                )
+            df_act_dist_with_weight["weighted_distance"] = df_act_dist_with_weight["weight_person"] * df_act_dist_with_weight["crowfly_distance"]
 
-    # act = df_act_dist.groupby(["purpose"]).sum()["x"] / df_act_dist.groupby(["purpose"]).sum()["weight_person"]
-    # syn = df_syn_dist.groupby(["following_purpose"]).mean()["crowfly_distance"] 
+            # Calculate weighted mean distances by purpose for HTS
+            act_weighted_sum = df_act_dist_with_weight.groupby("following_purpose")["weighted_distance"].sum()
+            act_weight_sum = df_act_dist_with_weight.groupby("following_purpose")["weight_person"].sum()
+            act_mean_distances = act_weighted_sum / act_weight_sum
+        else:
+            df_act_dist_with_weight = None
+            act_mean_distances = pd.Series(dtype=float)
+        
+        # Calculate unweighted mean distances by purpose for Synthetic  
+        syn_mean_distances = df_syn_dist.groupby("following_purpose")["crowfly_distance"].mean()
+        
+        # Align purposes between datasets
+        all_purposes = list(set(act_mean_distances.index.tolist() + syn_mean_distances.index.tolist()))
+        act_aligned = act_mean_distances.reindex(all_purposes).fillna(0)
+        syn_aligned = syn_mean_distances.reindex(all_purposes).fillna(0)
+        
+        # 2.4 Generate detailed distance histograms and CDFs by purpose
+        print("INFO creating detailed distance distribution plots")
+        
+        # 2.4 Create CDF plots (synthetic vs HTS comparison)
+        print("INFO creating CDF plots")
+        cdf_title = "distance_purpose_cdf"
+        if suffix:
+            cdf_title += "_" + suffix
+        cdf_title += ".png"
+        
+        # Prepare HTS data for plotting if available
+        df_hts_for_plotting = None
+        if df_act_dist is not None and df_act_dist_with_weight is not None and len(df_act_dist) > 0:
+            # Ensure column compatibility for plotting functions
+            df_hts_for_plotting = df_act_dist_with_weight.copy()
+            if "purpose" not in df_hts_for_plotting.columns and "following_purpose" in df_hts_for_plotting.columns:
+                df_hts_for_plotting["purpose"] = df_hts_for_plotting["following_purpose"]
+            print(f"INFO HTS data available for comparison: {len(df_hts_for_plotting)} trips")
+        else:
+            print("INFO HTS data not available, will show synthetic-only plots")
+        
+        # Create the main CDF comparison plot in both 2x3 and 3x2 layouts
+        try:
+            # Generate 2x3 layout (original)
+            myplottools.plot_comparison_cdf_purpose(context, cdf_title, df_hts_for_plotting, df_syn_dist, dpi=300)
+            print(f"SUCCESS: Created {cdf_title}")
+            
+            # Generate 3x2 layout (alternative)
+            cdf_title_3x2 = cdf_title.replace(".png", "_3x2.png")
+            myplottools.plot_comparison_cdf_purpose(context, cdf_title_3x2, df_hts_for_plotting, df_syn_dist, dpi=300, cols=2, rows=3)
+            print(f"SUCCESS: Created {cdf_title_3x2}")
+        except Exception as e:
+            print(f"ERROR creating CDF plot: {e}")
+            import traceback
+            traceback.print_exc()
+        
+        # Generate additional detailed plots via all_the_plot_distances
+        try:
+            if df_hts_for_plotting is not None:
+                all_the_plot_distances(context, df_hts_for_plotting, df_syn_dist, suffix)
+                print("SUCCESS: Created additional comparison distance plots")
+            else:
+                print("INFO: Skipping additional plots - no HTS data available")
+        except Exception as e:
+            print(f"WARNING: Could not create additional distance plots: {e}")
 
-    # act_purposes = list(set(act.reset_index()["purpose"]))
-    # syn = syn.reset_index()
-    # for p in act_purposes:
-    #     if p not in list(set(syn["following_purpose"])):
-    #         syn.loc[len(syn)] = [p, 0]
-
-    # syn = syn.groupby(["following_purpose"]).mean()["crowfly_distance"] 
-
-    # # 2.3 Ready to plot!
-    # myplottools.plot_comparison_bar(context, imtitle = "distancepurpose.png", plottitle = "Crowfly distance " + suffix, ylabel = "Mean crowfly distance [km]", xlabel = "", lab = syn.index, actual = act, synthetic = syn, t = None, xticksrot = True )
-    # all_the_plot_distances(context, df_act_dist, df_syn_dist, suffix)
-
-    # # 2.4 Distance from home to education
-    # for primary_purpose in ["work", "education"]:
-    #     print("INFO computing distances between home and", primary_purpose)
-    #     syn_0, act_0, act_w0 = compare_dist_from_home(context, df_syn, df_act,primary_purpose, suffix = suffix)
+        print("SUCCESS: Crowfly distance analysis completed")
+        
+    except Exception as e:
+        print(f"ERROR in crowfly distance analysis: {e}")
+        import traceback
+        traceback.print_exc()
 
 
     
@@ -894,8 +1175,26 @@ def execute(context):
 
     for population_selector, suffix in list(zip(pop_selectors, suffixes)):
         df_syn_persons, df_syn_trips, df_syn_no_trip = import_data_synthetic(context, population_selector)
-        df_act_persons, df_act_trips, df_act_no_trip = import_data_actual(context, population_selector)
+        hts_result = import_data_actual(context, population_selector)
+        
+        # Handle case where HTS data is not available
+        if hts_result[0] is None:
+            print("INFO: Proceeding with synthetic-only analysis (no HTS data)")
+            df_act_persons, df_act_trips, df_act_no_trip = None, None, None
+            # Create empty DataFrames for compatibility
+            df_aux_act = pd.DataFrame(columns=["person_id", "weight_person", "chain"])
+        else:
+            df_act_persons, df_act_trips, df_act_no_trip = hts_result
+            df_aux_act, df_aux_syn = aux_data_frame(df_act_trips, df_syn_trips, df_act_persons, df_syn_persons)
+        
         df_census = import_data_census(context, population_selector)
-        df_aux_act, df_aux_syn = aux_data_frame(df_act_trips, df_syn_trips, df_act_persons, df_syn_persons)
+        
+        # Create synthetic auxiliary data (always available)
+        pers_ids = df_syn_trips["person_id"].unique()
+        df_aux_syn = pd.DataFrame({
+            "person_id": pers_ids,
+            "weights": 1,
+            "chain": "home-" + df_syn_trips.groupby("person_id")["following_purpose"].apply(lambda x: "-".join(x))
+        })
 
         generate_plots(context, df_aux_act, df_aux_syn, df_act_trips, df_syn_trips, df_act_persons, df_syn_persons, df_syn_no_trip, df_act_no_trip, suffix, df_census)

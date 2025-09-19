@@ -3,6 +3,12 @@ import os.path
 
 import matsim.runtime.eqasim as eqasim
 
+# Central place to configure which Eqasim configurator Java class to use.
+# This is required by several standalone Eqasim entry points (config generation,
+# mode choice, routing, validation). Missing it causes the observed
+# IllegalStateException: "Missing eqasim configurator".
+EQASIM_CONFIGURATOR = "org.sutlab.hannover.HannoverConfigurator"
+
 def configure(context):
     context.config("mode_choice", False)
     
@@ -89,7 +95,7 @@ def execute(context):
         "--prefix", context.config("output_prefix"),
         "--random-seed", context.config("random_seed"),
         "--output-path", "generic_config.xml",
-        "--eqasim-configurator", "org.sutlab.hannover.HannoverConfigurator"
+        "--eqasim-configurator", EQASIM_CONFIGURATOR
     ])
     assert os.path.exists("%s/generic_config.xml" % context.path())
 
@@ -110,7 +116,7 @@ def execute(context):
             "--write-output-csv-trips", "true",
             "--skip-scenario-check", "true",
             "--config:plans.inputPlansFile", "prepared_population.xml.gz",
-            "--eqasim-configurator", "org.sutlab.hannover.HannoverConfigurator"
+            "--eqasim-configurator", EQASIM_CONFIGURATOR
         ])
 
         assert os.path.exists("%s/mode_choice/output_plans.xml.gz" % context.path())
