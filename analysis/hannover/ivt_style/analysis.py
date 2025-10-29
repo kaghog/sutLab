@@ -454,7 +454,7 @@ def demographics_comparison(context, df_act_persons, df_syn_persons, df_census, 
             ylabel="Difference (Percentage Points)",
             xlabel="Age groups",
             lab=labels,
-            diff_actual=diff_hts.values,
+            diff_hts=diff_hts.values,
             diff_census=diff_census.values,
             xticksrot=True
         )
@@ -474,7 +474,7 @@ def demographics_comparison(context, df_act_persons, df_syn_persons, df_census, 
             ylabel="Percentage",
             xlabel="Age groups",
             lab=labels,
-            actual=act_counts.values,
+            hts=act_counts.values,
             synthetic=syn_counts.values,
             xticksrot=True
         )
@@ -486,7 +486,7 @@ def demographics_comparison(context, df_act_persons, df_syn_persons, df_census, 
             ylabel="Percentage",
             xlabel="Age groups",
             lab=labels,
-            actual=act_counts.values,
+            hts=act_counts.values,
             synthetic=syn_counts.values,
             census=census_counts.values,
             xticksrot=True
@@ -506,7 +506,7 @@ def demographics_comparison(context, df_act_persons, df_syn_persons, df_census, 
             ylabel="Percentage",
             xlabel="Age groups",
             lab=labels,
-            actual=act_counts.values,
+            hts=act_counts.values,
             synthetic=syn_counts.values,
             xticksrot=True
         )
@@ -556,7 +556,7 @@ def demographics_comparison(context, df_act_persons, df_syn_persons, df_census, 
         ylabel="Percentage",
         xlabel="Employment status",
         lab=act_counts.index,
-        actual=act_counts.values,
+        hts=act_counts.values,
         synthetic=syn_counts.values,
         xticksrot=True
     )
@@ -586,7 +586,7 @@ def demographics_comparison(context, df_act_persons, df_syn_persons, df_census, 
         ylabel="Percentage",
         xlabel="Has driving license",
         lab=act_counts.index,
-        actual=act_counts.values,
+        hts=act_counts.values,
         synthetic=syn_counts.values,
         xticksrot=True
     )
@@ -616,7 +616,7 @@ def demographics_comparison(context, df_act_persons, df_syn_persons, df_census, 
             ylabel="Percentage",
             xlabel="Has driving license",
             lab=act_counts.index,
-            actual=act_counts.values,
+            hts=act_counts.values,
             synthetic=syn_counts.values,
             census=census_counts.values,
             xticksrot=True
@@ -645,7 +645,7 @@ def demographics_comparison(context, df_act_persons, df_syn_persons, df_census, 
         ylabel="Percentage",
         xlabel="Has public transport subscription",
         lab=act_counts.index,
-        actual=act_counts.values,
+        hts=act_counts.values,
         synthetic=syn_counts.values,
         xticksrot=True
     )
@@ -800,7 +800,7 @@ def summary_horizontal(context, df_act_persons, df_syn_persons, df_census, suffi
         xlabel="Percentage of population (%)",
         labels=labels_all,
         synthetic=syn_vals,
-        actual=hts_vals,
+        hts=hts_vals,
         census=cen_vals,
         lablist=["Synthetic", "HTS", "Census"],
         figsize=[10, max(8, int(len(labels_all) * 0.35))],
@@ -1062,7 +1062,8 @@ def generate_plots(context, df_aux_act, df_aux_syn, df_act_trips, df_syn_trips, 
     demographics_comparison(context, df_act_persons, df_syn_persons, df_census, suffix)
     # New consolidated horizontal summary plot
     summary_horizontal(context, df_act_persons, df_syn_persons, df_census, suffix)
-    
+
+    # NOTE: Mode share comparison moved to accessibility.py to compare simulation output vs HTS
 
     # 2. CROWFLY DISTANCES
     print("INFO starting crowfly distance analysis...")
@@ -1166,7 +1167,214 @@ def generate_plots(context, df_aux_act, df_aux_syn, df_act_trips, df_syn_trips, 
         traceback.print_exc()
 
 
+# --- MODE SHARE COMPARISON FUNCTION ---
+def mode_share_comparison(context, df_syn, df_act, df_act_persons, suffix=None):
+    """
+    theres some confusing problems atm, bikes in syn are underrepresented, cars overrepresented
+    to investigate: there might be some issue with how bikes can be bicycles or motorised bikes, are motorised bikes counted as cars??
+    also look into car passenger vs car driver
+    """
+    # Only keep relevant modes
+    mode_map = {
+        'bike': 'bike',
+        'car': 'car',
+        'car_passenger': 'car',
+        'pt': 'pt',
+        'walk': 'walk',
+    }
+    # Synthetic: count trips by mode
+    df_syn = df_syn.copy()
+    df_syn['mode'] = df_syn['mode'].map(mode_map).fillna('other')
+    syn_counts = df_syn[df_syn['mode'].isin(['bike','car','pt','walk'])]['mode'].value_counts()
+    syn_share = syn_counts / syn_counts.sum() * 100
+
+    # HTS: sum weights by mode (apply same mode_map for consistency)
+    df_act = df_act.copy()
+    df_act['mode'] = df_act['mode'].map(mode_map).fillna(df_act['mode'])  # Map car_passenger to car
+    # Merge weights if not present
+    if 'weight_person' not in df_act.columns and df_act_persons is not None:
+        df_act = df_act.merge(df_act_persons[['person_id','weight_person']], on='person_id', how='left')
+    act_counts = df_act[df_act['mode'].isin(['bike','car','pt','walk'])].groupby('mode')['weight_person'].sum()
+    act_share = act_counts / act_counts.sum() * 100
+
+    # Align modes
+    modes = ['bike','car','pt','walk']
+    syn_vals = [syn_share.get(m,0) for m in modes]
+    act_vals = [act_share.get(m,0) for m in modes]
+
+    # Plot
+    title_plot = "Mode Share Comparison"
+    title_figure = "mode_share"
+    if suffix:
+        title_plot += " - " + suffix
+        title_figure += "_" + suffix
+    title_figure += ".png"
+    myplottools.plot_comparison_bar(
+        context,
+        imtitle=title_figure,
+        plottitle=title_plot,
+        ylabel="Percentage",
+        xlabel="Mode",
+        lab=modes,
+        hts=act_vals,
+        synthetic=syn_vals,
+        t=12,
+        figsize=[8,6],
+        dpi=300,
+        w=0.35,
+        xticksrot=True
+    )
     
+def mode_share_by_distance(context, df_syn, df_act, df_act_persons, suffix=None):
+    """
+    Plot mode share by distance bins for HTS and simulation.
+    Shows how mode share changes with trip distance.
+    """
+    # Skip if HTS data not available
+    if df_act is None or len(df_act) == 0:
+        print("INFO: Skipping mode share by distance - no HTS data available")
+        return
+    
+    # Mode mapping
+    mode_map = {
+        'bike': 'bike',
+        'car': 'car',
+        'car_passenger': 'car',
+        'pt': 'pt',
+        'walk': 'walk',
+    }
+    
+    # Prepare synthetic data
+    df_syn = df_syn.copy()
+    # Calculate distance in meters
+    if "euclidean_distance" in df_syn.columns:
+        df_syn["distance_m"] = df_syn["euclidean_distance"]
+    elif "crowfly_distance" in df_syn.columns:
+        df_syn["distance_m"] = df_syn["crowfly_distance"] * 1000
+    else:
+        print("WARNING: No distance column in synthetic data")
+        return
+    
+    df_syn['mode'] = df_syn['mode'].map(mode_map).fillna('other')
+    df_syn = df_syn[df_syn['mode'].isin(['bike','car','pt','walk'])]
+    
+    # Prepare HTS data
+    df_act = df_act.copy()
+    df_act["distance_m"] = df_act["routed_distance"]
+    df_act['mode'] = df_act['mode'].map(mode_map).fillna(df_act['mode'])  # Map car_passenger to car
+    
+    df_act = df_act[df_act['mode'].isin(['bike','car','pt','walk'])]
+    
+    # Merge weights if not present
+    if 'weight_person' not in df_act.columns and df_act_persons is not None:
+        df_act = df_act.merge(df_act_persons[['person_id','weight_person']], on='person_id', how='left')
+    
+    # Define distance bins (in meters)
+    distance_bins = [0, 1000, 2000, 3000, 4000, 5000, 6000]
+    bin_centers = [(distance_bins[i] + distance_bins[i+1])/2 for i in range(len(distance_bins)-1)]
+    
+    modes = ['bike', 'car', 'pt', 'walk']
+    
+    # Calculate mode shares for each distance bin
+    hts_shares = {mode: [] for mode in modes}
+    sim_shares = {mode: [] for mode in modes}
+    
+    for i in range(len(distance_bins)-1):
+        dist_min = distance_bins[i]
+        dist_max = distance_bins[i+1]
+        
+        # HTS: weighted counts
+        hts_bin = df_act[(df_act['distance_m'] >= dist_min) & (df_act['distance_m'] < dist_max)]
+        if len(hts_bin) > 0:
+            hts_total = hts_bin.groupby('mode')['weight_person'].sum()
+            hts_sum = hts_total.sum()
+            if hts_sum > 0:
+                for mode in modes:
+                    hts_shares[mode].append(hts_total.get(mode, 0) / hts_sum)
+            else:
+                for mode in modes:
+                    hts_shares[mode].append(0)
+        else:
+            for mode in modes:
+                hts_shares[mode].append(0)
+        
+        # Simulation: unweighted counts
+        sim_bin = df_syn[(df_syn['distance_m'] >= dist_min) & (df_syn['distance_m'] < dist_max)]
+        if len(sim_bin) > 0:
+            sim_total = sim_bin['mode'].value_counts()
+            sim_sum = sim_total.sum()
+            if sim_sum > 0:
+                for mode in modes:
+                    sim_shares[mode].append(sim_total.get(mode, 0) / sim_sum)
+            else:
+                for mode in modes:
+                    sim_shares[mode].append(0)
+        else:
+            for mode in modes:
+                sim_shares[mode].append(0)
+    
+    # Create the plot
+    fig, ax = plt.subplots(figsize=(8, 5))
+    
+    # Define colors for each mode
+    colors = {
+        'bike': '#FF8C00',  # Orange
+        'car': '#2E8B57',   # Green
+        'pt': "#294088",    # Blue
+        'walk': "#48A0F8"   # Light Blue
+    }
+    
+    # Plot HTS (dashed lines) - these will appear first in legend
+    hts_lines = []
+    for mode in modes:
+        line, = ax.plot(bin_centers, hts_shares[mode], 
+                linestyle='--', marker='o', 
+                color=colors[mode],
+                label=f'HTS {mode}',
+                linewidth=1.5, markersize=5)
+        hts_lines.append(line)
+    
+    # Plot Simulation (solid lines) - these will appear second in legend
+    sim_lines = []
+    for mode in modes:
+        line, = ax.plot(bin_centers, sim_shares[mode], 
+                linestyle='-', marker='>', 
+                color=colors[mode],
+                label=f'Sim {mode}',
+                linewidth=2, markersize=6)
+        sim_lines.append(line)
+    
+    ax.set_xlabel('Distance (m)', fontsize=12)
+    ax.set_ylabel('Mode share', fontsize=12)
+    ax.set_title('Mode share by distance', fontsize=14)
+    
+    # Extend y-axis limit to give 10% more room above the data
+    y_min, y_max = ax.get_ylim()
+    y_range = y_max - y_min
+    ax.set_ylim(y_min, y_max + 0.15 * y_range)
+    
+    # Create legend with 2 rows arranged as:
+    # Row 1: HTS bike, HTS car, HTS pt, HTS walk
+    # Row 2: Sim bike, Sim car, Sim pt, Sim walk
+
+    all_lines = [item for pair in zip(hts_lines, sim_lines) for item in pair]
+    all_labels = [line.get_label() for line in all_lines]
+
+    ax.legend(all_lines, all_labels, loc='upper center', bbox_to_anchor=(0.5,0.98), 
+              ncol=4, fontsize=9)
+    ax.grid(True, alpha=0.3)
+
+    # Save figure
+    title_figure = "mode_share_by_distance"
+    if suffix:
+        title_figure += "_" + suffix
+    title_figure += ".png"
+
+    plt.savefig("%s/%s" % (context.config("analysis_path"), title_figure), dpi=300)
+    plt.close()
+    
+
+
 def execute(context):
     pop_all = None
     suff_all = ""

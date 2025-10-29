@@ -4,14 +4,18 @@ import matplotlib.pyplot as plt
 #plt.rcParams.update({'font.size': 18})
 
 # ---- Centralized color constants ----
-COLOR_SYNTHETIC = "#D3D3D3"
-COLOR_ACTUAL_HTS = "#00205B"
-COLOR_CENSUS = "#E69F00"
+COLOR_SYNTHETIC = "#D3D3D3"  # Gray for synthetic population (input)
+COLOR_SIMULATION = "#9370DB"  # Purple for simulation results (output)
+COLOR_ACTUAL_HTS = "#00205B"  # Dark blue for HTS reference
+COLOR_CENSUS = "#E69F00"      # Orange for census
 
 # Convenience mapping used by some plotting helpers
+# Note: 'actual' key kept for backward compatibility in user-facing labels
 COLORS = {
     'synthetic': COLOR_SYNTHETIC,
-    'actual': COLOR_ACTUAL_HTS,  # HTS
+    'simulation': COLOR_SIMULATION,
+    'hts': COLOR_ACTUAL_HTS,
+    'actual': COLOR_ACTUAL_HTS,  # alias for backward compatibility
     'census': COLOR_CENSUS,
 }
 
@@ -65,9 +69,23 @@ def add_small_cdf(axes, r, c, act, x, y, bins=None, lab = ["Synthetic", "HTS"]):
     return axes
 
 
-def plot_comparison_bar(context, imtitle, plottitle, ylabel, xlabel, lab, actual=None, synthetic=None, census=None, lablist=['HTS', 'Synthetic', 'Census'], t=15, figsize=[12,7], dpi=300, w=0.25, xticksrot=False):
+def plot_comparison_bar(context, imtitle, plottitle, ylabel, xlabel, lab, hts=None, synthetic=None, simulation=None, census=None, actual=None, lablist=['HTS', 'Synthetic', 'Simulation', 'Census'], t=15, figsize=[12,7], dpi=300, w=0.25, xticksrot=False):
+    """
+    Plot comparison bar chart with up to 4 datasets.
+    
+    Parameters:
+        hts: HTS reference data (primary parameter)
+        actual: Alias for hts (deprecated, kept for backward compatibility)
+        synthetic: Synthetic population data
+        simulation: Simulation results data
+        census: Census reference data
+    """
     import matplotlib.pyplot as plt
     import numpy as np
+    
+    # Handle backward compatibility: if actual is provided but not hts, use actual as hts
+    if hts is None and actual is not None:
+        hts = actual
 
     plt.rcParams['axes.facecolor'] = "#ffffff"
     plt.rcParams['figure.figsize'] = figsize
@@ -80,13 +98,22 @@ def plot_comparison_bar(context, imtitle, plottitle, ylabel, xlabel, lab, actual
         labels = lab
 
     datasets = {
-        'actual': actual[:top] if actual is not None and top is not None else actual,
+        'hts': hts[:top] if hts is not None and top is not None else hts,
         'synthetic': synthetic[:top] if synthetic is not None and top is not None else synthetic,
+        'simulation': simulation[:top] if simulation is not None and top is not None else simulation,
         'census': census[:top] if census is not None and top is not None else census
     }
     
-    colors = {'actual': COLOR_ACTUAL_HTS, 'synthetic': COLOR_SYNTHETIC, 'census': COLOR_CENSUS}
-    legend_labels = {'actual': lablist[0], 'synthetic': lablist[1], 'census': lablist[2]}
+    colors = {'hts': COLOR_ACTUAL_HTS, 'synthetic': COLOR_SYNTHETIC, 'simulation': COLOR_SIMULATION, 'census': COLOR_CENSUS}
+    
+    # Build legend_labels safely, with defaults for missing entries
+    default_labels = ['HTS', 'Synthetic', 'Simulation', 'Census']
+    legend_labels = {
+        'hts': lablist[0] if len(lablist) > 0 else default_labels[0],
+        'synthetic': lablist[1] if len(lablist) > 1 else default_labels[1],
+        'simulation': lablist[2] if len(lablist) > 2 else default_labels[2],
+        'census': lablist[3] if len(lablist) > 3 else default_labels[3]
+    }
 
     # Filter out None datasets
     active_datasets = {k: v for k, v in datasets.items() if v is not None}
@@ -191,12 +218,21 @@ def map_bool_to_labels(series, yes_label="Yes", no_label="No"):
     return series.replace({False: no_label, True: yes_label})
 
 
-def plot_distribution_differences(context, imtitle, plottitle, ylabel, xlabel, lab, diff_actual, diff_census, lablist=['Synthetic vs HTS', 'Synthetic vs Census'], t=15, figsize=[12,7], dpi=300, w=0.35, xticksrot=False):
+def plot_distribution_differences(context, imtitle, plottitle, ylabel, xlabel, lab, diff_hts=None, diff_census=None, diff_actual=None, lablist=['Synthetic vs HTS', 'Synthetic vs Census'], t=15, figsize=[12,7], dpi=300, w=0.35, xticksrot=False):
     """
     Plots the differences between distributions as a bar chart.
+    
+    Parameters:
+        diff_hts: HTS difference data (primary parameter)
+        diff_actual: Alias for diff_hts (deprecated, kept for backward compatibility)
+        diff_census: Census difference data
     """
     import matplotlib.pyplot as plt
     import numpy as np
+    
+    # Handle backward compatibility: if diff_actual is provided but not diff_hts, use diff_actual as diff_hts
+    if diff_hts is None and diff_actual is not None:
+        diff_hts = diff_actual
 
     plt.rcParams['axes.facecolor'] = "#ffffff"
     plt.rcParams['figure.figsize'] = figsize
@@ -205,11 +241,11 @@ def plot_distribution_differences(context, imtitle, plottitle, ylabel, xlabel, l
     top = t
     if top is not None:
         labels = lab[:top]
-        diff_actual_means = diff_actual[:top]
-        diff_census_means = diff_census[:top]
+        diff_hts_means = diff_hts[:top] if diff_hts is not None else None
+        diff_census_means = diff_census[:top] if diff_census is not None else None
     else:
         labels = lab
-        diff_actual_means = diff_actual
+        diff_hts_means = diff_hts
         diff_census_means = diff_census
 
     x = np.arange(len(labels))  # the label locations
@@ -219,7 +255,7 @@ def plot_distribution_differences(context, imtitle, plottitle, ylabel, xlabel, l
     fig.set_facecolor("#ffffff")
 
     # Plot bars (HTS difference in blue, Census difference in gold)
-    ax.bar(x - width/2, diff_actual_means, width, label=lablist[0], color=COLOR_ACTUAL_HTS, align="center")
+    ax.bar(x - width/2, diff_hts_means, width, label=lablist[0], color=COLOR_ACTUAL_HTS, align="center")
     ax.bar(x + width/2, diff_census_means, width, label=lablist[1], color=COLOR_CENSUS, align="center")
 
     # Add a horizontal line at y=0 to emphasize the difference
@@ -242,7 +278,7 @@ def plot_distribution_differences(context, imtitle, plottitle, ylabel, xlabel, l
     plt.close()
 
 
-def plot_horizontal_comparison(context, imtitle, plottitle, xlabel, labels, synthetic=None, actual=None, census=None, lablist=['Synthetic', 'HTS', 'Census'], figsize=[10, 10], dpi=300, bar_height=0.7):
+def plot_horizontal_comparison(context, imtitle, plottitle, xlabel, labels, synthetic=None, hts=None, census=None, actual=None, lablist=['Synthetic', 'HTS', 'Census'], figsize=[10, 10], dpi=300, bar_height=0.7):
     """
     Grouped horizontal bar chart for side-by-side comparison of up to three series
     (Synthetic, HTS, Census). Missing series values can be NaN and will be skipped
@@ -250,12 +286,17 @@ def plot_horizontal_comparison(context, imtitle, plottitle, xlabel, labels, synt
 
     Parameters
     - labels: list of category strings (y-axis)
-    - synthetic/actual/census: sequences of values (percentages), same length as labels
+    - synthetic/hts/census: sequences of values (percentages), same length as labels
+    - actual: Alias for hts (deprecated, kept for backward compatibility)
     - lablist: legend labels for [Synthetic, HTS, Census]
     - bar_height: total height allocated to one category; split among active datasets
     """
     import numpy as np
     import matplotlib.pyplot as plt
+    
+    # Handle backward compatibility: if actual is provided but not hts, use actual as hts
+    if hts is None and actual is not None:
+        hts = actual
 
     plt.rcParams['figure.figsize'] = figsize
     plt.rcParams['figure.dpi'] = dpi
@@ -267,8 +308,8 @@ def plot_horizontal_comparison(context, imtitle, plottitle, xlabel, labels, synt
         series.append(np.array(synthetic, dtype=float))
         legend_labels.append(lablist[0])
         colors.append(COLOR_SYNTHETIC)
-    if actual is not None:
-        series.append(np.array(actual, dtype=float))
+    if hts is not None:
+        series.append(np.array(hts, dtype=float))
         legend_labels.append(lablist[1])
         colors.append(COLOR_ACTUAL_HTS)
     if census is not None:
