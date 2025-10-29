@@ -73,6 +73,6 @@ aliases:
   data.hts.entd.raw: hannover.data.hts.entd.raw
   data.hts.entd.filtered: hannover.data.hts.entd.filtered
   data.hts.entd.cleaned: hannover.data.hts.entd.cleaned
-  matsim.simulation.prepare: hannover.matsim.simulation.prepare
-  matsim.simulation.run: hannover.matsim.simulation.run
+  matsim.simulation.prepare: matsim.scenario.prepare
+  
 
