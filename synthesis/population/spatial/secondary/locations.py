@@ -3,8 +3,10 @@ import pandas as pd
 import multiprocessing as mp
 import shapely.geometry as geo
 import geopandas as gpd
+import os
 
 from synthesis.population.spatial.secondary.problems import find_assignment_problems
+from synthesis.population.spatial.secondary.carla import process_carla
 
 def configure(context):
     context.stage("synthesis.population.trips")
@@ -75,6 +77,9 @@ def resample_distributions(distributions, factors):
 
 from synthesis.population.spatial.secondary.rda import AssignmentSolver, DiscretizationErrorObjective, GravityChainSolver, AngularTailSolver, GeneralRelaxationSolver
 from synthesis.population.spatial.secondary.components import CustomDistanceSampler, CustomDiscretizationSolver, CandidateIndex, CustomFreeChainSolver
+from synthesis.population.spatial.secondary.carla import process_carla
+import matplotlib.pyplot as plt
+import os
 
 def execute(context):
     # Load trips and primary locations
@@ -111,26 +116,41 @@ def execute(context):
             random_seeds[index], crs
         ))
 
-    # Run algorithm in parallel
-    with context.progress(label = "Assigning secondary locations to persons", total = number_of_persons):
-        with context.parallel(processes = processes, data = dict(
-            distance_distributions = distance_distributions,
-            destinations = destinations
-        )) as parallel:
-            df_locations, df_convergence = [], []
+    # ========== ALGORITHM SELECTION ==========
+    # process = process_hoerl 
+    process = process_carla 
+    
+    # COMMENT/UNCOMMENT for comparison - runs both algorithms and compares
+    run_comparison = False
+    if run_comparison:
+        df_locations, df_convergence = run_algorithm_comparison(
+            context, batches, processes, number_of_persons, 
+            distance_distributions, destinations
+        )
+    else:
+        # Run selected algorithm only
+        with context.progress(label = "Assigning secondary locations to persons", total = number_of_persons):
+            with context.parallel(processes = processes, data = dict(
+                distance_distributions = distance_distributions,
+                destinations = destinations
+            )) as parallel:
+                df_locations, df_convergence = [], []
 
-            for df_locations_item, df_convergence_item in parallel.imap_unordered(process, batches):
-                df_locations.append(df_locations_item)
-                df_convergence.append(df_convergence_item)
+                for df_locations_item, df_convergence_item in parallel.imap_unordered(process, batches):
+                    df_locations.append(df_locations_item)
+                    df_convergence.append(df_convergence_item)
 
-    df_locations = pd.concat(df_locations).sort_values(by = ["person_id", "activity_index"])
-    df_convergence = pd.concat(df_convergence)
+        df_locations = pd.concat(df_locations).sort_values(by = ["person_id", "activity_index"])
+        df_convergence = pd.concat(df_convergence)
 
-    print("Success rate:", df_convergence["valid"].mean())
+        print("Success rate:", df_convergence["valid"].mean())
 
     return df_locations, df_convergence
 
-def process(context, arguments):
+def process_hoerl(context, arguments):
+  """
+  RDA approach
+  """
   df_trips, df_primary, random_seed, crs = arguments
 
   # Set up RNG
@@ -207,3 +227,89 @@ def process(context, arguments):
 
   df_convergence = pd.DataFrame.from_records(df_convergence, columns = ["valid", "size"])
   return df_locations, df_convergence
+
+
+def run_algorithm_comparison(context, batches, processes, number_of_persons, distance_distributions, destinations):
+    """
+    Run both CARLA and Hoerl algorithms through proper parallel execution and compare results.
+    """
+    import copy
+    
+    print("\n" + "="*60)
+    print("RUNNING ALGORITHM COMPARISON")
+    print("="*60)
+    
+    # Run CARLA
+    print("\nRunning CARLA algorithm...")
+    with context.progress(label = "CARLA: Assigning secondary locations", total = number_of_persons):
+        with context.parallel(processes = processes, data = dict(
+            distance_distributions = copy.deepcopy(distance_distributions),
+            destinations = copy.deepcopy(destinations)
+        )) as parallel:
+            df_locations_carla, df_convergence_carla = [], []
+            for df_loc, df_conv in parallel.imap_unordered(process_carla, batches):
+                df_locations_carla.append(df_loc)
+                df_convergence_carla.append(df_conv)
+    
+    df_convergence_carla = pd.concat(df_convergence_carla)
+    carla_success_rate = df_convergence_carla["valid"].mean() * 100
+    print(f"CARLA Success rate: {carla_success_rate:.1f}%")
+    
+    # Run Hoerl
+    print("\nRunning Hoerl (RDA) algorithm...")
+    with context.progress(label = "Hoerl: Assigning secondary locations", total = number_of_persons):
+        with context.parallel(processes = processes, data = dict(
+            distance_distributions = copy.deepcopy(distance_distributions),
+            destinations = copy.deepcopy(destinations)
+        )) as parallel:
+            df_locations_hoerl, df_convergence_hoerl = [], []
+            for df_loc, df_conv in parallel.imap_unordered(process_hoerl, batches):
+                df_locations_hoerl.append(df_loc)
+                df_convergence_hoerl.append(df_conv)
+    
+    df_convergence_hoerl = pd.concat(df_convergence_hoerl)
+    hoerl_success_rate = df_convergence_hoerl["valid"].mean() * 100
+    print(f"Hoerl (RDA) Success rate: {hoerl_success_rate:.1f}%")
+    
+    # Create comparison plot
+    fig, ax = plt.subplots(figsize=(8, 6))
+    
+    algorithms = ['CARLA', 'Hoerl (RDA)']
+    success_rates = [carla_success_rate, hoerl_success_rate]
+    colors = ['#3182bd', '#e6550d']
+    
+    bars = ax.bar(algorithms, success_rates, color=colors, alpha=0.7, edgecolor='black', linewidth=1.5)
+    
+    for bar, rate in zip(bars, success_rates):
+        height = bar.get_height()
+        ax.text(bar.get_x() + bar.get_width()/2., height,
+                f'{rate:.1f}%', ha='center', va='bottom', fontsize=12, fontweight='bold')
+    
+    ax.set_ylabel('Success Rate (%)', fontsize=12)
+    ax.set_title('Algorithm Comparison: Success Rate', fontsize=14, fontweight='bold')
+    ax.set_ylim(0, 105)
+    ax.grid(True, alpha=0.3, axis='y')
+    
+    plt.tight_layout()
+    
+    output_path = context.config("output_path")
+    os.makedirs(output_path, exist_ok=True)
+    plot_path = os.path.join(output_path, "algorithm_comparison_carla_vs_hoerl.png")
+    fig.savefig(plot_path, dpi=200, bbox_inches='tight')
+    plt.close()
+    
+    print(f"\n{'='*61}")
+    print("COMPARISON SUMMARY")
+    print(f"{'='*60}")
+    print(f"CARLA success rate:       {carla_success_rate:.1f}%")
+    print(f"Hoerl (RDA) success rate: {hoerl_success_rate:.1f}%")
+    print(f"\nPlot saved to: {plot_path}")
+    print(f"{'='*60}\n")
+    
+    # Return CARLA results by default (change to hoerl if needed)
+    df_locations = pd.concat(df_locations_carla).sort_values(by = ["person_id", "activity_index"])
+    df_convergence = df_convergence_carla
+    print("Returning CARLA results for pipeline continuation...")
+    
+    return df_locations, df_convergence
+
