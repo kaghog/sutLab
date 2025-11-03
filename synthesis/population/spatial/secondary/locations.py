@@ -93,9 +93,13 @@ def execute(context):
 
     # Resampling for calibration
     resample_distributions(distance_distributions, dict(
-        car = 0.0, car_passenger = 0.1, pt = 0.5, bike = 0.0, walk = -0.5
+        walk=0.0,
+        bike=0.0,
+        pt=0.0,
+        car=0.0,
+        car_passenger=0.0
     ))
-
+    
     # Segment into subsamples
     processes = context.config("processes")
 
@@ -117,11 +121,11 @@ def execute(context):
         ))
 
     # ========== ALGORITHM SELECTION ==========
+    # COMMENT/UNCOMMENT for comparison - runs both algorithms and compares
     # process = process_hoerl 
     process = process_carla 
-    
-    # COMMENT/UNCOMMENT for comparison - runs both algorithms and compares
     run_comparison = False
+    
     if run_comparison:
         df_locations, df_convergence = run_algorithm_comparison(
             context, batches, processes, number_of_persons, 

@@ -25,7 +25,8 @@ MAP_CMAP = "magma_r"   # high contrast on OSM light base
 MAP_ALPHA = 0.7        # slightly transparent but readable
 
 # Grid configurations
-GRID_SHAPES = ["square", "hex", "neighborhoods"]  # all grid types to generate
+# GRID_SHAPES = ["square", "hex", "neighborhoods"]  # all grid types to generate
+GRID_SHAPES = [ "hex", "neighborhoods"]  
 CELL_SIZE_M = [500.0]    # grid cell sizes in meters (short diagonal for hex)
 
 # Analysis thresholds
@@ -750,10 +751,11 @@ def configure(context):
     output_path = context.config("output_path")
     context.config("output_prefix")
     context.config("analysis_path")
-    context.config("data_path")  # Required for loading neighborhood shapefiles
+    context.config("data_path") 
+    sim_output_dir = context.config("simulation_output_dir")
 
     # Conditional dependency: only trigger matsim.output if simulation outputs are missing
-    sim_dir = os.path.join(output_path, "simulation")
+    sim_dir = os.path.join(output_path, sim_output_dir)
     schedule_xml = os.path.join(sim_dir, "output_transitSchedule.xml.gz")
     persons_sim_csv_gz = os.path.join(sim_dir, "output_persons.csv.gz")
 
@@ -1936,6 +1938,7 @@ def execute(context):
     output_path = context.config("output_path")
     analysis_path = context.config("analysis_path")
     data_path = context.config("data_path")
+    sim_output_dir = context.config("simulation_output_dir")
     
     os.makedirs(analysis_path, exist_ok=True)
     
@@ -1946,7 +1949,7 @@ def execute(context):
     print("Phase A: Loading data...")
     
     # Load simulation outputs
-    sim_dir = os.path.join(output_path, "simulation")
+    sim_dir = os.path.join(output_path, sim_output_dir)
     schedule_xml = os.path.join(sim_dir, "output_transitSchedule.xml.gz")
     network_xml = os.path.join(sim_dir, "output_network.xml.gz")
     

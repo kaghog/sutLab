@@ -8,6 +8,8 @@ COLOR_SYNTHETIC = "#D3D3D3"  # Gray for synthetic population (input)
 COLOR_SIMULATION = "#9370DB"  # Purple for simulation results (output)
 COLOR_ACTUAL_HTS = "#00205B"  # Dark blue for HTS reference
 COLOR_CENSUS = "#E69F00"      # Orange for census
+COLOR_CARLA = "#2E8B57"       # Sea green for CARLA algorithm
+COLOR_HOERL = "#FF6347"       # Tomato red for Hoerl algorithm
 
 # Convenience mapping used by some plotting helpers
 # Note: 'actual' key kept for backward compatibility in user-facing labels
@@ -17,7 +19,16 @@ COLORS = {
     'hts': COLOR_ACTUAL_HTS,
     'actual': COLOR_ACTUAL_HTS,  # alias for backward compatibility
     'census': COLOR_CENSUS,
+    'carla': COLOR_CARLA,
+    'hoerl': COLOR_HOERL,
 }
+
+# ---- Consistent purpose ordering ----
+# This ensures all plots use the same order for purposes
+PURPOSE_ORDER = ['home', 'work', 'education', 'shop', 'leisure', 'other']
+
+# ---- Consistent mode ordering ----
+MODE_ORDER = ['walk', 'bike', 'pt', 'car', 'car_passenger']
 
 def autolabel(rects, ax):
     """Attach a text label above each bar in *rects*, displaying its height."""
@@ -387,18 +398,13 @@ def plot_horizontal_comparison(context, imtitle, plottitle, xlabel, labels, synt
 
 
 def plot_comparison_hist_purpose(context, title, actual_df, synthetic_df, bins = np.linspace(0,25,120), dpi = 300, cols = 3, rows = 2):
-    # Sort purposes with "Other" at the end for better visual presentation
-    purposes = synthetic_df["following_purpose"].unique()
-    purposes_sorted = []
-    other_purposes = []
+    # Use consistent purpose ordering across all plots
+    available_purposes = set(synthetic_df["following_purpose"].unique())
+    if actual_df is not None:
+        available_purposes |= set(actual_df["purpose"].unique())
     
-    for purpose in sorted(purposes):
-        if purpose.lower() == 'other':
-            other_purposes.append(purpose)
-        else:
-            purposes_sorted.append(purpose)
-    
-    modelist = purposes_sorted + other_purposes  # "Other" comes last
+    # Filter PURPOSE_ORDER to only include purposes that exist in the data
+    modelist = [p for p in PURPOSE_ORDER if p in available_purposes]
     
     # Calculate actual rows needed
     actual_rows = (len(modelist) // cols) + (len(modelist) % cols != 0)
@@ -439,7 +445,13 @@ def plot_comparison_hist_purpose(context, title, actual_df, synthetic_df, bins =
 
 
 def plot_comparison_hist_mode(context, title, actual_df, synthetic_df, bins = np.linspace(0,25,120), dpi = 300, cols = 3, rows = 2):
-    modelist = synthetic_df["mode"].unique()
+    # Use consistent mode ordering across all plots
+    available_modes = set(synthetic_df["mode"].unique())
+    if actual_df is not None:
+        available_modes |= set(actual_df["mode"].unique())
+    
+    # Filter MODE_ORDER to only include modes that exist in the data
+    modelist = [m for m in MODE_ORDER if m in available_modes]
     
     # Calculate actual rows needed based on number of modes
     actual_rows = (len(modelist) // cols) + (len(modelist) % cols != 0)
@@ -480,18 +492,15 @@ def plot_comparison_hist_mode(context, title, actual_df, synthetic_df, bins = np
 def plot_comparison_cdf_purpose(context, title, actual_df, synthetic_df, dpi = 300, cols = 3, rows = 2):
     import pandas as pd
     
-    # Sort purposes with "Other" at the end for better visual presentation
-    purposes = synthetic_df["following_purpose"].unique()
-    purposes_sorted = []
-    other_purposes = []
+    # Use consistent purpose ordering across all plots
+    available_purposes = set(synthetic_df["following_purpose"].unique())
+    if actual_df is not None:
+        purpose_col = 'purpose' if 'purpose' in actual_df.columns else 'following_purpose'
+        if purpose_col in actual_df.columns:
+            available_purposes |= set(actual_df[purpose_col].unique())
     
-    for purpose in sorted(purposes):
-        if purpose.lower() == 'other':
-            other_purposes.append(purpose)
-        else:
-            purposes_sorted.append(purpose)
-    
-    modelist = purposes_sorted + other_purposes  # "Other" comes last
+    # Filter PURPOSE_ORDER to only include purposes that exist in the data
+    modelist = [p for p in PURPOSE_ORDER if p in available_purposes]
     
     # Calculate actual rows needed
     actual_rows = (len(modelist) // cols) + (len(modelist) % cols != 0)
@@ -544,7 +553,13 @@ def plot_comparison_cdf_purpose(context, title, actual_df, synthetic_df, dpi = 3
 
 
 def plot_comparison_cdf_mode(context, title, actual_df, synthetic_df, bins = np.linspace(0,25,120), dpi = 300, cols = 3, rows = 2):
-    modelist = synthetic_df["mode"].unique()
+    # Use consistent mode ordering across all plots
+    available_modes = set(synthetic_df["mode"].unique())
+    if actual_df is not None:
+        available_modes |= set(actual_df["mode"].unique())
+    
+    # Filter MODE_ORDER to only include modes that exist in the data
+    modelist = [m for m in MODE_ORDER if m in available_modes]
     
     # Calculate actual rows needed based on number of modes
     actual_rows = (len(modelist) // cols) + (len(modelist) % cols != 0)
@@ -673,4 +688,279 @@ def plot_synthetic_cdf_purpose(context, title, synthetic_df, dpi=300, cols=3, ro
     fig.suptitle("Distribution of Distances by Activity", fontsize=14, y=0.98)
     fig.tight_layout()
     plt.savefig(f"{context.config('analysis_path')}/{title}", bbox_inches='tight', dpi=dpi)
+    plt.close()
+
+
+# ============================================================================
+# THREE-WAY COMPARISON FUNCTIONS (HTS vs CARLA vs Hoerl)
+# ============================================================================
+
+def add_threeway_hist(axes, r, c, act, x_hts, x_syn1, x_syn2, bins, label_syn1="CARLA", label_syn2="Hoerl"):
+    """Add a three-way histogram comparison to a subplot."""
+    # HTS histogram (weighted)
+    if x_hts is not None and len(x_hts) > 0:
+        axes[r,c].hist(x_hts["crowfly_distance"], bins, weights=x_hts["weight_person"], 
+                      alpha=0.4, density=True, color=COLOR_ACTUAL_HTS)
+    # CARLA histogram (unweighted)
+    if len(x_syn1) > 0:
+        axes[r,c].hist(x_syn1, bins, alpha=0.4, density=True, color=COLOR_CARLA)
+    # Hoerl histogram (unweighted)
+    if len(x_syn2) > 0:
+        axes[r,c].hist(x_syn2, bins, alpha=0.4, density=True, color=COLOR_HOERL)
+    
+    axes[r,c].set_ylabel("Percentage")
+    axes[r,c].set_xlabel("Crowfly Distance [km]")
+    axes[r,c].set_title(act.capitalize())
+    return axes
+
+
+def add_threeway_cdf(axes, r, c, act, x_hts, x_syn1, x_syn2, label_syn1="CARLA", label_syn2="Hoerl"):
+    """Add a three-way CDF comparison to a subplot."""
+    # HTS CDF (weighted)
+    if x_hts is not None and len(x_hts) > 0:
+        y_data = np.array(x_hts["crowfly_distance"], dtype=np.float64)
+        y_sorted = np.argsort(y_data)
+        y_weights = np.array(x_hts["weight_person"], dtype=np.float64)
+        y_cdf = np.cumsum(y_weights[y_sorted])
+        y_cdf = y_cdf / y_cdf[-1]
+        axes[r,c].plot(y_data[y_sorted], y_cdf, color=COLOR_ACTUAL_HTS, linewidth=2)
+    
+    # CARLA CDF (unweighted)
+    if len(x_syn1) > 0:
+        x1_data = np.array(x_syn1, dtype=np.float64)
+        x1_sorted = np.argsort(x1_data)
+        x1_cdf = np.cumsum([1.0] * len(x1_data))
+        x1_cdf = x1_cdf / x1_cdf[-1]
+        axes[r,c].plot(x1_data[x1_sorted], x1_cdf, color=COLOR_CARLA, linewidth=2)
+    
+    # Hoerl CDF (unweighted)
+    if len(x_syn2) > 0:
+        x2_data = np.array(x_syn2, dtype=np.float64)
+        x2_sorted = np.argsort(x2_data)
+        x2_cdf = np.cumsum([1.0] * len(x2_data))
+        x2_cdf = x2_cdf / x2_cdf[-1]
+        axes[r,c].plot(x2_data[x2_sorted], x2_cdf, color=COLOR_HOERL, linewidth=2)
+
+    axes[r,c].set_ylabel("Probability")
+    axes[r,c].set_xlabel("Crowfly Distance (km)")
+    axes[r,c].set_title(act.capitalize())
+    axes[r,c].grid(True, alpha=0.3)
+    return axes
+
+
+def plot_threeway_hist_purpose(context, title, actual_df, synthetic_df1, synthetic_df2, 
+                               bins=np.linspace(0,25,120), dpi=300, cols=3, rows=2,
+                               label_syn1="CARLA", label_syn2="Hoerl"):
+    """
+    Plot three-way histogram comparison by purpose: HTS vs Algorithm1 vs Algorithm2
+    """
+    # Use consistent purpose ordering
+    available_purposes = set(synthetic_df1["following_purpose"].unique())
+    available_purposes |= set(synthetic_df2["following_purpose"].unique())
+    if actual_df is not None:
+        available_purposes |= set(actual_df["purpose"].unique())
+    
+    # Filter PURPOSE_ORDER to only include purposes that exist in the data
+    modelist = [p for p in PURPOSE_ORDER if p in available_purposes]
+    
+    # Calculate actual rows needed
+    actual_rows = (len(modelist) // cols) + (len(modelist) % cols != 0)
+    
+    plt.rcParams['figure.dpi'] = dpi
+    fig, axes = plt.subplots(nrows=actual_rows, ncols=cols, figsize=(5*cols, 3*actual_rows))
+    
+    # Ensure axes is 2D array even for single row
+    if actual_rows == 1:
+        axes = axes.reshape(1, -1)
+    
+    idx = 0
+    for r in range(actual_rows):
+        for c in range(cols):
+            if idx < len(modelist):
+                purpose = modelist[idx]
+                x_syn1 = synthetic_df1[synthetic_df1["following_purpose"]==purpose]["crowfly_distance"]
+                x_syn2 = synthetic_df2[synthetic_df2["following_purpose"]==purpose]["crowfly_distance"]
+                y_hts = None
+                if actual_df is not None:
+                    y_hts = actual_df[actual_df["purpose"]==purpose][["crowfly_distance", "weight_person"]]
+                axes = add_threeway_hist(axes, r, c, purpose, y_hts, x_syn1, x_syn2, bins, 
+                                       label_syn1=label_syn1, label_syn2=label_syn2)
+                idx += 1
+            else:
+                axes[r, c].set_visible(False)
+    
+    # Add a single legend for the entire figure positioned on the right
+    import matplotlib.lines as mlines
+    hts_line = mlines.Line2D([], [], color=COLOR_ACTUAL_HTS, label='HTS')
+    syn1_line = mlines.Line2D([], [], color=COLOR_CARLA, label=label_syn1)
+    syn2_line = mlines.Line2D([], [], color=COLOR_HOERL, label=label_syn2)
+    fig.legend(handles=[hts_line, syn1_line, syn2_line], loc='center right', bbox_to_anchor=(0.98, 0.5))
+    
+    fig.suptitle("Distribution of Distances by Activity", fontsize=14)
+    fig.tight_layout()
+    fig.subplots_adjust(right=0.85)  # Make room for legend on the right
+    plt.savefig("%s/%s" % (context.config("analysis_path"), title), bbox_inches='tight', dpi=dpi)
+    plt.close()
+
+
+def plot_threeway_cdf_purpose(context, title, actual_df, synthetic_df1, synthetic_df2,
+                              dpi=300, cols=3, rows=2, label_syn1="CARLA", label_syn2="Hoerl"):
+    """
+    Plot three-way CDF comparison by purpose: HTS vs Algorithm1 vs Algorithm2
+    """
+    # Use consistent purpose ordering
+    available_purposes = set(synthetic_df1["following_purpose"].unique())
+    available_purposes |= set(synthetic_df2["following_purpose"].unique())
+    if actual_df is not None:
+        available_purposes |= set(actual_df["purpose"].unique())
+    
+    # Filter PURPOSE_ORDER to only include purposes that exist in the data
+    modelist = [p for p in PURPOSE_ORDER if p in available_purposes]
+    
+    # Calculate actual rows needed
+    actual_rows = (len(modelist) // cols) + (len(modelist) % cols != 0)
+    
+    plt.rcParams['figure.dpi'] = dpi
+    fig, axes = plt.subplots(nrows=actual_rows, ncols=cols, figsize=(5*cols, 3*actual_rows))
+    
+    # Ensure axes is 2D array even for single row
+    if actual_rows == 1:
+        axes = axes.reshape(1, -1)
+    
+    idx = 0
+    for r in range(actual_rows):
+        for c in range(cols):
+            if idx < len(modelist):
+                purpose = modelist[idx]
+                x_syn1 = synthetic_df1[synthetic_df1["following_purpose"]==purpose]["crowfly_distance"]
+                x_syn2 = synthetic_df2[synthetic_df2["following_purpose"]==purpose]["crowfly_distance"]
+                y_hts = None
+                if actual_df is not None:
+                    y_hts = actual_df[actual_df["purpose"]==purpose][["crowfly_distance", "weight_person"]]
+                axes = add_threeway_cdf(axes, r, c, purpose, y_hts, x_syn1, x_syn2,
+                                      label_syn1=label_syn1, label_syn2=label_syn2)
+                idx += 1
+            else:
+                axes[r, c].set_visible(False)
+    
+    # Add a single legend for the entire figure positioned on the right
+    import matplotlib.lines as mlines
+    hts_line = mlines.Line2D([], [], color=COLOR_ACTUAL_HTS, linewidth=2, label='HTS')
+    syn1_line = mlines.Line2D([], [], color=COLOR_CARLA, linewidth=2, label=label_syn1)
+    syn2_line = mlines.Line2D([], [], color=COLOR_HOERL, linewidth=2, label=label_syn2)
+    fig.legend(handles=[hts_line, syn1_line, syn2_line], loc='center right', bbox_to_anchor=(0.98, 0.5))
+    
+    fig.suptitle("Distribution of Distances by Activity", fontsize=14)
+    fig.tight_layout()
+    fig.subplots_adjust(right=0.85)  # Make room for legend on the right
+    plt.savefig("%s/%s" % (context.config("analysis_path"), title), bbox_inches='tight', dpi=dpi)
+    plt.close()
+
+
+def plot_threeway_hist_mode(context, title, actual_df, synthetic_df1, synthetic_df2,
+                            bins=np.linspace(0,25,120), dpi=300, cols=3, rows=2,
+                            label_syn1="CARLA", label_syn2="Hoerl"):
+    """
+    Plot three-way histogram comparison by mode: HTS vs Algorithm1 vs Algorithm2
+    """
+    # Use consistent mode ordering
+    available_modes = set(synthetic_df1["mode"].unique())
+    available_modes |= set(synthetic_df2["mode"].unique())
+    if actual_df is not None:
+        available_modes |= set(actual_df["mode"].unique())
+    
+    # Filter MODE_ORDER to only include modes that exist in the data
+    modelist = [m for m in MODE_ORDER if m in available_modes]
+    
+    # Calculate actual rows needed
+    actual_rows = (len(modelist) // cols) + (len(modelist) % cols != 0)
+    
+    plt.rcParams['figure.dpi'] = dpi
+    fig, axes = plt.subplots(nrows=actual_rows, ncols=cols, figsize=(5*cols, 3*actual_rows))
+    
+    # Ensure axes is 2D array even for single row
+    if actual_rows == 1:
+        axes = axes.reshape(1, -1)
+    
+    idx = 0
+    for r in range(actual_rows):
+        for c in range(cols):
+            if idx < len(modelist):
+                mode = modelist[idx]
+                x_syn1 = synthetic_df1[synthetic_df1["mode"]==mode]["crowfly_distance"]
+                x_syn2 = synthetic_df2[synthetic_df2["mode"]==mode]["crowfly_distance"]
+                y_hts = None
+                if actual_df is not None:
+                    y_hts = actual_df[actual_df["mode"]==mode][["crowfly_distance", "weight_person"]]
+                axes = add_threeway_hist(axes, r, c, mode, y_hts, x_syn1, x_syn2, bins,
+                                       label_syn1=label_syn1, label_syn2=label_syn2)
+                idx += 1
+            else:
+                axes[r, c].set_visible(False)
+    
+    # Add a single legend for the entire figure positioned on the right
+    import matplotlib.lines as mlines
+    hts_line = mlines.Line2D([], [], color=COLOR_ACTUAL_HTS, label='HTS')
+    syn1_line = mlines.Line2D([], [], color=COLOR_CARLA, label=label_syn1)
+    syn2_line = mlines.Line2D([], [], color=COLOR_HOERL, label=label_syn2)
+    fig.legend(handles=[hts_line, syn1_line, syn2_line], loc='center right', bbox_to_anchor=(0.98, 0.5))
+    
+    fig.suptitle("Distribution of Distances by Mode", fontsize=14)
+    fig.tight_layout()
+    fig.subplots_adjust(right=0.85)  # Make room for legend on the right
+    plt.savefig("%s/%s" % (context.config("analysis_path"), title), bbox_inches='tight', dpi=dpi)
+    plt.close()
+
+
+def plot_threeway_cdf_mode(context, title, actual_df, synthetic_df1, synthetic_df2,
+                           dpi=300, cols=3, rows=2, label_syn1="CARLA", label_syn2="Hoerl"):
+    """
+    Plot three-way CDF comparison by mode: HTS vs Algorithm1 vs Algorithm2
+    """
+    # Use consistent mode ordering
+    available_modes = set(synthetic_df1["mode"].unique())
+    available_modes |= set(synthetic_df2["mode"].unique())
+    if actual_df is not None:
+        available_modes |= set(actual_df["mode"].unique())
+    
+    # Filter MODE_ORDER to only include modes that exist in the data
+    modelist = [m for m in MODE_ORDER if m in available_modes]
+    
+    # Calculate actual rows needed
+    actual_rows = (len(modelist) // cols) + (len(modelist) % cols != 0)
+    
+    plt.rcParams['figure.dpi'] = dpi
+    fig, axes = plt.subplots(nrows=actual_rows, ncols=cols, figsize=(5*cols, 3*actual_rows))
+    
+    # Ensure axes is 2D array even for single row
+    if actual_rows == 1:
+        axes = axes.reshape(1, -1)
+    
+    idx = 0
+    for r in range(actual_rows):
+        for c in range(cols):
+            if idx < len(modelist):
+                mode = modelist[idx]
+                x_syn1 = synthetic_df1[synthetic_df1["mode"]==mode]["crowfly_distance"]
+                x_syn2 = synthetic_df2[synthetic_df2["mode"]==mode]["crowfly_distance"]
+                y_hts = None
+                if actual_df is not None:
+                    y_hts = actual_df[actual_df["mode"]==mode][["crowfly_distance", "weight_person"]]
+                axes = add_threeway_cdf(axes, r, c, mode, y_hts, x_syn1, x_syn2,
+                                      label_syn1=label_syn1, label_syn2=label_syn2)
+                idx += 1
+            else:
+                axes[r, c].set_visible(False)
+    
+    # Add a single legend for the entire figure positioned on the right
+    import matplotlib.lines as mlines
+    hts_line = mlines.Line2D([], [], color=COLOR_ACTUAL_HTS, linewidth=2, label='HTS')
+    syn1_line = mlines.Line2D([], [], color=COLOR_CARLA, linewidth=2, label=label_syn1)
+    syn2_line = mlines.Line2D([], [], color=COLOR_HOERL, linewidth=2, label=label_syn2)
+    fig.legend(handles=[hts_line, syn1_line, syn2_line], loc='center right', bbox_to_anchor=(0.98, 0.5))
+    
+    fig.suptitle("Distribution of Distances by Mode", fontsize=14)
+    fig.tight_layout()
+    fig.subplots_adjust(right=0.85)  # Make room for legend on the right
+    plt.savefig("%s/%s" % (context.config("analysis_path"), title), bbox_inches='tight', dpi=dpi)
     plt.close()

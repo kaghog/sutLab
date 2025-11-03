@@ -8,6 +8,9 @@ def configure(context):
 
     context.stage("matsim.runtime.java")
     context.stage("matsim.runtime.eqasim")
+    
+    context.config("output_path")
+    context.config("simulation_output_dir", "simulation_output")
 
 def execute(context):
     config_path = "%s/%s" % (
@@ -16,10 +19,16 @@ def execute(context):
     )
 
     # Run routing
+    output_dir = os.path.abspath(os.path.join(
+        context.config("output_path"), 
+        context.config("simulation_output_dir")
+    ))
     eqasim.run(context, "org.sutlab.hannover.RunSimulation", [
         "--config-path", config_path,
-        "--config:controler.lastIteration", str(1),
-        "--config:controler.writeEventsInterval", str(1),
-        "--config:controler.writePlansInterval", str(1),
+        "--config:controller.lastIteration", str(1),
+        "--config:controller.writeEventsInterval", str(1),
+        "--config:controller.writePlansInterval", str(1),
+        "--config:controller.outputDirectory", output_dir,
     ])
-    assert os.path.exists("%s/simulation_output/output_events.xml.gz" % context.path())
+
+    assert os.path.exists("%s/output_events.xml.gz" % output_dir)

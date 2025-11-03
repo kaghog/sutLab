@@ -560,7 +560,7 @@ def get_min_max_distance(distances: np.ndarray) -> Tuple[float, float]:
     if len(distances) == 0:
         raise ValueError("No distances given.")
     if len(distances) == 1:
-        return distances[0], distances[0]
+        return
     
     total_sum = np.sum(distances)
     remaining_distances = total_sum - distances
@@ -568,6 +568,36 @@ def get_min_max_distance(distances: np.ndarray) -> Tuple[float, float]:
     min_distance = max(single_leg_overshoot, 0)
     
     return min_distance, total_sum
+
+
+def sample_tail(random: np.random.RandomState, anchor: np.ndarray, distances: np.ndarray) -> np.ndarray:
+    """
+    Sample locations for a tail chain starting from an anchor point.
+    Adapted from Hoerl's RDA implementation.
+    
+    Parameters
+    ----------
+    random : np.random.RandomState
+        Random number generator
+    anchor : np.ndarray
+        Starting point (2D coordinates)
+    distances : np.ndarray
+        Array of distances for each leg
+    
+    Returns
+    -------
+    locations : np.ndarray
+        Array of sampled locations (excludes the anchor itself)
+    """
+    angles = random.random_sample(len(distances)) * 2.0 * np.pi
+    offsets = np.vstack([np.cos(angles), np.sin(angles)]).T * distances[:, np.newaxis]
+    
+    locations = [anchor]
+    
+    for k in range(len(distances)):
+        locations.append(locations[-1] + offsets[k])
+    
+    return np.vstack(locations[1:])
 
 
 def spread_distances(distance1: float, distance2: float, iteration: int = 0, 
@@ -592,20 +622,20 @@ class CARLA:
         self.c_i = CircleIntersection(target_locations)
         self.distance_distributions = distance_distributions
         self.random = random
-        self.visualizer = None  # Not using visualizer in Eqasim pipeline
         
-        # Configuration parameters hardcoded
-        self.number_of_branches = 10
-        self.min_candidates_complex_case = 10
-        self.candidates_two_leg_case = 30
-        self.max_candidates = None
-        self.anchor_strategy = "lower_middle"
-        self.selection_strategy_complex_case = "top_n_spatial_downsample"
-        self.selection_strategy_two_leg_case = "top_n"
-        self.max_radius_reduction_factor = None
-        self.max_iterations_complex_case = 15
-        self.only_return_valid_persons = False
-        self.leisure_correction_factor = 2.0
+
+        self.number_of_branches = 10                         
+        self.min_candidates_complex_case = 10               
+        self.candidates_two_leg_case = 30                   
+        self.max_candidates = None                           
+        self.anchor_strategy = "lower_middle"                
+        self.selection_strategy_complex_case = "top_n_spatial_downsample" 
+        self.selection_strategy_two_leg_case = "top_n"      
+        self.max_radius_reduction_factor = None             
+        self.max_iterations_complex_case = 15                
+        self.only_return_valid_persons = False               
+        
+        self.leisure_correction_factor = 2.0               
     
     def _get_anchor_index(self, num_legs: int) -> int:
         """Determine the anchor index based on strategy."""
@@ -645,9 +675,7 @@ class CARLA:
                 raise RuntimeError("Reached impossible state.")
             updated_leg1 = segment[0]._replace(to_location=best_loc[1], to_act_identifier=best_loc[0])
             updated_leg2 = segment[1]._replace(from_location=best_loc[1])
-            if self.visualizer:
-                label = f"2-leg node: {best_loc[0]}, score: {best_loc[3]:.2f}"
-                self.visualizer.add_node(parent_node, label, location=best_loc[1], metadata={"score": best_loc[3]})
+           
             return (updated_leg1, updated_leg2), best_loc[3]  # act_score
 
         # Recursive case
@@ -713,11 +741,8 @@ class CARLA:
             new_coord = selected_candidates[1][i]
             new_id = selected_candidates[0][i]
 
-            if self.visualizer:
-                candidate_label = f"Candidate {new_id}: Score {selected_scores[i]:.2f}"
-                child_node = self.visualizer.add_node(parent_node, candidate_label, location=new_coord, metadata={"score": selected_scores[i]})
-            else:
-                child_node = None
+
+            child_node = None
 
             # Create updated legs (safe copies, not modifying originals)
             updated_leg1 = segment[anchor_idx]._replace(to_location=new_coord, to_act_identifier=new_id)
@@ -744,15 +769,15 @@ class CARLA:
         best_idx = np.argmax(branch_scores)
         return full_segs[best_idx], branch_scores[best_idx]
     
-    def solve_problem(self, problem: dict) -> Tuple[np.ndarray, np.ndarray, float]:
+    def solve_problem(self, problem: dict) -> Tuple[list, np.ndarray, float]:
         """
         Solve a single assignment problem.
         Wrapper to convert Eqasim problem format to segment format.
         
         Returns
         -------
-        identifiers : np.ndarray
-            Location IDs for each activity
+        identifiers : list
+            Location IDs for each activity (strings like 'sec_2844')
         locations : np.ndarray
             Coordinates for each activity
         score : float
@@ -766,7 +791,7 @@ class CARLA:
         
         # Extract locations and identifiers from the solved segment
         locations = np.array([leg.to_location for leg in result_segment])
-        identifiers = np.array([leg.to_act_identifier for leg in result_segment])
+        identifiers = [leg.to_act_identifier for leg in result_segment]
         
         return identifiers, locations, score
     
@@ -930,6 +955,7 @@ def process_carla(context, arguments):
     # Debug counters
     total_problems = 0
     free_chain_problems = 0
+    tail_chain_problems = 0
     failed_problems = 0
     successful_problems = 0
     
@@ -939,26 +965,71 @@ def process_carla(context, arguments):
         total_problems += 1
         starting_activity_index = problem["activity_index"]
         
-        # CARLA cannot handle free chains (both origin and destination unknown)
+        # Handle free chains (both origin and destination unknown) - use Hoerl's free solver
         if problem["origin"] is None and problem["destination"] is None:
             free_chain_problems += 1
-            # Generate fallback locations by sampling random facilities
-            identifiers, locations = _generate_fallback_locations(
-                problem, target_locations, random
-            )
-            
-            for index, (identifier, location) in enumerate(zip(identifiers, locations)):
-                df_locations.append((
-                    problem["person_id"], starting_activity_index + index, identifier, geo.Point(location)
-                ))
-            
-            df_convergence.append((False, problem["size"]))
+            try:
+                identifiers, locations = solve_free_chain(problem, target_locations, random, distance_distributions)
+                
+                for index, (identifier, location) in enumerate(zip(identifiers, locations)):
+                    df_locations.append((
+                        problem["person_id"], starting_activity_index + index, identifier, geo.Point(location)
+                    ))
+                
+                df_convergence.append((True, problem["size"]))
+                successful_problems += 1
+                
+            except Exception as e:
+                print(f"[CARLA] Free chain solver failed for person {problem['person_id']}: {e}")
+                # Ultimate fallback: random sampling
+                identifiers, locations = _generate_fallback_locations(problem, target_locations, random)
+                
+                for index, (identifier, location) in enumerate(zip(identifiers, locations)):
+                    df_locations.append((
+                        problem["person_id"], starting_activity_index + index, identifier, geo.Point(location)
+                    ))
+                
+                df_convergence.append((False, problem["size"]))
+                failed_problems += 1
             
             if problem["person_id"] != last_person_id:
                 last_person_id = problem["person_id"]
                 context.progress.update()
             continue
         
+        # Handle tail chains (only one anchor known) - use Hoerl's tail solver
+        if problem["origin"] is None or problem["destination"] is None:
+            tail_chain_problems += 1
+            try:
+                identifiers, locations = solve_tail_chain(problem, target_locations, random, distance_distributions)
+                
+                for index, (identifier, location) in enumerate(zip(identifiers, locations)):
+                    df_locations.append((
+                        problem["person_id"], starting_activity_index + index, identifier, geo.Point(location)
+                    ))
+                
+                df_convergence.append((True, problem["size"]))
+                successful_problems += 1
+                
+            except Exception as e:
+                print(f"[CARLA] Tail chain solver failed for person {problem['person_id']}: {e}")
+                # Ultimate fallback: random sampling
+                identifiers, locations = _generate_fallback_locations(problem, target_locations, random)
+                
+                for index, (identifier, location) in enumerate(zip(identifiers, locations)):
+                    df_locations.append((
+                        problem["person_id"], starting_activity_index + index, identifier, geo.Point(location)
+                    ))
+                
+                df_convergence.append((False, problem["size"]))
+                failed_problems += 1
+            
+            if problem["person_id"] != last_person_id:
+                last_person_id = problem["person_id"]
+                context.progress.update()
+            continue
+        
+        # Handle full chains (both anchors known) - use CARLA
         try:
             identifiers, locations, score = carla_solver.solve_problem(problem)
             
@@ -972,7 +1043,7 @@ def process_carla(context, arguments):
             
         except Exception as e:
             failed_problems += 1
-            print(f"[CARLA] Error solving problem for person {problem['person_id']}, size={problem['size']}, purposes={problem['purposes']}: {e}")
+            # print(f"[CARLA] Error solving problem for person {problem['person_id']}, size={problem['size']}, purposes={problem['purposes']}: {e}")
             
             # CRITICAL: Generate fallback locations to prevent missing geometry
             identifiers, locations = _generate_fallback_locations(
@@ -993,9 +1064,11 @@ def process_carla(context, arguments):
     # Debug output
     print(f"\n[CARLA] Processing Summary:")
     print(f"  Total problems: {total_problems}")
-    print(f"  Successful: {successful_problems} ({100*successful_problems/max(total_problems,1):.1f}%)")
-    print(f"  Free chains (skipped): {free_chain_problems} ({100*free_chain_problems/max(total_problems,1):.1f}%)")
-    print(f"  Failed (with fallback): {failed_problems} ({100*failed_problems/max(total_problems,1):.1f}%)")
+    print(f"  Successful (CARLA): {successful_problems - free_chain_problems - tail_chain_problems} ({100*(successful_problems - free_chain_problems - tail_chain_problems)/max(total_problems,1):.1f}%)")
+    print(f"  Free chains (Hoerl solver): {free_chain_problems} ({100*free_chain_problems/max(total_problems,1):.1f}%)")
+    print(f"  Tail chains (Hoerl solver): {tail_chain_problems} ({100*tail_chain_problems/max(total_problems,1):.1f}%)")
+    print(f"  Total successful: {successful_problems} ({100*successful_problems/max(total_problems,1):.1f}%)")
+    print(f"  Failed (with random fallback): {failed_problems} ({100*failed_problems/max(total_problems,1):.1f}%)")
     print(f"  Total location records generated: {len(df_locations)}")
     
     df_locations = pd.DataFrame.from_records(df_locations, columns=["person_id", "activity_index", "location_id", "geometry"])
@@ -1014,12 +1087,200 @@ def process_carla(context, arguments):
     return df_locations, df_convergence
 
 
-def _generate_fallback_locations(problem: dict, target_locations: TargetLocations, random: np.random.RandomState) -> Tuple[np.ndarray, np.ndarray]:
+def solve_tail_chain(problem: dict, target_locations: TargetLocations, random: np.random.RandomState, 
+                     distance_distributions: dict = None) -> Tuple[list, np.ndarray]:
+    """
+    Solve a tail chain where either origin or destination is known.
+    Uses angular tail sampling from Hoerl's RDA approach.
+    
+    Parameters
+    ----------
+    problem : dict
+        Assignment problem with either origin or destination (but not both) being None
+    target_locations : TargetLocations
+        Index of available activity locations
+    random : np.random.RandomState
+        Random number generator
+    distance_distributions : dict, optional
+        Distance distributions by mode for proper distance sampling
+    
+    Returns
+    -------
+    identifiers : list
+        Location IDs for each activity (strings like 'sec_2844')
+    locations : np.ndarray
+        Coordinates for each activity
+    """
+    # Sample distances using the same logic as CARLA's _sample_distances
+    if distance_distributions is not None and "modes" in problem and "travel_times" in problem:
+        distances = np.zeros(problem["size"])
+        for index, (mode, travel_time) in enumerate(zip(problem["modes"], problem["travel_times"])):
+            if mode not in distance_distributions:
+                # Fallback to speed-based estimate
+                speed_map = {"car": 13.9, "car_passenger": 13.9, "pt": 8.3, "bike": 4.2, "walk": 1.4}
+                distances[index] = travel_time * speed_map.get(mode, 5.0)
+                continue
+            
+            mode_distribution = distance_distributions[mode]
+            bound_index = np.count_nonzero(travel_time > mode_distribution["bounds"])
+            mode_distribution = mode_distribution["distributions"][bound_index]
+            
+            distances[index] = mode_distribution["values"][
+                np.count_nonzero(random.random_sample() > mode_distribution["cdf"])
+            ]
+            
+            # Apply leisure correction if applicable
+            if index < len(problem["purposes"]) and problem["purposes"][index] == "leisure":
+                distances[index] *= 2.0  # Match CARLA's leisure_correction_factor
+    else:
+        # Fallback to simple distance estimation
+        distances = np.array([2000.0] * problem["size"])
+    
+    # Determine anchor point and whether to reverse
+    if problem["origin"] is None:
+        anchor = problem["destination"]
+        reverse = False
+    else:
+        anchor = problem["origin"]
+        reverse = True
+    
+    # Sample tail locations using angular distribution
+    sampled_locations = sample_tail(random, anchor, distances)
+    
+    # Reverse if needed
+    if reverse:
+        sampled_locations = sampled_locations[::-1, :]
+    
+    # Discretize to nearest facilities of appropriate type
+    identifiers = []
+    discretized_locations = []
+    
+    for location, purpose in zip(sampled_locations, problem["purposes"]):
+        ids, coords, _ = target_locations.query_closest(purpose, location, num_candidates=1)
+        # Extract the identifier - keep as-is (string like 'sec_2844')
+        if isinstance(ids, np.ndarray):
+            if ids.ndim == 0:
+                identifiers.append(ids.item())
+            else:
+                identifiers.append(ids.flat[0])
+        else:
+            identifiers.append(ids)
+        
+        # Extract coordinates safely
+        if coords.ndim > 1:
+            discretized_locations.append(coords[0])
+        else:
+            discretized_locations.append(coords)
+    
+    return identifiers, np.array(discretized_locations)
+
+def solve_free_chain(problem: dict, target_locations: TargetLocations, random: np.random.RandomState,
+                     distance_distributions: dict = None) -> Tuple[list, np.ndarray]:
+    """
+    Solve a free chain where both origin and destination are unknown.
+    Uses Hoerl's approach: sample a random facility as anchor, then build tail from it.
+    
+    Parameters
+    ----------
+    problem : dict
+        Assignment problem with both origin and destination being None
+    target_locations : TargetLocations
+        Index of available activity locations
+    random : np.random.RandomState
+        Random number generator
+    distance_distributions : dict, optional
+        Distance distributions by mode for proper distance sampling
+    
+    Returns
+    -------
+    identifiers : list
+        Location IDs for each activity (strings like 'sec_2844')
+    locations : np.ndarray
+        Coordinates for each activity
+    """
+    # Sample a random facility of the first activity type as anchor
+    first_purpose = problem["purposes"][0]
+    purpose_data = target_locations.data.get(first_purpose)
+    
+    if purpose_data is None or len(purpose_data["identifiers"]) == 0:
+        # Fallback to shop if first purpose not available
+        purpose_data = target_locations.data.get("shop")
+        if purpose_data is None or len(purpose_data["identifiers"]) == 0:
+            raise RuntimeError(f"No locations available for free chain anchor")
+    
+    # Sample random anchor
+    idx = random.randint(0, len(purpose_data["identifiers"]))
+    anchor_id = purpose_data["identifiers"][idx]  # Keep as string
+    anchor_location = purpose_data["locations"][idx]
+    
+    # If only one activity, return the anchor
+    if problem["size"] == 1:
+        return [anchor_id], np.array([anchor_location])
+    
+    # Sample distances for remaining legs using proper distributions
+    if distance_distributions is not None and "modes" in problem and "travel_times" in problem:
+        distances = np.zeros(problem["size"] - 1)
+        for index, (mode, travel_time) in enumerate(zip(problem["modes"], problem["travel_times"])):
+            if mode not in distance_distributions:
+                speed_map = {"car": 13.9, "car_passenger": 13.9, "pt": 8.3, "bike": 4.2, "walk": 1.4}
+                distances[index] = travel_time * speed_map.get(mode, 5.0)
+                continue
+            
+            mode_distribution = distance_distributions[mode]
+            bound_index = np.count_nonzero(travel_time > mode_distribution["bounds"])
+            mode_distribution = mode_distribution["distributions"][bound_index]
+            
+            distances[index] = mode_distribution["values"][
+                np.count_nonzero(random.random_sample() > mode_distribution["cdf"])
+            ]
+            
+            # Apply leisure correction
+            if index + 1 < len(problem["purposes"]) and problem["purposes"][index + 1] == "leisure":
+                distances[index] *= 2.0
+    else:
+        distances = np.array([2000.0] * (problem["size"] - 1))  # Fallback
+    
+    # Sample tail locations
+    sampled_locations = sample_tail(random, anchor_location, distances)
+    
+    # Build result starting with anchor
+    identifiers = [anchor_id]
+    discretized_locations = [anchor_location]
+    
+    # Discretize remaining locations
+    for location, purpose in zip(sampled_locations, problem["purposes"][1:]):
+        ids, coords, _ = target_locations.query_closest(purpose, location, num_candidates=1)
+        # Extract the identifier - keep as-is (string like 'sec_2844')
+        if isinstance(ids, np.ndarray):
+            if ids.ndim == 0:
+                identifiers.append(ids.item())
+            else:
+                identifiers.append(ids.flat[0])
+        else:
+            identifiers.append(ids)
+        
+        # Extract coordinates safely
+        if coords.ndim > 1:
+            discretized_locations.append(coords[0])
+        else:
+            discretized_locations.append(coords)
+    
+    return identifiers, np.array(discretized_locations)
+
+
+def _generate_fallback_locations(problem: dict, target_locations: TargetLocations, random: np.random.RandomState) -> Tuple[list, np.ndarray]:
     """
     Generate fallback locations when CARLA fails to solve a problem.
     Samples random facilities of the appropriate type for each activity.
     
     This ensures every activity gets a location, preventing downstream pipeline failures.
+    
+    Returns
+    -------
+    identifiers : list
+        Location IDs for each activity (strings like 'sec_2844')
+    locations : np.ndarray
+        Coordinates for each activity
     """
     identifiers = []
     locations = []
@@ -1041,12 +1302,13 @@ def _generate_fallback_locations(problem: dict, target_locations: TargetLocation
         # Sample a random location
         if purpose_data is not None and len(purpose_data["identifiers"]) > 0:
             idx = random.randint(0, len(purpose_data["identifiers"]))
+            # Keep identifier as-is (string like 'sec_2844')
             identifiers.append(purpose_data["identifiers"][idx])
             locations.append(purpose_data["locations"][idx])
         else:
             # Absolute fallback: null island (should never happen)
             print(f"[CARLA] WARNING: No facilities available for purpose '{purpose}', using null island")
-            identifiers.append(-999)
+            identifiers.append("fallback_-999")
             locations.append(np.array([0.0, 0.0]))
     
-    return np.array(identifiers), np.array(locations)
+    return identifiers, np.array(locations)

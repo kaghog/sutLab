@@ -23,9 +23,8 @@ def configure(context):
     context.config("analysis_path")
     context.config("output_prefix")
 
-    # context.stage("data.hts.trips")
-    # context.stage("data.hts.persons")
-    # context.stage("synthesis.output")
+    context.stage("synthesis.output")
+    
     context.stage("hannover.data.census.population")
     # Also prepare census license totals for comparison plots
     context.stage("hannover.ipf.prepare")
@@ -36,14 +35,25 @@ def configure(context):
     context.config("specific_day_scenario", "avgworkday") #options can be any of the days of the week or "avgworkday"
     
     
-def import_data_synthetic(context, population_selector = None):
-    filepath = "%s/%strips.csv" % (context.config("output_path"), context.config("output_prefix"))
+def import_data_synthetic(context, population_selector = None, custom_output_path = None):
+    """
+    Import synthetic population data.
+    
+    Args:
+        context: Pipeline context
+        population_selector: Optional filters for population
+        custom_output_path: Optional custom path (for loading alternative algorithm output)
+    """
+    output_path = custom_output_path if custom_output_path else context.config("output_path")
+    output_prefix = context.config("output_prefix")
+    
+    filepath = "%s/%strips.csv" % (output_path, output_prefix)
     df_trips = pd.read_csv(filepath, encoding = "latin1", sep = ";")
 
-    filepath = "%s/%spersons.csv" %  (context.config("output_path"), context.config("output_prefix"))
+    filepath = "%s/%spersons.csv" %  (output_path, output_prefix)
     df_persons = pd.read_csv(filepath, encoding = "latin1", sep = ";")
 
-    filepath = "%s/%shouseholds.csv" %  (context.config("output_path"), context.config("output_prefix"))
+    filepath = "%s/%shouseholds.csv" %  (output_path, output_prefix)
     df_hhl = pd.read_csv(filepath, encoding = "latin1", sep = ";")
 
 
@@ -975,7 +985,22 @@ def compare_dist_from_home(context, df_syn, df_act, target_purpose = "education"
 
 
 
-def all_the_plot_distances(context, df_act_dist, df_syn_dist, suffix = None):
+def all_the_plot_distances(context, df_act_dist, df_syn_dist, suffix = None, df_syn_dist_alt = None, alt_label = "Hoerl"):
+    """
+    Generate distance distribution plots.
+    
+    Plot generation strategy:
+    1. Always generate: HTS vs CARLA (latest simulation_output)
+    2. Only if comparison enabled: HTS vs CARLA vs Hoerl (three-way comparison)
+    
+    Args:
+        context: Pipeline context
+        df_act_dist: HTS distance data
+        df_syn_dist: Synthetic distance data from latest simulation (CARLA)
+        suffix: Optional suffix for filenames
+        df_syn_dist_alt: Optional alternative synthetic data (Hoerl) for three-way comparison
+        alt_label: Label for alternative algorithm (default: "Hoerl")
+    """
     dph_title = "distance_purpose_hist"
     dmh_title = "distance_mode_hist"
     dpc_title = "distance_purpose_cdf"
@@ -988,38 +1013,87 @@ def all_the_plot_distances(context, df_act_dist, df_syn_dist, suffix = None):
         dmc_title += "_" + suffix
         
     dph_title += ".png"
-    dmh_title += ".png"  # Fixed: was duplicating dph_title
+    dmh_title += ".png"
     dpc_title += ".png"
     dmc_title += ".png"
     
     print("INFO generating distance histograms and CDFs by purpose")
-    # Generate 2x3 layout (original)
-    myplottools.plot_comparison_hist_purpose(context, dph_title, df_act_dist, df_syn_dist, bins = np.linspace(0,25,120), dpi = 300, cols = 3, rows = 2)
-    myplottools.plot_comparison_cdf_purpose(context, dpc_title, df_act_dist, df_syn_dist, dpi = 300, cols = 3, rows = 2)
     
-    # Generate 3x2 layout (alternative)
-    dph_title_3x2 = dph_title.replace(".png", "_3x2.png")
-    dpc_title_3x2 = dpc_title.replace(".png", "_3x2.png")
-    myplottools.plot_comparison_hist_purpose(context, dph_title_3x2, df_act_dist, df_syn_dist, bins = np.linspace(0,25,120), dpi = 300, cols = 2, rows = 3)
-    myplottools.plot_comparison_cdf_purpose(context, dpc_title_3x2, df_act_dist, df_syn_dist, dpi = 300, cols = 2, rows = 3)
+    # 1. ALWAYS generate: HTS vs CARLA (latest from simulation_output)
+    print("INFO generating HTS vs CARLA comparison plots")
+    myplottools.plot_comparison_hist_purpose(
+        context, dph_title, df_act_dist, df_syn_dist,
+        bins = np.linspace(0,25,120), dpi = 300, cols = 3, rows = 2
+    )
+    myplottools.plot_comparison_cdf_purpose(
+        context, dpc_title, df_act_dist, df_syn_dist,
+        dpi = 300, cols = 3, rows = 2
+    )
+    print(f"SUCCESS: Created HTS vs CARLA plots: {dph_title}, {dpc_title}")
     
-    # Only generate mode plots if mode data exists in both datasets
+    # Also generate mode plots for HTS vs CARLA
     if "mode" in df_syn_dist.columns and "mode" in df_act_dist.columns:
-        print("INFO generating distance histograms and CDFs by mode")
-        # Generate 2x3 layout (original)
-        myplottools.plot_comparison_hist_mode(context, dmh_title, df_act_dist, df_syn_dist, bins = np.linspace(0,25,120), dpi = 300, cols = 3, rows = 2)
-        myplottools.plot_comparison_cdf_mode(context, dmc_title, df_act_dist, df_syn_dist, dpi = 300, cols = 3, rows = 2)
+        print("INFO generating distance histograms and CDFs by mode (HTS vs CARLA)")
+        myplottools.plot_comparison_hist_mode(
+            context, dmh_title, df_act_dist, df_syn_dist,
+            bins = np.linspace(0,25,120), dpi = 300, cols = 3, rows = 2
+        )
+        myplottools.plot_comparison_cdf_mode(
+            context, dmc_title, df_act_dist, df_syn_dist,
+            dpi = 300, cols = 3, rows = 2
+        )
+        print(f"SUCCESS: Created HTS vs CARLA mode plots: {dmh_title}, {dmc_title}")
+    
+    # 2. ONLY if comparison enabled: Generate three-way comparison (HTS vs CARLA vs Hoerl)
+    if df_syn_dist_alt is not None:
+        print(f"INFO Algorithm comparison mode: generating three-way plots (HTS vs CARLA vs {alt_label})")
         
-        # Generate 3x2 layout (alternative)
-        dmh_title_3x2 = dmh_title.replace(".png", "_3x2.png")
-        dmc_title_3x2 = dmc_title.replace(".png", "_3x2.png")
-        myplottools.plot_comparison_hist_mode(context, dmh_title_3x2, df_act_dist, df_syn_dist, bins = np.linspace(0,25,120), dpi = 300, cols = 2, rows = 3)
-        myplottools.plot_comparison_cdf_mode(context, dmc_title_3x2, df_act_dist, df_syn_dist, dpi = 300, cols = 2, rows = 3)
+        # Three-way comparison for purpose distances
+        dph_title_3way = dph_title.replace(".png", "_comparison.png")
+        dpc_title_3way = dpc_title.replace(".png", "_comparison.png")
+        
+        myplottools.plot_threeway_hist_purpose(
+            context, dph_title_3way, df_act_dist, df_syn_dist, df_syn_dist_alt,
+            bins = np.linspace(0,25,120), dpi = 300, cols = 3, rows = 2,
+            label_syn1="CARLA", label_syn2=alt_label
+        )
+        myplottools.plot_threeway_cdf_purpose(
+            context, dpc_title_3way, df_act_dist, df_syn_dist, df_syn_dist_alt,
+            dpi = 300, cols = 3, rows = 2,
+            label_syn1="CARLA", label_syn2=alt_label
+        )
+        
+        print(f"SUCCESS: Created three-way comparison plots: {dph_title_3way}, {dpc_title_3way}")
+        
+        # Three-way comparison for mode distances if available
+        if "mode" in df_syn_dist.columns and "mode" in df_act_dist.columns and "mode" in df_syn_dist_alt.columns:
+            print(f"INFO generating three-way distance plots by mode (HTS vs CARLA vs {alt_label})")
+            dmh_title_3way = dmh_title.replace(".png", "_comparison.png")
+            dmc_title_3way = dmc_title.replace(".png", "_comparison.png")
+            
+            myplottools.plot_threeway_hist_mode(
+                context, dmh_title_3way, df_act_dist, df_syn_dist, df_syn_dist_alt,
+                bins = np.linspace(0,25,120), dpi = 300, cols = 3, rows = 2,
+                label_syn1="CARLA", label_syn2=alt_label
+            )
+            myplottools.plot_threeway_cdf_mode(
+                context, dmc_title_3way, df_act_dist, df_syn_dist, df_syn_dist_alt,
+                dpi = 300, cols = 3, rows = 2,
+                label_syn1="CARLA", label_syn2=alt_label
+            )
+            
+            print(f"SUCCESS: Created three-way mode comparison plots: {dmh_title_3way}, {dmc_title_3way}")
     else:
         print("INFO skipping mode distance plots - mode data not available in both datasets")
 
 
-def generate_plots(context, df_aux_act, df_aux_syn, df_act_trips, df_syn_trips, df_act_persons, df_syn_persons, df_syn_no_trip, df_act_no_trip, suffix, df_census):
+def generate_plots(context, df_aux_act, df_aux_syn, df_act_trips, df_syn_trips, df_act_persons, df_syn_persons, df_syn_no_trip, df_act_no_trip, suffix, df_census, df_syn_trips_alt=None):
+    """
+    Generate all comparison plots.
+    
+    Args:
+        df_syn_trips_alt: Optional alternative synthetic trips (for algorithm comparison)
+    """
     # Handle case where HTS data is not available
     hts_available = df_act_trips is not None and df_act_persons is not None
     
@@ -1063,7 +1137,6 @@ def generate_plots(context, df_aux_act, df_aux_syn, df_act_trips, df_syn_trips, 
     # New consolidated horizontal summary plot
     summary_horizontal(context, df_act_persons, df_syn_persons, df_census, suffix)
 
-    # NOTE: Mode share comparison moved to accessibility.py to compare simulation output vs HTS
 
     # 2. CROWFLY DISTANCES
     print("INFO starting crowfly distance analysis...")
@@ -1116,6 +1189,12 @@ def generate_plots(context, df_aux_act, df_aux_syn, df_act_trips, df_syn_trips, 
         # 2.4 Generate detailed distance histograms and CDFs by purpose
         print("INFO creating detailed distance distribution plots")
         
+        # Prepare alternative algorithm data if comparison mode is enabled
+        df_syn_dist_alt = None
+        if df_syn_trips_alt is not None:
+            print("INFO preparing alternative algorithm distance data for comparison")
+            df_syn_dist_alt = compute_distances_synthetic(df_syn_trips_alt.copy())
+        
         # 2.4 Create CDF plots (synthetic vs HTS comparison)
         print("INFO creating CDF plots")
         cdf_title = "distance_purpose_cdf"
@@ -1140,10 +1219,10 @@ def generate_plots(context, df_aux_act, df_aux_syn, df_act_trips, df_syn_trips, 
             myplottools.plot_comparison_cdf_purpose(context, cdf_title, df_hts_for_plotting, df_syn_dist, dpi=300)
             print(f"SUCCESS: Created {cdf_title}")
             
-            # Generate 3x2 layout (alternative)
-            cdf_title_3x2 = cdf_title.replace(".png", "_3x2.png")
-            myplottools.plot_comparison_cdf_purpose(context, cdf_title_3x2, df_hts_for_plotting, df_syn_dist, dpi=300, cols=2, rows=3)
-            print(f"SUCCESS: Created {cdf_title_3x2}")
+            # Generate 3x2 layout (alternative) 
+            # cdf_title_3x2 = cdf_title.replace(".png", "_3x2.png")
+            # myplottools.plot_comparison_cdf_purpose(context, cdf_title_3x2, df_hts_for_plotting, df_syn_dist, dpi=300, cols=2, rows=3)
+            # print(f"SUCCESS: Created {cdf_title_3x2}")
         except Exception as e:
             print(f"ERROR creating CDF plot: {e}")
             import traceback
@@ -1152,7 +1231,8 @@ def generate_plots(context, df_aux_act, df_aux_syn, df_act_trips, df_syn_trips, 
         # Generate additional detailed plots via all_the_plot_distances
         try:
             if df_hts_for_plotting is not None:
-                all_the_plot_distances(context, df_hts_for_plotting, df_syn_dist, suffix)
+                all_the_plot_distances(context, df_hts_for_plotting, df_syn_dist, suffix, 
+                                     df_syn_dist_alt=df_syn_dist_alt, alt_label="Hoerl")
                 print("SUCCESS: Created additional comparison distance plots")
             else:
                 print("INFO: Skipping additional plots - no HTS data available")
@@ -1167,219 +1247,39 @@ def generate_plots(context, df_aux_act, df_aux_syn, df_act_trips, df_syn_trips, 
         traceback.print_exc()
 
 
-# --- MODE SHARE COMPARISON FUNCTION ---
-def mode_share_comparison(context, df_syn, df_act, df_act_persons, suffix=None):
-    """
-    theres some confusing problems atm, bikes in syn are underrepresented, cars overrepresented
-    to investigate: there might be some issue with how bikes can be bicycles or motorised bikes, are motorised bikes counted as cars??
-    also look into car passenger vs car driver
-    """
-    # Only keep relevant modes
-    mode_map = {
-        'bike': 'bike',
-        'car': 'car',
-        'car_passenger': 'car',
-        'pt': 'pt',
-        'walk': 'walk',
-    }
-    # Synthetic: count trips by mode
-    df_syn = df_syn.copy()
-    df_syn['mode'] = df_syn['mode'].map(mode_map).fillna('other')
-    syn_counts = df_syn[df_syn['mode'].isin(['bike','car','pt','walk'])]['mode'].value_counts()
-    syn_share = syn_counts / syn_counts.sum() * 100
-
-    # HTS: sum weights by mode (apply same mode_map for consistency)
-    df_act = df_act.copy()
-    df_act['mode'] = df_act['mode'].map(mode_map).fillna(df_act['mode'])  # Map car_passenger to car
-    # Merge weights if not present
-    if 'weight_person' not in df_act.columns and df_act_persons is not None:
-        df_act = df_act.merge(df_act_persons[['person_id','weight_person']], on='person_id', how='left')
-    act_counts = df_act[df_act['mode'].isin(['bike','car','pt','walk'])].groupby('mode')['weight_person'].sum()
-    act_share = act_counts / act_counts.sum() * 100
-
-    # Align modes
-    modes = ['bike','car','pt','walk']
-    syn_vals = [syn_share.get(m,0) for m in modes]
-    act_vals = [act_share.get(m,0) for m in modes]
-
-    # Plot
-    title_plot = "Mode Share Comparison"
-    title_figure = "mode_share"
-    if suffix:
-        title_plot += " - " + suffix
-        title_figure += "_" + suffix
-    title_figure += ".png"
-    myplottools.plot_comparison_bar(
-        context,
-        imtitle=title_figure,
-        plottitle=title_plot,
-        ylabel="Percentage",
-        xlabel="Mode",
-        lab=modes,
-        hts=act_vals,
-        synthetic=syn_vals,
-        t=12,
-        figsize=[8,6],
-        dpi=300,
-        w=0.35,
-        xticksrot=True
-    )
-    
-def mode_share_by_distance(context, df_syn, df_act, df_act_persons, suffix=None):
-    """
-    Plot mode share by distance bins for HTS and simulation.
-    Shows how mode share changes with trip distance.
-    """
-    # Skip if HTS data not available
-    if df_act is None or len(df_act) == 0:
-        print("INFO: Skipping mode share by distance - no HTS data available")
-        return
-    
-    # Mode mapping
-    mode_map = {
-        'bike': 'bike',
-        'car': 'car',
-        'car_passenger': 'car',
-        'pt': 'pt',
-        'walk': 'walk',
-    }
-    
-    # Prepare synthetic data
-    df_syn = df_syn.copy()
-    # Calculate distance in meters
-    if "euclidean_distance" in df_syn.columns:
-        df_syn["distance_m"] = df_syn["euclidean_distance"]
-    elif "crowfly_distance" in df_syn.columns:
-        df_syn["distance_m"] = df_syn["crowfly_distance"] * 1000
-    else:
-        print("WARNING: No distance column in synthetic data")
-        return
-    
-    df_syn['mode'] = df_syn['mode'].map(mode_map).fillna('other')
-    df_syn = df_syn[df_syn['mode'].isin(['bike','car','pt','walk'])]
-    
-    # Prepare HTS data
-    df_act = df_act.copy()
-    df_act["distance_m"] = df_act["routed_distance"]
-    df_act['mode'] = df_act['mode'].map(mode_map).fillna(df_act['mode'])  # Map car_passenger to car
-    
-    df_act = df_act[df_act['mode'].isin(['bike','car','pt','walk'])]
-    
-    # Merge weights if not present
-    if 'weight_person' not in df_act.columns and df_act_persons is not None:
-        df_act = df_act.merge(df_act_persons[['person_id','weight_person']], on='person_id', how='left')
-    
-    # Define distance bins (in meters)
-    distance_bins = [0, 1000, 2000, 3000, 4000, 5000, 6000]
-    bin_centers = [(distance_bins[i] + distance_bins[i+1])/2 for i in range(len(distance_bins)-1)]
-    
-    modes = ['bike', 'car', 'pt', 'walk']
-    
-    # Calculate mode shares for each distance bin
-    hts_shares = {mode: [] for mode in modes}
-    sim_shares = {mode: [] for mode in modes}
-    
-    for i in range(len(distance_bins)-1):
-        dist_min = distance_bins[i]
-        dist_max = distance_bins[i+1]
-        
-        # HTS: weighted counts
-        hts_bin = df_act[(df_act['distance_m'] >= dist_min) & (df_act['distance_m'] < dist_max)]
-        if len(hts_bin) > 0:
-            hts_total = hts_bin.groupby('mode')['weight_person'].sum()
-            hts_sum = hts_total.sum()
-            if hts_sum > 0:
-                for mode in modes:
-                    hts_shares[mode].append(hts_total.get(mode, 0) / hts_sum)
-            else:
-                for mode in modes:
-                    hts_shares[mode].append(0)
-        else:
-            for mode in modes:
-                hts_shares[mode].append(0)
-        
-        # Simulation: unweighted counts
-        sim_bin = df_syn[(df_syn['distance_m'] >= dist_min) & (df_syn['distance_m'] < dist_max)]
-        if len(sim_bin) > 0:
-            sim_total = sim_bin['mode'].value_counts()
-            sim_sum = sim_total.sum()
-            if sim_sum > 0:
-                for mode in modes:
-                    sim_shares[mode].append(sim_total.get(mode, 0) / sim_sum)
-            else:
-                for mode in modes:
-                    sim_shares[mode].append(0)
-        else:
-            for mode in modes:
-                sim_shares[mode].append(0)
-    
-    # Create the plot
-    fig, ax = plt.subplots(figsize=(8, 5))
-    
-    # Define colors for each mode
-    colors = {
-        'bike': '#FF8C00',  # Orange
-        'car': '#2E8B57',   # Green
-        'pt': "#294088",    # Blue
-        'walk': "#48A0F8"   # Light Blue
-    }
-    
-    # Plot HTS (dashed lines) - these will appear first in legend
-    hts_lines = []
-    for mode in modes:
-        line, = ax.plot(bin_centers, hts_shares[mode], 
-                linestyle='--', marker='o', 
-                color=colors[mode],
-                label=f'HTS {mode}',
-                linewidth=1.5, markersize=5)
-        hts_lines.append(line)
-    
-    # Plot Simulation (solid lines) - these will appear second in legend
-    sim_lines = []
-    for mode in modes:
-        line, = ax.plot(bin_centers, sim_shares[mode], 
-                linestyle='-', marker='>', 
-                color=colors[mode],
-                label=f'Sim {mode}',
-                linewidth=2, markersize=6)
-        sim_lines.append(line)
-    
-    ax.set_xlabel('Distance (m)', fontsize=12)
-    ax.set_ylabel('Mode share', fontsize=12)
-    ax.set_title('Mode share by distance', fontsize=14)
-    
-    # Extend y-axis limit to give 10% more room above the data
-    y_min, y_max = ax.get_ylim()
-    y_range = y_max - y_min
-    ax.set_ylim(y_min, y_max + 0.15 * y_range)
-    
-    # Create legend with 2 rows arranged as:
-    # Row 1: HTS bike, HTS car, HTS pt, HTS walk
-    # Row 2: Sim bike, Sim car, Sim pt, Sim walk
-
-    all_lines = [item for pair in zip(hts_lines, sim_lines) for item in pair]
-    all_labels = [line.get_label() for line in all_lines]
-
-    ax.legend(all_lines, all_labels, loc='upper center', bbox_to_anchor=(0.5,0.98), 
-              ncol=4, fontsize=9)
-    ax.grid(True, alpha=0.3)
-
-    # Save figure
-    title_figure = "mode_share_by_distance"
-    if suffix:
-        title_figure += "_" + suffix
-    title_figure += ".png"
-
-    plt.savefig("%s/%s" % (context.config("analysis_path"), title_figure), dpi=300)
-    plt.close()
-    
-
 
 def execute(context):
+    COMPARE_LOCATION_ALGORITHMS = True 
+    HOERL_OUTPUT_PATH = "output/hoerl"   
+
+    
     pop_all = None
     suff_all = ""
     pop_selectors = [pop_all]
     suffixes      = [suff_all]
+
+    # Check if algorithm comparison mode is enabled
+    df_syn_trips_alt = None
+    
+    if COMPARE_LOCATION_ALGORITHMS:
+        print("=" * 80)
+        print("ALGORITHM COMPARISON MODE ENABLED")
+        print("=" * 80)
+        print(f"Loading alternative algorithm output from: {HOERL_OUTPUT_PATH}")
+        
+        try:
+            # Load alternative algorithm synthetic data (Hoerl)
+            df_syn_persons_alt, df_syn_trips_alt, df_syn_no_trip_alt = import_data_synthetic(
+                context, None, custom_output_path=HOERL_OUTPUT_PATH
+            )
+            print(f"SUCCESS: Loaded alternative algorithm data")
+            print(f"  - Persons: {len(df_syn_persons_alt)}")
+            print(f"  - Trips: {len(df_syn_trips_alt)}")
+        except Exception as e:
+            print(f"ERROR: Could not load alternative algorithm data: {e}")
+            print("Proceeding without algorithm comparison")
+            df_syn_trips_alt = None
+        print("=" * 80)
 
     for population_selector, suffix in list(zip(pop_selectors, suffixes)):
         df_syn_persons, df_syn_trips, df_syn_no_trip = import_data_synthetic(context, population_selector)
@@ -1405,4 +1305,4 @@ def execute(context):
             "chain": "home-" + df_syn_trips.groupby("person_id")["following_purpose"].apply(lambda x: "-".join(x))
         })
 
-        generate_plots(context, df_aux_act, df_aux_syn, df_act_trips, df_syn_trips, df_act_persons, df_syn_persons, df_syn_no_trip, df_act_no_trip, suffix, df_census)
+        generate_plots(context, df_aux_act, df_aux_syn, df_act_trips, df_syn_trips, df_act_persons, df_syn_persons, df_syn_no_trip, df_act_no_trip, suffix, df_census, df_syn_trips_alt=df_syn_trips_alt)
