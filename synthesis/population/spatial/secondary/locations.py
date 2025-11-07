@@ -23,9 +23,6 @@ def configure(context):
 
     context.config("secloc_maximum_iterations", np.inf)
 
-    DEFAULT_LEISURE_CORRECTION_FACTOR = 2.0
-    context.config("leisure_correction_factor", DEFAULT_LEISURE_CORRECTION_FACTOR)
-
 def prepare_locations(context):
     # Load persons and their primary locations
     df_home = context.stage("synthesis.population.spatial.home.locations")
@@ -91,15 +88,25 @@ def execute(context):
     distance_distributions = context.stage("synthesis.population.spatial.secondary.distance_distributions")
     destinations = prepare_destinations(context)
 
-    # Resampling for calibration
-    resample_distributions(distance_distributions, dict(
-        walk=0.0,
-        bike=0.0,
-        pt=0.0,
-        car=0.0,
-        car_passenger=0.0
-    ))
+    # Purpose-specific distance correction factors
+    purpose_corrections = {
+        'shop': 1,        
+        'leisure': 1,     
+        'other': 1,       
+    }
+
+    # Resampling for mode calibration
+    mode_corrections = {
+        "walk": 0,        
+        "bike": 0,      
+        "pt": 0,          
+        "car": 0,          
+        "car_passenger": 0 
+    }
     
+    resample_distributions(distance_distributions, mode_corrections)
+    
+
     # Segment into subsamples
     processes = context.config("processes")
 
@@ -121,9 +128,8 @@ def execute(context):
         ))
 
     # ========== ALGORITHM SELECTION ==========
-    # COMMENT/UNCOMMENT for comparison - runs both algorithms and compares
-    # process = process_hoerl 
-    process = process_carla 
+    process = process_hoerl 
+    # process = process_carla 
     run_comparison = False
     
     if run_comparison:
@@ -136,7 +142,8 @@ def execute(context):
         with context.progress(label = "Assigning secondary locations to persons", total = number_of_persons):
             with context.parallel(processes = processes, data = dict(
                 distance_distributions = distance_distributions,
-                destinations = destinations
+                destinations = destinations,
+                purpose_corrections = purpose_corrections
             )) as parallel:
                 df_locations, df_convergence = [], []
 
@@ -168,13 +175,13 @@ def process_hoerl(context, arguments):
 
   # Set up distance sampler
   distance_distributions = context.data("distance_distributions")
-  leisure_correction_factor = context.config("leisure_correction_factor")
+  purpose_corrections = context.data("purpose_corrections")
   
   distance_sampler = CustomDistanceSampler(
         maximum_iterations = min(1000, maximum_iterations),
         random = random,
         distributions = distance_distributions,
-        leisure_correction_factor = leisure_correction_factor)
+        purpose_corrections = purpose_corrections)
 
   # Set up relaxation solver; currently, we do not consider tail problems.
   chain_solver = GravityChainSolver(
@@ -234,21 +241,17 @@ def process_hoerl(context, arguments):
 
 
 def run_algorithm_comparison(context, batches, processes, number_of_persons, distance_distributions, destinations):
-    """
-    Run both CARLA and Hoerl algorithms through proper parallel execution and compare results.
-    """
     import copy
     
-    print("\n" + "="*60)
-    print("RUNNING ALGORITHM COMPARISON")
-    print("="*60)
+    purpose_corrections = context.data("purpose_corrections")
     
-    # Run CARLA
-    print("\nRunning CARLA algorithm...")
+    # CARLA
+    print("\nRunning CARLA...")
     with context.progress(label = "CARLA: Assigning secondary locations", total = number_of_persons):
         with context.parallel(processes = processes, data = dict(
             distance_distributions = copy.deepcopy(distance_distributions),
-            destinations = copy.deepcopy(destinations)
+            destinations = copy.deepcopy(destinations),
+            purpose_corrections = purpose_corrections
         )) as parallel:
             df_locations_carla, df_convergence_carla = [], []
             for df_loc, df_conv in parallel.imap_unordered(process_carla, batches):
@@ -259,12 +262,13 @@ def run_algorithm_comparison(context, batches, processes, number_of_persons, dis
     carla_success_rate = df_convergence_carla["valid"].mean() * 100
     print(f"CARLA Success rate: {carla_success_rate:.1f}%")
     
-    # Run Hoerl
-    print("\nRunning Hoerl (RDA) algorithm...")
+    # Hoerl
+    print("\nRunning Hoerl (RDA)")
     with context.progress(label = "Hoerl: Assigning secondary locations", total = number_of_persons):
         with context.parallel(processes = processes, data = dict(
             distance_distributions = copy.deepcopy(distance_distributions),
-            destinations = copy.deepcopy(destinations)
+            destinations = copy.deepcopy(destinations),
+            purpose_corrections = purpose_corrections
         )) as parallel:
             df_locations_hoerl, df_convergence_hoerl = [], []
             for df_loc, df_conv in parallel.imap_unordered(process_hoerl, batches):
@@ -310,7 +314,7 @@ def run_algorithm_comparison(context, batches, processes, number_of_persons, dis
     print(f"\nPlot saved to: {plot_path}")
     print(f"{'='*60}\n")
     
-    # Return CARLA results by default (change to hoerl if needed)
+    # Return CARLA results
     df_locations = pd.concat(df_locations_carla).sort_values(by = ["person_id", "activity_index"])
     df_convergence = df_convergence_carla
     print("Returning CARLA results for pipeline continuation...")

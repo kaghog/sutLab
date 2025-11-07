@@ -617,12 +617,15 @@ class CARLA:
     """CARLA algorithm - copied from reference implementation."""
     
     def __init__(self, target_locations: TargetLocations,
-                 distance_distributions: dict = None, random: np.random.RandomState = None):
+                 distance_distributions: dict = None, random: np.random.RandomState = None,
+                 purpose_corrections: dict = None):
         self.target_locations = target_locations
         self.c_i = CircleIntersection(target_locations)
         self.distance_distributions = distance_distributions
         self.random = random
         
+        # Purpose-specific correction factors
+        self.purpose_corrections = purpose_corrections if purpose_corrections is not None else {}
 
         self.number_of_branches = 10                         
         self.min_candidates_complex_case = 10               
@@ -634,8 +637,6 @@ class CARLA:
         self.max_radius_reduction_factor = None             
         self.max_iterations_complex_case = 15                
         self.only_return_valid_persons = False               
-        
-        self.leisure_correction_factor = 2.0               
     
     def _get_anchor_index(self, num_legs: int) -> int:
         """Determine the anchor index based on strategy."""
@@ -798,7 +799,6 @@ class CARLA:
     def _convert_problem_to_legs(self, problem: dict) -> Tuple[Leg, ...]:
         """
         Convert Eqasim problem format to tuple of Leg namedtuples.
-        This is the ONLY method that needs to know about Eqasim's data structure.
         
         Key insight: 
         - problem["purposes"] contains ONLY variable activities (fixed ones removed)
@@ -875,7 +875,7 @@ class CARLA:
                 else:
                     to_loc = to_loc.flatten()  # Convert (1, 2) -> (2,)
             else:
-                to_loc = np.array([])  # Will be filled by algorithm
+                to_loc = np.array([]) 
             
             leg = Leg(
                 unique_leg_id=f"{problem['person_id']}_{i}",
@@ -924,9 +924,10 @@ class CARLA:
                 np.count_nonzero(self.random.random_sample() > mode_distribution["cdf"])
             ]
             
-            # Apply leisure correction if configured
-            if to_act_types[index] == "leisure" and self.leisure_correction_factor is not None:
-                distances[index] *= self.leisure_correction_factor
+            # Apply purpose-specific correction factors
+            to_purpose = to_act_types[index]
+            if to_purpose is not None and to_purpose in self.purpose_corrections:
+                distances[index] *= self.purpose_corrections[to_purpose]
         
         return distances
 
@@ -943,10 +944,12 @@ def process_carla(context, arguments):
     # Get destinations and distance distributions data
     destinations = context.data("destinations")
     distance_distributions = context.data("distance_distributions")
+    purpose_corrections = context.data("purpose_corrections")
     target_locations = TargetLocations(destinations)
     
-    # Initialize CARLA solver
-    carla_solver = CARLA(target_locations, distance_distributions, random)
+    # Initialize CARLA solver with purpose corrections
+    carla_solver = CARLA(target_locations, distance_distributions, random, 
+                         purpose_corrections)
     
     # Process each assignment problem
     df_locations = []
