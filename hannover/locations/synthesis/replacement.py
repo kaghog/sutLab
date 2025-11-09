@@ -1,3 +1,7 @@
+"""
+DEPRECATED
+"""
+
 import synthesis.population.spatial.primary.locations as base
 
 """

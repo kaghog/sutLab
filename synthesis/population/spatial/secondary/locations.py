@@ -90,9 +90,9 @@ def execute(context):
 
     # Purpose-specific distance correction factors
     purpose_corrections = {
-        'shop': 1,        
-        'leisure': 1,     
-        'other': 1,       
+        'shop': 1.5,        
+        'leisure': 2.0,     
+        'other': 2.5,       
     }
 
     # Resampling for mode calibration
@@ -128,8 +128,8 @@ def execute(context):
         ))
 
     # ========== ALGORITHM SELECTION ==========
-    process = process_hoerl 
-    # process = process_carla 
+    # process = process_hoerl 
+    process = process_carla 
     run_comparison = False
     
     if run_comparison:

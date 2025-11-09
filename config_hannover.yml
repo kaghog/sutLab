@@ -25,7 +25,7 @@ config:
   hts: entd
 
   # Define sampling rate and random seed for the output population
-  sampling_rate: 0.05
+  sampling_rate: 0.1
   acquisition_sample_size: 1
   random_seed: 1234
  
@@ -68,10 +68,10 @@ aliases:
   synthesis.locations.education: hannover.locations.education
   synthesis.locations.secondary: hannover.locations.secondary
   synthesis.locations.work: hannover.locations.work
-  data.od.weighted: hannover.gravity.model
+  # data.od.weighted: hannover.gravity.model
   data.spatial.iris: hannover.data.spatial.iris
   data.spatial.codes: hannover.entd_codes
-  synthesis.population.spatial.primary.locations: hannover.locations.synthesis.replacement
+  # synthesis.population.spatial.primary.locations: hannover.locations.synthesis.replacement
   synthesis.population.enriched: hannover.synthesis.population.enriched
   #analysis.statistics: analysis.hannover.statistics
   data.hts.entd.raw: hannover.data.hts.entd.raw
