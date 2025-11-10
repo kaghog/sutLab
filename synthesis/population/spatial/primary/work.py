@@ -74,7 +74,7 @@ def impute_work_locations_radius(context):
     radius = radius + np.array(threshold)
 
     
-    query_size = 5  # Number of nearest neighbors to use as fallback
+    query_size = 3 
     no_fac_count = 0
     
     # Build KDTree for work locations
@@ -98,6 +98,7 @@ def impute_work_locations_radius(context):
             )
             ind = new_ind[0]
             dist = new_dist[0]
+            # print(i, ind, dist)
         
         # If enough facilities, apply donut selection
         elif len(ind) >= query_size:
@@ -105,12 +106,27 @@ def impute_work_locations_radius(context):
             min_threshold_band = farthest_dist - threshold
             minimum_selection_bound = max(min_threshold_band, dist[0])
             maximum_selection_bound = farthest_dist
-            ind = ind[(dist >= minimum_selection_bound) & (dist <= maximum_selection_bound)]
+            donut_ind = ind[(dist >= minimum_selection_bound) & (dist <= maximum_selection_bound)]
+            
+            # grow the donut until we have enough candidates
+            growth_factor = 1.5
+            while len(donut_ind) < query_size and minimum_selection_bound > dist[0]:
+                donut_width = maximum_selection_bound - minimum_selection_bound
+                minimum_selection_bound = max(minimum_selection_bound - donut_width * growth_factor, dist[0])
+                maximum_selection_bound = min(maximum_selection_bound + donut_width * growth_factor, dist[-1])
+                donut_ind = ind[(dist >= minimum_selection_bound) & (dist <= maximum_selection_bound)]
+            
+            ind = donut_ind
         
+
         # Select facility using number of employees as weight
         weights = df_work_candidates.iloc[ind]["employees"].values
+        if np.sum(weights) == 0:    
+            weights = np.ones(len(weights))
+
+        # print(f"indices: {ind}, weights: {weights}")
         weights = weights / np.sum(weights)
-        
+
         ind_current = np.random.choice(ind, p=weights)
         chosen_indices.append(ind_current)
     

@@ -133,7 +133,17 @@ def impute_education_locations_radius(context):
                 min_threshold_band = farthest_dist - threshold
                 minimum_selection_bound = max(min_threshold_band, dist[0])
                 maximum_selection_bound = farthest_dist
-                ind = ind[(dist >= minimum_selection_bound) & (dist <= maximum_selection_bound)]
+                donut_ind = ind[(dist >= minimum_selection_bound) & (dist <= maximum_selection_bound)]
+                
+                # grow the donut until we have enough candidates
+                growth_factor = 1.5
+                while len(donut_ind) < query_size and minimum_selection_bound > dist[0]:
+                    donut_width = maximum_selection_bound - minimum_selection_bound
+                    minimum_selection_bound = max(minimum_selection_bound - donut_width * growth_factor, dist[0])
+                    maximum_selection_bound = min(maximum_selection_bound + donut_width * growth_factor, dist[-1])
+                    donut_ind = ind[(dist >= minimum_selection_bound) & (dist <= maximum_selection_bound)]
+                
+                ind = donut_ind
             
             # Select facility using weight
             weights = df_candidates.iloc[ind]["weight"].values

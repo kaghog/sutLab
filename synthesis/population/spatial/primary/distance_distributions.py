@@ -6,14 +6,12 @@ def configure(context):
     context.stage("data.hts.selected")
     context.config("output_path")
 
-def compute_cdf(context, df, bin_size=100):
+def compute_cdf(context, df, bin_size=100, percentile=0.90):
     print("Distance stats: ", df["distance"].describe())
     
     # calibrate
-    quant = df["distance"].quantile(0.95)
-    max_reasonable_distance = 100000  # 100 km 
-    if quant > max_reasonable_distance:
-        quant = max_reasonable_distance
+    quant = df["distance"].quantile(percentile)
+
 
     df_quant = df[df["distance"] <= quant]
     
@@ -63,7 +61,7 @@ def execute(context):
 
     # Calculate distributions
     # calibrate
-    bin_size_work = 300
+    bin_size_work = 200
     bin_size_edu = 100
     distributions = {}
 
@@ -75,7 +73,7 @@ def execute(context):
         df_work = df_trips_work[[distance_field, "weight"]].rename(
             columns={distance_field: "distance"})
         work_cdf, work_midpoint_bin_distances, work_threshold_buffer = compute_cdf(
-            context, df_work, bin_size=bin_size_work)
+            context, df_work, bin_size=bin_size_work, percentile=0.80)
 
         # Write distribution for work
         if work_cdf is not None:
@@ -98,7 +96,7 @@ def execute(context):
         df_edu = df_trips_edu[[distance_field, "weight"]].rename(
             columns={distance_field: "distance"})
         edu_cdf, edu_midpoint_bin_distances, edu_threshold_buffer = compute_cdf(
-            context, df_edu, bin_size=bin_size_edu)
+            context, df_edu, bin_size=bin_size_edu, percentile=0.90)
 
         # Write distribution for education
         if edu_cdf is not None:
