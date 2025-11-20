@@ -11,7 +11,7 @@ run:
   # - matsim.simulation.prepare
   # - matsim.simulation.run
   - analysis.hannover.ivt_style.analysis
-  # - analysis.hannover.ivt_style.accessibility
+  - analysis.hannover.ivt_style.accessibility
 
 
 
@@ -37,7 +37,7 @@ config:
   output_path: output
   output_prefix: hannover_1pct_
   simulation_output_dir: simulation_output
-  hannover.population_shp: /admin_units/Mikrobezirke/SKH20_Mikrobezirke.shp
+  hannover.population_shp: /admin_units/Mikrobezirke/SKH5_Mikrobezirke_BA.shp
   hannover.buildings_path: /buildings/buildings_Hannover_20km.shp
   osm_path_hannover: osm/niedersachsen-latest.osm.pbf
   check_spatial_codes: True

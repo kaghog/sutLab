@@ -1,7 +1,6 @@
 import os
+
 import geopandas as gpd
-import zipfile
-import numpy as np
 
 """
 This stages loads a file containing population data for city Hannover including the Mikrobezirk codes
@@ -9,15 +8,18 @@ This stages loads a file containing population data for city Hannover including 
 
 def configure(context):
     context.config("data_path")
-    context.config("hannover.population_shp", "hannover/SKH20_Mikrobezirke.shp")
+    context.config("hannover.population_shp")
 
 def execute(context):
     # Load shapes
-    gdf_mikrobezirke = gpd.read_file("{}/{}".format(context.config("data_path"), context.config("hannover.population_shp")))[["MIKROBZNR", "geometry"]]
+    gdf_mikrobezirke = gpd.read_file("{}/{}".format(context.config("data_path"), context.config("hannover.population_shp")))
 
     # Rename
+    # print(gdf_mikrobezirke.columns)
+    # print(gdf_mikrobezirke.head())
+    gdf_mikrobezirke = gdf_mikrobezirke[["MIKROBZ_BA", "geometry"]]
     df_population = gdf_mikrobezirke.rename(columns = { 
-        "MIKROBZNR": "mikrobezirk_code",
+        "MIKROBZ_BA": "mikrobezirk_code",
     })
     
     # Clean

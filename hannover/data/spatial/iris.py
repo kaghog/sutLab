@@ -4,11 +4,11 @@ fake IRIS for each municipality in Germany. See the `codes` stage for more infor
 """
 
 def configure(context):
-    context.stage("hannover.data.population.raw")
+    context.stage("hannover.data.spatial.admin_boundary")
 
 def execute(context):
     # Load shapes
-    df = context.stage("hannover.data.population.raw")[["mikrobezirk_code", "geometry"]]
+    df = context.stage("hannover.data.spatial.admin_boundary")[["mikrobezirk_code", "geometry"]]
 
     # Clean up identifiers
     df["commune_id"] = ("03241" + df["mikrobezirk_code"].astype(str)).astype("category")

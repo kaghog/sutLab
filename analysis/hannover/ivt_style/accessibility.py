@@ -1,20 +1,21 @@
-import os
 import gzip
 import math
-import pandas as pd
-import geopandas as gpd
+import os
 import xml.etree.ElementTree as ET
-from shapely.geometry import Point, Polygon
 from typing import Tuple
+
+import contextily as cx
+import geopandas as gpd
 import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
 from matplotlib.markers import MarkerStyle
 from matplotlib.patches import Patch
-import numpy as np
-from scipy.spatial.distance import pdist, squareform
 from scipy.cluster.hierarchy import fcluster, linkage
-from analysis.marginals import AGE_CLASS_BOUNDS, AGE_CLASS_LABELS 
-import contextily as cx
+from scipy.spatial.distance import pdist
+from shapely.geometry import Polygon
 
+from analysis.marginals import AGE_CLASS_BOUNDS, AGE_CLASS_LABELS
 
 # Coordinate Reference Systems
 SOURCE_EPSG = 25832    # ETRS89 / UTM zone 32N (meters) - analysis CRS
@@ -530,8 +531,6 @@ def _cluster_nearby_stops(stops_df: pd.DataFrame, cluster_distance: float = 50.0
     if stops_df is None or stops_df.empty:
         return stops_df
     
-    from scipy.spatial.distance import pdist, squareform
-    from scipy.cluster.hierarchy import fcluster, linkage
     
     # Extract coordinates
     coords = stops_df[["x", "y"]].values
@@ -718,7 +717,7 @@ def _load_hannover_neighborhoods(data_path: str) -> gpd.GeoDataFrame:
     Returns a GeoDataFrame with standardized columns and proper CRS.
     """
     base_path = os.path.join(data_path, "admin_units", "City quarters")
-    shapefile_path = os.path.join(base_path, "SKH20_Stadtteile.shp")
+    shapefile_path = os.path.join(base_path, "SKH5_Mikrobezirke_BA.shp")
     
     if not os.path.exists(shapefile_path):
         raise FileNotFoundError(f"Hannover Stadtteile shapefile not found: {shapefile_path}")
@@ -1775,7 +1774,6 @@ def mode_share_by_distance(context, df_sim_trips, df_hts_trips, df_hts_persons, 
         df_hts_persons: Person-level data for reference dataset (for weights)
         suffix: optional suffix for output filenames
     """
-    import analysis.hannover.ivt_style.myplottools as myplottools
     
     # Skip if reference data not available
     if df_hts_trips is None or len(df_hts_trips) == 0:
@@ -2133,7 +2131,7 @@ def execute(context):
                         # Use dynamic vmin based on actual data for better color contrast
                         data_vmin = float(dist_gdf["value"].min()) if not dist_gdf.empty else 0.0
                         
-                        title = f"Median access walk distance (m)"
+                        title = "Median access walk distance (m)"
                         output_path_dist = os.path.join(
                             analysis_path, f"{OUTPUT_PREFIX}_access_median_{grid_shape}.png"
                         )
@@ -2143,7 +2141,7 @@ def execute(context):
                         )
                         
                         # Also create a version WITH PT network overlay
-                        title_with_pt = f"Median access walk distance (m)"
+                        title_with_pt = "Median access walk distance (m)"
                         output_path_dist_pt = os.path.join(
                             analysis_path, f"{OUTPUT_PREFIX}_access_median_{grid_shape}_with_pt_overlay.png"
                         )
@@ -2157,7 +2155,7 @@ def execute(context):
                         )
                     else:
                         # For square grids, include cell size in filename
-                        title = f"Median access walk distance (m)"
+                        title = "Median access walk distance (m)"
                         output_path_dist = os.path.join(
                             analysis_path, f"{OUTPUT_PREFIX}_access_median_grid{int(cell_size)}m_{grid_shape}.png"
                         )
@@ -2167,7 +2165,7 @@ def execute(context):
                         )
                         
                         # Also create a version WITH PT network overlay
-                        title_with_pt = f"Median access walk distance (m)"
+                        title_with_pt = "Median access walk distance (m)"
                         output_path_dist_pt = os.path.join(
                             analysis_path, f"{OUTPUT_PREFIX}_access_median_grid{int(cell_size)}m_{grid_shape}_with_pt_overlay.png"
                         )

@@ -24,11 +24,11 @@ In Hannover, the official AGS (ARS) starts with: 03241
 """
 
 def configure(context):
-    context.stage("hannover.data.population.raw")
+    context.stage("hannover.data.spatial.admin_boundary")
 
 def execute(context):
     # Load codes
-    df_codes = context.stage("hannover.data.population.raw")[["mikrobezirk_code"]]
+    df_codes = context.stage("hannover.data.spatial.admin_boundary")[["mikrobezirk_code"]]
 
     # Clean up identifiers
     df_codes["municipality_code"] = "03241" + df_codes["mikrobezirk_code"].astype(str)
