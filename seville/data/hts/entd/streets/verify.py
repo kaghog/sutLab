@@ -15,7 +15,7 @@ from shapely.geometry import Point
 
 def configure(context):
     context.config("data_path")
-    context.config("seville.province_shapefile", "seville_province.gpkg.shp")
+    context.config("seville.province_shapefile", "seville_province/seville_province.gpkg.shp")
     context.config("seville.street_data", "street_data.csv")
 
     context.stage("seville.data.hts.entd.streets.manual_cleaning")
