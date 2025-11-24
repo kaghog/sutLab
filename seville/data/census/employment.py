@@ -21,49 +21,6 @@ def configure(context):
     context.config("seville.emplo_province", "employment/emplo_province.csv")
 
 
-def round_population(section_df):
-    # Total population to match
-
-    section_df['rounded_estimate'] = np.round(section_df['population_estimate']).astype(int)
-    section_df['fractional_part'] = section_df['population_estimate'] - np.floor(section_df['population_estimate'])
-
-    def adjust_group(group):
-        original_total = group['municipality_count'].iloc[0]
-        rounded_total = group['rounded_estimate'].sum()
-
-        discrepancy = int(round(original_total - rounded_total))
-
-        if discrepancy != 0:
-            # Sort by fractional part descending for positive discrepancy
-            # or ascending for negative discrepancy
-            group.sort_values(
-                by='fractional_part',
-                ascending=(discrepancy < 0)
-            )
-
-            # Adjust the top `abs(discrepancy)` rows
-            adjust_indices = group.head(abs(discrepancy)).index
-            group.loc[adjust_indices, 'rounded_estimate'] += np.sign(discrepancy)
-
-        return group
-
-    # Correct discrepancies for each group per group (municipality, age, sex)
-    grouped = section_df.groupby(['municipality', 'age', 'sex'])
-    adjusted_df = grouped.apply(adjust_group).reset_index(drop=True)
-
-    # ======== Check if all matches =========
-    rounded_total = adjusted_df['rounded_estimate'].sum()
-    estimated_total = round(adjusted_df['population_estimate'].sum())
-    original_total = section_df.drop_duplicates(subset=['age', 'municipality', 'sex'])['municipality_count'].sum()
-    # print(f"Rounded total: {rounded_total}")
-    # print(f"Estimated total (rounded): {estimated_total}")
-    # print(f"Original total (rounded): {original_total}")
-    assert rounded_total == original_total, f"Mismatch: {rounded_total} vs {original_total}"
-
-
-    adjusted_df.drop(columns=['fractional_part'], inplace=True)
-    return adjusted_df
-
 def extrapolate_age_group(context, path1, path2, path3):
     """
     #1 load population per census section by sex
@@ -87,6 +44,7 @@ def extrapolate_age_group(context, path1, path2, path3):
     
     mun_df["count"] = mun_df["count"].str.replace('.', '', regex=False).astype("int64")
     mun_df = mun_df[mun_df["sex"] != "Total"]
+    mun_df['sex'] = mun_df['sex'].astype('category')
     mun_df = mun_df[mun_df['year'] == 2022]
 
     # age-group column cleanup
@@ -114,6 +72,7 @@ def extrapolate_age_group(context, path1, path2, path3):
     census_df["municipality"] = census_df["municipality"].str[:5]
     census_df["census_section"] = census_df["census_section"].str[:10]
     census_df["count"] = census_df["count"].str.replace('.', '', regex=False)
+    census_df = census_df[~census_df["count"].isna()]
     census_df['count'] = pd.to_numeric(census_df['count'], errors='coerce')
     census_df = census_df[census_df['census_section'].notna()]
     census_df = census_df[census_df["sex"]!="Total"]
@@ -121,10 +80,9 @@ def extrapolate_age_group(context, path1, path2, path3):
     census_df = census_df[~(census_df["shared_variable"].str.contains("otal"))]
     census_df = census_df[census_df['year'] == 2022]
 
-
     # check if we have data for all the census sections and if not throw error
     codes_df = context.stage("seville.data.spatial.codes")
-    missing_sections = codes_df[~codes_df['census_section_code'].isin(census_df['census_section'])]
+    missing_sections = codes_df[~codes_df['commune_id'].isin(census_df['census_section'])]
     if not missing_sections.empty:
         print("Missing values from df1 in df2:", missing_sections.count())
         print("Missing values from df1 in df2:", codes_df.count())
@@ -229,22 +187,14 @@ def execute(context):
         + census_age_sex_df3["population_estimate"]
         ) / 3
 
-    # Adjust results to have population count in whole numbers without fractions of people
-    rouned_df = round_population(averaged_df)
 
 
-    # Simple check for data validity
-    # TODO: Make the check process better:)
-    FILE_PATH = "{}/{}".format(context.config("data_path"),context.config("seville.emplo_census_branch"))
-    print(f"Loading census data from {FILE_PATH}")
-    province_total_row = pd.read_csv(FILE_PATH, sep="\t", dtype={"Total": str}, nrows=1)
-    province_total_row["Total"] = province_total_row["Total"].str.replace('.', '', regex=False).astype("int64")
+    result_df = averaged_df
+    result_df['weight'] = averaged_df['population_estimate']
+    result_df['census_section'] = averaged_df['census_section']
+    result_df['sex'] = result_df['sex'].astype('category')
+    result_df['municipality'] = result_df['municipality'].astype('category')
     
-    total = province_total_row['Total'][0]
-    total_estimate = rouned_df['rounded_estimate'].sum()
-    if total_estimate != total:
-        raise ValueError(f"Values do not match: Expected total count: {total}; Actual total count: {total_estimate}")
+    assert not result_df.isna().any().any(), "There are NaN values in the Employment DataFrame"
 
-
-
-    return rouned_df
+    return result_df[['municipality', 'census_section', 'sex', 'age', 'weight']]
