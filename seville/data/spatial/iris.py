@@ -8,26 +8,21 @@ def configure(context):
 
 def execute(context):
 
-    # TODO: IT IS CURRENTLY NOT COMPATIBLE RAW.PY !!!!!!!!!!
-    raise NotImplemented("Iris not implemented")
-    # CHECK FORMAT FOR IRIS AND HOW TO FAKE IT
-
-    # Load shapes
-    df = context.stage("seville.data.spatial.raw")[["census_section_code", "geometry"]]
+     # Load codes
+    df_codes = context.stage("seville.data.spatial.raw")
 
     # Clean up identifiers
-    df["commune_id"] = ("03241" + df["census_section_code"].astype(str)).astype("category")
+    df_codes["census_section_code"] = df_codes["census_section_code"].astype(str)
+    # Seville province -> region
+    df_codes["region_id"] = df_codes["census_section_code"].str[:2].astype("category")
+    # Municipality -> department
+    df_codes["departement_id"] = df_codes["census_section_code"].str[:5].astype("category")
+    # Census_section -> commune
+    df_codes["commune_id"] = df_codes["census_section_code"].astype("category")
 
     # Fake IRIS
-    df["iris_id"] = df["commune_id"].astype(str) + "0000"
-    df["iris_id"] = df["iris_id"].astype("category")
-
-    # Departement identifiers
-    df["departement_id"] = df["commune_id"].str[:5]
-
-    # Region dummu
-    df["region_id"] = 1
-    df["region_id"] = df["region_id"].astype("category")
+    df_codes["iris_id"] = df_codes["commune_id"].astype(str) + "0000"
+    df_codes["iris_id"] = df_codes["iris_id"].astype("category")
 
 
-    return df[["iris_id", "commune_id", "departement_id", "geometry"]]
+    return df_codes[["region_id", "departement_id", "commune_id", "iris_id", "geometry"]]

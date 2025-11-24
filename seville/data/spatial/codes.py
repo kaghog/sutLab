@@ -24,20 +24,11 @@ In Hannover, the official AGS (ARS) starts with: 03241
 """
 
 def configure(context):
-    context.stage("seville.data.spatial.raw")
+    context.stage("seville.data.spatial.iris")
 
 def execute(context):
+
     # Load codes
-    df_codes = context.stage("seville.data.spatial.raw")[["census_section_code"]]
+    df_codes = context.stage("seville.data.spatial.iris")
 
-    # Clean up identifiers
-    # TODO:
-
-    # Fake IRIS
-    # TODO
-
-    # Track outdated AGS code for conversion
-    # TODO
-
-    # return df_codes[["region_id", "departement_id", "commune_id", "iris_id", "ags"]]
-    return df_codes
+    return df_codes[["region_id", "departement_id", "commune_id", "iris_id"]]
