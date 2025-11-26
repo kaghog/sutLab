@@ -1,17 +1,25 @@
-from tqdm import tqdm
-import pandas as pd
 import numpy as np
+import pandas as pd
 
 """
 This stage adds additional attributes to the generated synthetic population from IPF.
 """
 
+
 def configure(context):
     context.stage("hannover.ipf.model")
+    context.stage("hannover.data.spatial.iris")
     context.config("random_seed")
+
 
 def execute(context):
     df = context.stage("hannover.ipf.model")
+
+    # Load spatial iris data to get the canonical iris_id for each commune_id
+    df_iris = context.stage("hannover.data.spatial.iris")[
+        ["commune_id", "iris_id"]
+    ].drop_duplicates()
+    commune_to_iris = dict(zip(df_iris["commune_id"], df_iris["iris_id"]))
 
     # Identifiers
     df["person_id"] = np.arange(len(df))
@@ -19,7 +27,7 @@ def execute(context):
 
     # Spatial
     df["commune_id"] = df["commune_id"].astype(str)
-    df["iris_id"] = df["commune_id"] + "0000"
+    df["iris_id"] = df["commune_id"].map(commune_to_iris)
     df["iris_id"] = df["iris_id"].astype("category")
 
     # Fixed attributes
@@ -56,18 +64,22 @@ def execute(context):
         upper = MAXIMUM_AGE if k == len(age_values) - 1 else age_values[k + 1]
         count = upper - lower
 
-        df_age.append(pd.DataFrame({ 
-            "age_class": [lower] * count,
-            "age": lower + np.arange(count),
-            "age_factor": [1.0 / count] * count
-        }))
+        df_age.append(
+            pd.DataFrame(
+                {
+                    "age_class": [lower] * count,
+                    "age": lower + np.arange(count),
+                    "age_factor": [1.0 / count] * count,
+                }
+            )
+        )
 
     df_age = pd.concat(df_age)
 
-    df = pd.merge(df, df_age, on = "age_class")
+    df = pd.merge(df, df_age, on="age_class")
     df["weight"] *= df["age_factor"]
-    df = df.drop(columns = ["age_class", "age_factor"])
-    
+    df = df.drop(columns=["age_class", "age_factor"])
+
     df["person_id"] = np.arange(len(df))
     df["household_id"] = np.arange(len(df))
 

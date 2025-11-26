@@ -1,24 +1,30 @@
 import pandas as pd
-import os
-import numpy as np
 
 """
 This stage loads the driving license ownership information for Germany.
 """
+
 
 def configure(context):
     context.config("data_path")
     context.config("hannover.licenses_path", "germany/fe4_2024.xlsx")
     context.stage("hannover.data.spatial.codes")
 
+
 COUNT_COLUMN = "Fahrerlaubnisse bzw. Führerscheine"
 # COUNT_COLUMN = "Zusammen"
 
+
 def execute(context):
     # Load country-wide data
-    df_country = pd.read_excel("{}/{}".format(context.config("data_path"), context.config("hannover.licenses_path")),
-        sheet_name = "FE4.2", skiprows = 8)
-    
+    df_country = pd.read_excel(
+        "{}/{}".format(
+            context.config("data_path"), context.config("hannover.licenses_path")
+        ),
+        sheet_name="FE4.2",
+        skiprows=8,
+    )
+
     # Select columns
     df_country = df_country[["Geschlecht und\nLebensalter (in Jahren)", COUNT_COLUMN]]
     df_country.columns = ["age_class", "relative_weight"]
@@ -38,15 +44,22 @@ def execute(context):
     df_country["sex"] = df_country["sex"].astype("category")
 
     # Weight
-    df_country["relative_weight"] = df_country["relative_weight"] / df_country["relative_weight"].sum()
+    df_country["relative_weight"] = (
+        df_country["relative_weight"] / df_country["relative_weight"].sum()
+    )
 
     # Clean age column
     df_country["age_class"] = df_country["age_class"].apply(clean_age_class).astype(int)
 
     # Load Bundesland-specific data
-    df_land = pd.read_excel("{}/{}".format(context.config("data_path"), context.config("hannover.licenses_path")),
-        sheet_name = "FE4.3", skiprows = 8)
-    
+    df_land = pd.read_excel(
+        "{}/{}".format(
+            context.config("data_path"), context.config("hannover.licenses_path")
+        ),
+        sheet_name="FE4.3",
+        skiprows=8,
+    )
+
     # Select columns
     df_land = df_land[["Geschlecht und Land", COUNT_COLUMN]]
     df_land.columns = ["land", "relative_weight"]
@@ -69,12 +82,19 @@ def execute(context):
     df_land = df_land[df_land["land"] == "Niedersachsen"]
 
     # Weight
-    df_land["relative_weight"] = df_land["relative_weight"] / df_land["relative_weight"].sum()
+    df_land["relative_weight"] = (
+        df_land["relative_weight"] / df_land["relative_weight"].sum()
+    )
 
     # Load Kreis-specific data
-    df_kreis = pd.read_excel("{}/{}".format(context.config("data_path"), context.config("hannover.licenses_path")),
-        sheet_name = "FE4.4", skiprows = 7)
-    
+    df_kreis = pd.read_excel(
+        "{}/{}".format(
+            context.config("data_path"), context.config("hannover.licenses_path")
+        ),
+        sheet_name="FE4.4",
+        skiprows=7,
+    )
+
     assert df_kreis.columns[1].startswith("Amtlicher")
     assert df_kreis.columns[5].startswith("Pkw")
 
@@ -83,16 +103,20 @@ def execute(context):
 
     # Select columns
     df_kreis = df_kreis[df_kreis["kreis_code"].str.len() == 5]
-    
-    # Formatting
-    df_kreis["departement_id"] = df_kreis["kreis_code"].astype("str").astype("category")
-    df_kreis = df_kreis[["departement_id", "weight"]]
 
-    # Selection of districts
+    # Formatting
+    df_kreis["kreis_code"] = df_kreis["kreis_code"].astype("str").astype("category")
+    df_kreis = df_kreis[["kreis_code", "weight"]]
+
+    # Kreis-level matching
     df_codes = context.stage("hannover.data.spatial.codes")
-    df_kreis = df_kreis[df_kreis["departement_id"].isin(df_codes["departement_id"])]
-    
+    unique_kreis = df_codes["kreis_code"].unique()
+
+    # Filter for Region Hannover (03241)
+    df_kreis = df_kreis[df_kreis["kreis_code"].isin(unique_kreis)]
+
     return df_country, df_land, df_kreis
+
 
 def clean_age_class(age_class):
     if age_class.startswith("Bis"):
