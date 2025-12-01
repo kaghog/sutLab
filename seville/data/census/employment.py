@@ -44,7 +44,7 @@ def extrapolate_age_group(context, path1, path2, path3):
     
     mun_df["count"] = mun_df["count"].str.replace('.', '', regex=False).astype("int64")
     mun_df = mun_df[mun_df["sex"] != "Total"]
-    mun_df['sex'] = mun_df['sex'].astype('category')
+    mun_df['sex'] = mun_df['sex'].astype('str')
     mun_df = mun_df[mun_df['year'] == 2022]
 
     # age-group column cleanup
@@ -192,8 +192,8 @@ def execute(context):
     result_df = averaged_df
     result_df['weight'] = averaged_df['population_estimate']
     result_df['census_section'] = averaged_df['census_section']
-    result_df['sex'] = result_df['sex'].astype('category')
-    result_df['municipality'] = result_df['municipality'].astype('category')
+    result_df["sex"] = result_df["sex"].replace({ "Males": "male", "Females": "female" }).astype('str')
+    result_df['municipality'] = result_df['municipality'].astype('str')
     
     assert not result_df.isna().any().any(), "There are NaN values in the Employment DataFrame"
 

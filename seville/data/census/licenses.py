@@ -26,7 +26,9 @@ def execute(context):
     print(f"Loading licenses data from {EXCEL_PATH}")
     SHEET_NAME = "DatosMunicipalesGeneral_2024"
 
-    df_municipality = pd.read_excel(EXCEL_PATH, sheet_name=SHEET_NAME,)
+    df_municipality = pd.read_excel(EXCEL_PATH, sheet_name=SHEET_NAME,
+                                    dtype={"Código INE":"string"} # Codigo INE is municipality code
+                                    )
     
     df_municipality = df_municipality.iloc[:,[0,4,5,6,7,8,9]]
     colnames = [
@@ -41,7 +43,6 @@ def execute(context):
     df_municipality.columns = colnames
 
     # Remove "municipio sin especificar" ("unspecified municipality") row, that is not significance and is present for each province    
-    df_municipality["municipality"] = df_municipality["municipality"].astype("string")
     df_municipality = df_municipality[~df_municipality["municipality"].str.endswith("000")]
     # Filter only Seville municipalities
     df_municipality = df_municipality[df_municipality["municipality"].str.startswith("41")]
@@ -64,7 +65,7 @@ def execute(context):
                   var_name='sex', value_name='weight')
     df_municipality['sex'] = df_municipality['sex'].map(
         {'drivers_male': 'male', 'drivers_female': 'female'}
-        ).astype('category')
+        ).astype('str')
     # ---------------------------------------------------------------------------------
     # Importing license data per province by age and sex
     FILE_PATH = "{}/{}".format(context.config("data_path"),context.config("seville.licenses_path2"))
@@ -78,12 +79,12 @@ def execute(context):
         "province", 
         "sex", 
         "age", 
-        "relative_weight",
+        "weight",
     ]
     df_province.columns = colnames
     
     df_province = df_province[df_province["province"] == "41"]
-    df_province['province'] = df_province['province'].astype('category')
+    df_province['province'] = df_province['province'].astype('str')
 
     df_province['sex'] = df_province['sex'].map({'M': 'male', 'V': 'female'})
     df_province['sex'] = df_province['sex'].astype("category")
@@ -94,8 +95,14 @@ def execute(context):
     df_province.loc[~condition, "age"] = df_province.loc[~condition, "age"].str[0:2] 
     df_province["age"] = df_province["age"].astype("int64")
 
-    # Weight
-    df_province["relative_weight"] = df_province["relative_weight"] / df_province["relative_weight"].sum()
+    # Merge
+    group_cols = ['sex']
+    df_province['total'] = df_province.groupby(group_cols)['weight'].transform('sum')
+    df_province['proportion'] = df_province['weight'] / df_province['total']
+    df_province['proportion'] = df_province['proportion'].replace(np.nan, 0)
+
+    df_municipality_expanded = pd.merge(df_municipality, df_province[group_cols + ['age' , 'proportion']], on=group_cols, how='left')
+    df_municipality_expanded['weight'] = df_municipality_expanded['weight'] * df_municipality_expanded['proportion']
 
 
-    return df_province, df_municipality
+    return df_municipality_expanded
