@@ -4,7 +4,7 @@ import numpy as np
 import numpy.linalg as la
 
 """
-Generates a distance matrix for the German municipalities.
+Generates a distance matrix for the Seville's census sections.
 """
 
 def configure(context):
@@ -12,17 +12,17 @@ def configure(context):
 
 def execute(context):
     # One municipality per "IRIS"
-    df_municipalities = context.stage("seville.data.spatial.iris")
-    #assert not df_municipalities.isnull().values.any(), "Df muni contains NaNs!"
-    municipalities = df_municipalities["commune_id"].values
+    df_census_sections = context.stage("seville.data.spatial.iris")
+    #assert not df_census_sections.isnull().values.any(), "Df muni contains NaNs!"
+    municipalities = df_census_sections["commune_id"].values
         
     # Initialize matrix to zero
     distance_matrix = np.ones((len(municipalities), len(municipalities)))
     
     # Convert locations to (N,2)-array
     locations = np.array([
-        df_municipalities["geometry"].centroid.x,
-        df_municipalities["geometry"].centroid.y
+        df_census_sections["geometry"].centroid.x,
+        df_census_sections["geometry"].centroid.y
     ]).T
     
     # Calculate Euclidean distances per row
