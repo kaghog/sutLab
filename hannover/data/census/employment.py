@@ -24,11 +24,15 @@ def execute(context):
     df_population = context.stage("hannover.data.census.population")
 
     df_population["age_group"] = df_population["age_class"].apply(map_age_group)
+
+    # Group by commune_id, departement_id, kreis_code, age_group, and sex
     grouped_pop = df_population.groupby(
-        ["age_group", "sex"], as_index=False, observed=True
+        ["commune_id", "departement_id", "kreis_code", "age_group", "sex"],
+        as_index=False,
+        observed=True,
     )["weight"].sum()
 
-    # Calculates the proportion of the population that each group (age_group + sex) represents
+    # Calculates the proportion of the population that each group represents
     grouped_pop["pop_share"] = grouped_pop["weight"] / grouped_pop["weight"].sum()
 
     # Apply real 2023 employment distribution
@@ -39,10 +43,10 @@ def execute(context):
     total_population = df_population["weight"].sum()
     total_employment_est = total_population * employment_rate_2023
 
-    # Compute employment per group proportionally to population share within each age group
+    # Compute employment per group proportionally to population share within each age group and location
     df_employment_parts = []
     for age_group in emp_age_dist:
-        # Total people in this age group
+        # Total people in this age group across all locations
         total_in_age = grouped_pop[grouped_pop["age_group"] == age_group][
             "weight"
         ].sum()
@@ -50,25 +54,24 @@ def execute(context):
         # Real employment in this age group
         total_employed_in_age = emp_age_dist[age_group] * total_employment_est
 
-        for sex in ["male", "female"]:
-            subgroup = grouped_pop[
-                (grouped_pop["age_group"] == age_group) & (grouped_pop["sex"] == sex)
-            ]
+        # Iterate over each location (commune_id, departement_id, kreis_code combination)
+        for _, row in grouped_pop[grouped_pop["age_group"] == age_group].iterrows():
+            commune_id = row["commune_id"]
+            departement_id = row["departement_id"]
+            kreis_code = row["kreis_code"]
+            sex = row["sex"]
 
-            if subgroup.empty:
-                continue
+            location_share_in_age = row["weight"] / total_in_age
+            employed_weight = total_employed_in_age * location_share_in_age
 
-            sex_weight = subgroup["weight"].values[0]
-            sex_share_in_age = sex_weight / total_in_age
-            employed_weight = total_employed_in_age * sex_share_in_age
-
-            # TODO: do not hardcode kreis_code
             df_employment_parts.append(
                 {
-                    "kreis_code": "03241",
+                    "commune_id": commune_id,
+                    "departement_id": departement_id,
+                    "kreis_code": kreis_code,
                     "age_class": age_group,
                     "sex": sex,
-                    "initial_weight": int(employed_weight),
+                    "initial_weight": employed_weight,
                 }
             )
 
@@ -99,7 +102,11 @@ def execute(context):
     df_employment["weight"] = df_employment.apply(scale_weight, axis=1)
     df_employment["weight"] = df_employment["weight"].round().astype(int)
     df_employment["age_class"] = df_employment["age_class"].astype(int)
+    df_employment["commune_id"] = df_employment["commune_id"].astype("category")
+    df_employment["departement_id"] = df_employment["departement_id"].astype("category")
     df_employment["kreis_code"] = df_employment["kreis_code"].astype("category")
     df_employment = df_employment.drop(columns="initial_weight")
 
-    return df_employment[["kreis_code", "sex", "age_class", "weight"]]
+    return df_employment[
+        ["commune_id", "departement_id", "kreis_code", "sex", "age_class", "weight"]
+    ]

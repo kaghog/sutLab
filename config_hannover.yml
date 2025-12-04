@@ -11,7 +11,7 @@ run:
   # - matsim.simulation.prepare
   # - matsim.simulation.run
   - analysis.hannover.ivt_style.analysis
-  - analysis.hannover.ivt_style.accessibility
+  # - analysis.hannover.ivt_style.accessibility
 
 
 
@@ -25,7 +25,7 @@ config:
   hts: entd
 
   # Define sampling rate and random seed for the output population
-  sampling_rate: 0.01
+  sampling_rate: 0.2
   acquisition_sample_size: 1
   random_seed: 1234
  
@@ -47,7 +47,7 @@ config:
 
 
   # Only interesting if you run the simulation
-  java_memory: 20G
+  java_memory: 8G
 
   # Defaults for Hannover
   home_location_sampling: weighted
@@ -61,7 +61,8 @@ config:
 
 # Overrides for the hannover pipeline compared to the Île-de-France pipeline
 aliases:
-  data.census.filtered: hannover.ipf.attributed
+  synthesis.population.sampled: hannover.ipu.attributed
+  data.census.filtered: hannover.ipu.attributed
   synthesis.population.income.selected: hannover.income
   synthesis.population.spatial.home.zones: hannover.homes
   synthesis.locations.home.locations: hannover.locations.home

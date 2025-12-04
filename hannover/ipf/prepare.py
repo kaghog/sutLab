@@ -59,7 +59,13 @@ def execute(context):
     df_population["departement_index"] = df_population["departement_id"].replace(
         departement_mapping
     )
+    df_employment["commune_index"] = df_employment["commune_id"].replace(
+        commune_mapping
+    )
     df_employment["kreis_index"] = df_employment["kreis_code"].replace(kreis_mapping)
+    df_employment["departement_index"] = df_employment["departement_id"].replace(
+        departement_mapping
+    )
     df_licenses_kreis["kreis_index"] = df_licenses_kreis["kreis_code"].replace(
         kreis_mapping
     )
