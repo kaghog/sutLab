@@ -18,6 +18,7 @@ def execute(context):
     df["household_id"] = np.arange(len(df))
 
     # Spatial
+    df["departement_id"] = df["province_id"].astype(str)
     df["commune_id"] = df["census_section_id"].astype(str)
     df["iris_id"] = df["census_section_id"] + "0000"
     df["iris_id"] = df["iris_id"]

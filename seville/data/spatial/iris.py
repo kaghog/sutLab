@@ -14,9 +14,9 @@ def execute(context):
     # Clean up identifiers
     df_codes["census_section_code"] = df_codes["census_section_code"].astype(str)
     # Seville province -> region
-    df_codes["region_id"] = df_codes["census_section_code"].str[:2].astype("category")
-    # Municipality -> department
-    df_codes["departement_id"] = df_codes["census_section_code"].str[:5].astype("category")
+    df_codes["region_id"] = df_codes["census_section_code"].str[:0].astype("category")
+    # province -> department
+    df_codes["departement_id"] = df_codes["census_section_code"].str[:2].astype("category")
     # Census_section -> commune
     df_codes["commune_id"] = df_codes["census_section_code"].astype("category")
 
