@@ -62,16 +62,11 @@ def execute(context):
         df["commute_mode"] = np.nan
 
     # Assign unique person and household IDs
-    if "new_hh_id" in df.columns:
-        unique_hh_ids = df["new_hh_id"].unique()
+    # Map string household_id from IPU to sequential integers
+    if "household_id" in df.columns:
+        unique_hh_ids = df["household_id"].unique()
         hh_id_mapping = dict(zip(unique_hh_ids, range(len(unique_hh_ids))))
-        df["household_id"] = df["new_hh_id"].map(hh_id_mapping)
-        df = df.drop(columns=["new_hh_id"])
-    elif "household_id" in df.columns and df["household_id"].duplicated().any():
-        print("WARNING: Recreating household_id due to duplicates")
-        df["household_id"] = df.groupby(
-            df["household_id"].astype(str) + "_" + df.index.astype(str)
-        ).ngroup()
+        df["household_id"] = df["household_id"].map(hh_id_mapping)
 
     df["person_id"] = np.arange(len(df))
 
