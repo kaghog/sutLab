@@ -12,6 +12,10 @@ def configure(context):
     context.stage("data.hts.entd.raw")
     context.stage("seville.data.hts.entd.streets.verify")
 
+
+
+INCOME_CLASS_BOUNDS_SEVILLE = [1000, 1500, 2000, 3000, 4000, 5000, 1e6]
+
     # Casa	1	Casa
     # Trabajo	2	Trabajo
     # Gestiones trabajo	3	Gestiones trabajo
@@ -114,8 +118,9 @@ def execute(context):
     df_trips["trip_weight"] = df_trips["trip_weight"].astype(float)
 
     # Clean sex
-    df_persons.loc[df_persons["sex"] == 1, "sex"] = "male"
-    df_persons.loc[df_persons["sex"] == 2, "sex"] = "female"
+    df_persons["sex"] = df_persons["sex"].astype("str")
+    df_persons.loc[df_persons["sex"] == "1", "sex"] = "male"
+    df_persons.loc[df_persons["sex"] == "2", "sex"] = "female"
     df_persons["sex"] = df_persons["sex"].astype("category")
 
     # Clean departement
@@ -149,6 +154,9 @@ def execute(context):
     # Map work situation
     df_persons["employed" ] = df_persons["employed"].isin([1, 2])
 
+    # License
+    df_persons["has_license"] = (df_persons["has_license"] == 1)
+
     # Has subscription
     df_persons["has_pt_subscription"] = np.nan # we have no subscription data
 
@@ -163,8 +171,7 @@ def execute(context):
     #   7 Más de 60.000 €brutos/año             | 5.000 or more per month
     #   99 No contesta
 
-    # TODO: The mapping of the bins must be changed even further in the pipeline
-    INCOME_CLASS_BOUNDS_SEVILLE = [1000, 1500, 2000, 3000, 4000, 5000, 1e6]
+    #  The mapping of the bins must be changed even further in the pipeline
     df_households.loc[df_households["income_class"] == 99, "income_class"] = -1 # no values
     df_households.loc[df_households["income_class"] == ' ', "income_class"] = -1 # no values
     df_households["income_class"] = df_households["income_class"].astype(int)
@@ -178,9 +185,7 @@ def execute(context):
     df_trips = aggregate_transport_mode(df_trips)
 
     # Trip distance
-    # TODO:
     df_trips = calculate_distance(context, df_trips)
-    # df_trips["routed_distance"] = df_trips["V2_MDISTTOT"] * 1000.0
     # df_trips["routed_distance"] = df_trips["routed_distance"].fillna(0.0) # This should be just one within Île-de-France
 
     # Trip flags
@@ -209,11 +214,19 @@ def execute(context):
     )
     
 
-    # Calculate consumption units
-    df_household_members = pd.wide_to_long(
-        df_household_members, stubnames='age', i='household_id', j='person_id', sep='_', suffix='\\d+')
-    df_household_members = df_household_members.reset_index()
+    # Calculate consumption units    
+    df_household_members = df_household_members.melt(id_vars=["household_id"], value_vars=["age1", "age2", "age3", "age4", "age5", "age6", "age7", "age8", "age9", "age10"],
+                        value_name="age")
+    # Drop 'variable' column since it isn't needed
+    df_household_members = df_household_members.drop(columns=["variable"])
+
+    # Drop rows with NaN values (empty ages)
+    df_household_members = df_household_members.dropna(subset=["age"])
     df_household_members = df_household_members[df_household_members['age']!='-']
+
+    # Reset index for a clean result
+    df_household_members.reset_index(drop=True, inplace=True)
+
 
     df_households = pd.merge(df_households, hts.calculate_consumption_units(df_household_members), on = "household_id")
 
@@ -302,17 +315,18 @@ def aggregate_transport_mode(df_trips):
 
 
 MAP_ZONES_COLUMNS = {
-    "ZONA17": "zone_code",
-    "BARRIO": "zone",
+    "ZONA17": "zone_code", # code representation of the zone
+    "BARRIO": "zone", #  name of the zone
 }
 
 MAP_MUNICIPALITY_COLUMNS = {
-    "Cod": "municipality_code",
-    "MUNICIPIO": "municipality"
+    "Cod": "municipality_code", # code representation of the municipality
+    "MUNICIPIO": "municipality" # name of the municipality
 }
 
 def calculate_distance(context, df_trips):
     EXCEL_PATH = f"{context.config('data_path')}/{context.config('seville.hts')}"
+    # List of all zones with name-code mapping
     df_zones = pd.read_excel(
         EXCEL_PATH,
         dtype = {},
@@ -322,7 +336,7 @@ def calculate_distance(context, df_trips):
     )
     df_zones = df_zones.rename(MAP_ZONES_COLUMNS, axis=1)
 
-
+    # List of all municipalities with name-code mapping
     df_municipalities = pd.read_excel(
         EXCEL_PATH,
         dtype = {},
@@ -331,27 +345,44 @@ def calculate_distance(context, df_trips):
         skiprows=137
     )
     df_municipalities = df_municipalities.rename(MAP_MUNICIPALITY_COLUMNS, axis=1)
+    # Seville is not represented, therefore appears only as "-" or "" value
     seville_row = pd.DataFrame({"municipality_code": ["-", ""], "municipality": ["Sevilla", "Sevilla"]})
     df_municipalities = pd.concat([df_municipalities, seville_row], ignore_index=True)
 
     column_names = ["street", "zone_code", "municipality_code"]
 
+    # Get all origins and destinations of all trips, origin/destination has street, zone and municipality
     df_ori = df_trips[["street_ori", "zone_code_ori", "municipality_code_ori"]]    
     df_ori.columns = column_names
 
     df_des = df_trips[["street_des", "zone_code_des", "municipality_code_des"]]
-    df_des.columns = column_names  
+    df_des.columns = column_names
 
+    # assign to origin/destination (df_streets) a coordinates
+    # we only know coordinates based on the names of the locations
+    # so we first assign zone and municipality names
     def assign_coords(df_streets, df_coords):
-        df_streets = pd.merge(df_streets, df_zones, on=['zone_code'], how='left')
-        df_streets = pd.merge(df_streets, df_municipalities, on=['municipality_code'], how='left')
-        df_streets = pd.merge(df_streets, df_coords, on=['municipality', 'zone', 'street'], how='left')
-        return df_streets
+        df = df_streets.copy()
+        # save indices to align with df_trips
+        df["__idx__"] = df.index
+        
+        # add zone and municipality name based on the codes
+        df = df.merge(df_zones, on='zone_code', how='left', validate='m:1')
+        df = df.merge(df_municipalities, on='municipality_code', how='left', validate='m:1')
+        # add coordinates based on the street, municipality and zone names
+        df = df.merge(df_coords, on=['municipality','zone','street'], how='left', validate='m:1')
+        # reset indices to align with df_trips
+        df.index = df["__idx__"]
+        return df
 
     df_coords :pd.DataFrame = context.stage("seville.data.hts.entd.streets.verify").copy()
-    df_coords.drop_duplicates(inplace=True)
+    print(f"calculate_distance: Dropping {df_coords[['municipality','zone','street']].duplicated().sum()} duplicated coordinates")
+    df_coords.drop_duplicates(inplace=True, subset=['municipality','zone','street'])
+
     df_ori = assign_coords(df_ori, df_coords)
     df_des = assign_coords(df_des, df_coords)
+    assert len(df_des) == len(df_ori)
+
 
     def parse_location(location):
         # Clean and parse the string
@@ -366,7 +397,10 @@ def calculate_distance(context, df_trips):
 
 
     df_result = pd.DataFrame()
+    assert len(df_ori) == len(df_des) == len(df_trips), f"df_ori:{len(df_ori)} == df_des:{len(df_des)} == df_trips:{len(df_trips)}"
     delete_condition = df_ori['location'].isna() | df_des['location'].isna()
+    #delete_condition = delete_condition.reindex(df_trips.index, fill_value=False)
+
     df_ori.loc[df_ori['location'].isna(), "location"] = "(0, 0)"
     df_des.loc[df_des['location'].isna(), "location"] = "(0, 0)"
 
@@ -377,12 +411,18 @@ def calculate_distance(context, df_trips):
 
 
     print("Calculating euclidean distance:")
-    df_result['euclidean_distance'] = df_result.apply(lambda x: geodesic(x.ori, x.des), axis=1)
+    df_result['euclidean_distance'] = df_result.apply(lambda x: geodesic(x.ori, x.des).m, axis=1) # result in meters
     df_trips['euclidean_distance'] = df_result['euclidean_distance']
 
     print(f"Deleting {delete_condition.sum()} trips due to unknown start/end of the trip")
     df_trips = df_trips[~delete_condition]
     return df_trips
 
+
+def calculate_income_class(df):
+    assert "household_income" in df
+    assert "consumption_units" in df
+
+    return np.digitize(df["household_income"] / df["consumption_units"], INCOME_CLASS_BOUNDS_SEVILLE, right = True)
 
     

@@ -11,8 +11,8 @@ import time
 
 def configure(context):
     context.config("data_path")
-    context.config("seville.street_data_2", "street_data_2.csv")
-    context.config("seville.street_data_3", "street_data_3.csv")
+    context.config("seville.street_data_2", "street_data/street_data_2.csv")
+    context.config("seville.street_data_3", "street_data/street_data_3.csv")
 
 
 # TODO: some borroughs are duplicated with more specific descriptions
@@ -105,7 +105,7 @@ MUNICIPALITIES= {
     "Herrera": (37.362042687398805, -4.848296470385442),
     
     "": (37.392783382893874, -5.987856200329914), # Empty is set as Seville
-    np.NaN: (37.392783382893874, -5.987856200329914),
+    np.nan: (37.392783382893874, -5.987856200329914),
 }
 
 def execute(context):

@@ -11,7 +11,7 @@ def configure(context):
     context.stage("synthesis.population.spatial.home.locations")
     context.stage("synthesis.population.enriched")
     context.stage("synthesis.population.trips")
-    context.stage("hannover.locations.education")
+    context.stage("seville.locations.education")
     context.config("random_seed")
 
     context.stage("synthesis.population.spatial.primary.candidates")
@@ -44,7 +44,7 @@ def execute(context):
     df_persons = gpd.GeoDataFrame(df_persons, crs = df_homes.crs)
 
     # Load locations
-    df_locations = context.stage("hannover.locations.education")
+    df_locations = context.stage("seville.locations.education")
     df_locations = df_locations[~df_locations["fake"]] # Ignore fake ones
 
     # Perform assignment

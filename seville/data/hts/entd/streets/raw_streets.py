@@ -6,8 +6,8 @@ import numpy as np
 def configure(context):
     context.config("data_path")
     context.config("seville.hts", "Sent by the City/Household Travel Survey 2017/BD entrevistas telefonicas Completa_Final_v2.xlsb.xlsx")
-    context.config("seville.street_data", "street_data.csv")
-    context.config("seville.street_data_2", "street_data_2.csv")
+    context.config("seville.street_data", "street_data/street_data.csv")
+    context.config("seville.street_data_2", "street_data/street_data_2.csv")
 
 
 MAP_STREET_COLUMNS_DES = {
