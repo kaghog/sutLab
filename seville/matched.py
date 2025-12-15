@@ -196,8 +196,6 @@ def execute(context):
         df_target["age_class"] = np.digitize(df_target["age"], AGE_BOUNDARIES, right = True)
         df_source["age_class"] = np.digitize(df_source["age"], AGE_BOUNDARIES, right = True)
 
-    # TODO: remove this please
-    df_target = df_target[df_target["age_class"] != 0] 
 
 
     if "income_class" in columns:
