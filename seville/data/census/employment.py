@@ -36,10 +36,10 @@ def extrapolate_age_group(context, path1, path2, path3):
     FILE_PATH = "{}/{}".format(context.config("data_path"),context.config(path2))
     print(f"Loading census data from {FILE_PATH}")
     mun_df = pd.read_csv(FILE_PATH, sep="\t", dtype={"Total": str})
-    colnames = ["municipality", "age", "sex", "shared_variable", "year", "count"]
+    colnames = ["municipality_id", "age_class", "sex", "shared_variable", "year", "count"]
     mun_df.columns = colnames
-    mun_df = mun_df[mun_df["municipality"].str.startswith("41")]
-    mun_df["municipality"] = mun_df["municipality"].str[:5]
+    mun_df = mun_df[mun_df["municipality_id"].str.startswith("41")]
+    mun_df["municipality_id"] = mun_df["municipality_id"].str[:5]
     mun_df.dropna()
     
     mun_df["count"] = mun_df["count"].str.replace('.', '', regex=False).astype("int64")
@@ -48,12 +48,12 @@ def extrapolate_age_group(context, path1, path2, path3):
     mun_df = mun_df[mun_df['year'] == 2022]
 
     # age-group column cleanup
-    mun_df = mun_df[~(mun_df["age"].str.startswith("16"))] # remove "16 and more years" age range
-    condition = mun_df["age"].str.startswith("From")
-    mun_df.loc[condition, "age"] = mun_df.loc[condition, "age"].str[5:7] # extracts lower bound from "From 16 to 19 years"
-    condition = mun_df["age"].str.startswith("70") 
-    mun_df.loc[condition, "age"] = 70 # sets category 70 and more years
-    mun_df["age"] = mun_df["age"].astype("int64")
+    mun_df = mun_df[~(mun_df["age_class"].str.startswith("16"))] # remove "16 and more years" age range
+    condition = mun_df["age_class"].str.startswith("From")
+    mun_df.loc[condition, "age_class"] = mun_df.loc[condition, "age_class"].str[5:7] # extracts lower bound from "From 16 to 19 years"
+    condition = mun_df["age_class"].str.startswith("70") 
+    mun_df.loc[condition, "age_class"] = 70 # sets category 70 and more years
+    mun_df["age_class"] = mun_df["age_class"].astype("int64")
 
     # filtering rows that contain "total" which is just sum of the other rows
     # using "otal" to be variable agnostic ("Total" / "CNAE total") 
@@ -65,16 +65,16 @@ def extrapolate_age_group(context, path1, path2, path3):
     FILE_PATH = "{}/{}".format(context.config("data_path"),context.config(path1))
     print(f"Loading census data from {FILE_PATH}")
     census_df = pd.read_csv(FILE_PATH, sep="\t", dtype={"Total": str})
-    colnames = ["province", "municipality", "census_section", "sex", "shared_variable", "year", "count"]
+    colnames = ["province_id", "municipality_id", "census_section_id", "sex", "shared_variable", "year", "count"]
     census_df.columns = colnames
-    census_df = census_df[census_df["province"].str.startswith("41")]
-    census_df = census_df.drop("province", axis=1)
-    census_df["municipality"] = census_df["municipality"].str[:5]
-    census_df["census_section"] = census_df["census_section"].str[:10]
+    census_df = census_df[census_df["province_id"].str.startswith("41")]
+    census_df = census_df.drop("province_id", axis=1)
+    census_df["municipality_id"] = census_df["municipality_id"].str[:5]
+    census_df["census_section_id"] = census_df["census_section_id"].str[:10]
     census_df["count"] = census_df["count"].str.replace('.', '', regex=False)
     census_df = census_df[~census_df["count"].isna()]
     census_df['count'] = pd.to_numeric(census_df['count'], errors='coerce')
-    census_df = census_df[census_df['census_section'].notna()]
+    census_df = census_df[census_df["census_section_id"].notna()]
     census_df = census_df[census_df["sex"]!="Total"]
 
     census_df = census_df[~(census_df["shared_variable"].str.contains("otal"))]
@@ -82,7 +82,7 @@ def extrapolate_age_group(context, path1, path2, path3):
 
     # check if we have data for all the census sections and if not throw error
     codes_df = context.stage("seville.data.spatial.codes")
-    missing_sections = codes_df[~codes_df['commune_id'].isin(census_df['census_section'])]
+    missing_sections = codes_df[~codes_df['commune_id'].isin(census_df["census_section_id"])]
     if not missing_sections.empty:
         print("Missing values from df1 in df2:", missing_sections.count())
         print("Missing values from df1 in df2:", codes_df.count())
@@ -92,7 +92,7 @@ def extrapolate_age_group(context, path1, path2, path3):
     # check if all census sections have their own municipality
     # reason for missing municipalities can be that municipalities under 500 are in different dataset
     # the dataset for municipalities under 500 are only by sex (same as census section), so no need to load them as well
-    condition = ~census_df['municipality'].isin(mun_df['municipality'])
+    condition = ~census_df["municipality_id"].isin(mun_df["municipality_id"])
     missing_sections = census_df[condition]
     census_df = census_df[~condition]
 
@@ -110,30 +110,30 @@ def extrapolate_age_group(context, path1, path2, path3):
     province_df = pd.read_csv(FILE_PATH, sep="\t", dtype={"Total": str})
     # National Total;	Autonomous Communities and Cities;	Provinces;	Employment;	Age;	Sex;	Periodo;	Total;
     province_df = province_df.iloc[:, [2,3,4,5,6,7]]
-    colnames = ["province", "shared_variable", "age", "sex", "year", "count"]
+    colnames = ["province_id", "shared_variable", "age_class", "sex", "year", "count"]
     province_df.columns = colnames
 
     province_df = province_df[province_df["year"] == 2022]
     province_df = province_df.dropna()
-    province_df = province_df[province_df["province"].str.startswith("41")]
+    province_df = province_df[province_df["province_id"].str.startswith("41")]
     province_df = province_df[province_df["sex"]!="Total"]
     province_df["count"] = province_df["count"].str.replace('.', '', regex=False).astype("int64")
 
     province_df = province_df[~(province_df["shared_variable"].str.contains("otal"))]
 
     # age-group column cleanup
-    province_df = province_df[~(province_df["age"].str.startswith("16"))] # remove "16 and more years" age range
-    condition = province_df["age"].str.startswith("From")
-    province_df.loc[condition, "age"] = province_df.loc[condition, "age"].str[5:7] # extracts lower bound from "From 16 to 19 years"
-    condition = province_df["age"].str.startswith("70") 
-    province_df.loc[condition, "age"] = 70 # sets category 70 and more years
-    province_df["age"] = province_df["age"].astype("int64")
+    province_df = province_df[~(province_df["age_class"].str.startswith("16"))] # remove "16 and more years" age range
+    condition = province_df["age_class"].str.startswith("From")
+    province_df.loc[condition, "age_class"] = province_df.loc[condition, "age_class"].str[5:7] # extracts lower bound from "From 16 to 19 years"
+    condition = province_df["age_class"].str.startswith("70") 
+    province_df.loc[condition, "age_class"] = 70 # sets category 70 and more years
+    province_df["age_class"] = province_df["age_class"].astype("int64")
 
 
     # ========== Extrapolate age distribution for census sections in municipalities under 500 ==========
 
-    province_df = province_df[['sex', 'age', 'count']]
-    group_cols = ['sex', 'age']
+    province_df = province_df[['sex', "age_class", 'count']]
+    group_cols = ['sex', "age_class"]
     municipalities500_total_df = mun_df.groupby(group_cols)['count'].sum()
     province_df = province_df.groupby(group_cols)['count'].sum()
 
@@ -143,23 +143,23 @@ def extrapolate_age_group(context, path1, path2, path3):
     municipalities50_df['proportion'] = municipalities50_df['proportion'].replace(np.nan, 0)
     municipalities50_df['municipality_count'] = municipalities50_df['count']
 
-    missing_sections = missing_sections.groupby(['municipality', 'census_section', 'sex'])['count'].sum().reset_index()
-    missing_sections = pd.merge(missing_sections, municipalities50_df[['sex', 'age', 'proportion', 'municipality_count']], on=['sex'], how='left')
+    missing_sections = missing_sections.groupby(["municipality_id", "census_section_id", 'sex'])['count'].sum().reset_index()
+    missing_sections = pd.merge(missing_sections, municipalities50_df[['sex', "age_class", 'proportion', 'municipality_count']], on=['sex'], how='left')
     missing_sections['population_estimate'] = missing_sections['count'] * missing_sections['proportion']
     
 
     # ========== Extrapolate age distribution for census sections in municipalities above 500 people ==========
 
     # get a distribution range for the age_groups
-    group_cols = ['municipality', 'sex', 'shared_variable']
+    group_cols = ["municipality_id", 'sex', 'shared_variable']
     mun_df['total'] = mun_df.groupby(group_cols)['count'].transform('sum')
     mun_df['proportion'] = mun_df['count'] / mun_df['total']
     mun_df['proportion'] = mun_df['proportion'].replace(np.nan, 0)
     mun_df['municipality_count'] = mun_df['count']
 
-    expanded = pd.merge(census_df, mun_df[group_cols + ['age' , 'proportion', 'municipality_count']], on=group_cols, how='left')
+    expanded = pd.merge(census_df, mun_df[group_cols + ["age_class" , 'proportion', 'municipality_count']], on=group_cols, how='left')
     expanded['population_estimate'] = expanded['count'] * expanded['proportion']
-    group_cols = ['municipality', 'census_section', 'sex', 'age',]
+    group_cols = ["municipality_id", "census_section_id", 'sex', "age_class",]
     expanded = expanded.groupby(group_cols)[['municipality_count', 'population_estimate', 'proportion']].sum().reset_index()
 
 
@@ -168,7 +168,7 @@ def extrapolate_age_group(context, path1, path2, path3):
     # merge results for census sections in municipalities above 500 and below 500
     result_df =  pd.concat([expanded, missing_sections], ignore_index=True)
 
-    return result_df[['municipality', 'census_section', 'sex', 'age', 'population_estimate', 'municipality_count']]
+    return result_df[["municipality_id", "census_section_id", 'sex', "age_class", 'population_estimate', 'municipality_count']]
 
 
 def execute(context):
@@ -191,10 +191,10 @@ def execute(context):
 
     result_df = averaged_df
     result_df['weight'] = averaged_df['population_estimate']
-    result_df['census_section'] = averaged_df['census_section']
+    result_df["census_section_id"] = averaged_df["census_section_id"]
     result_df["sex"] = result_df["sex"].replace({ "Males": "male", "Females": "female" }).astype('str')
-    result_df['municipality'] = result_df['municipality'].astype('str')
+    result_df["municipality_id"] = result_df["municipality_id"].astype('str')
     
     assert not result_df.isna().any().any(), "There are NaN values in the Employment DataFrame"
 
-    return result_df[['municipality', 'census_section', 'sex', 'age', 'weight']]
+    return result_df[["municipality_id", "census_section_id", 'sex', "age_class", 'weight']]

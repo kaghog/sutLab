@@ -21,18 +21,18 @@ def execute(context):
 
     # Rename
     gdf_census_sections = gdf_census_sections.rename(columns = {
-        "CUSEC": "census_section_code",
-        "CMUN": "municipality_code",
-        "CPRO": "province_code",
+        "CUSEC": "census_section_id",
+        "CMUN": "municipality_id",
+        "CPRO": "province_id",
     })
     
     # Clean
-    gdf_census_sections = gdf_census_sections[gdf_census_sections["census_section_code"].astype(str).str.isdigit()].copy()
+    gdf_census_sections = gdf_census_sections[gdf_census_sections["census_section_id"].astype(str).str.isdigit()].copy()
     
     # Filter only Seville
-    gdf_census_sections =  gdf_census_sections[gdf_census_sections["province_code"] == "41"]
+    gdf_census_sections =  gdf_census_sections[gdf_census_sections["province_id"] == "41"]
 
-    return gdf_census_sections[["census_section_code", "geometry"]]
+    return gdf_census_sections[["census_section_id", "geometry"]]
 
 def validate(context):
     CSV_FILE = f"{context.config('data_path')}/{context.config('seville.population_shp')}"

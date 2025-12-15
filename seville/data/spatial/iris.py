@@ -12,13 +12,13 @@ def execute(context):
     df_codes = context.stage("seville.data.spatial.raw")
 
     # Clean up identifiers
-    df_codes["census_section_code"] = df_codes["census_section_code"].astype(str)
-    # Seville province -> region
-    df_codes["region_id"] = df_codes["census_section_code"].str[:0].astype("category")
+    df_codes["census_section_id"] = df_codes["census_section_id"].astype(str)
+    # no region id
+    df_codes["region_id"] = df_codes["census_section_id"].str[:0].astype("category")
     # province -> department
-    df_codes["departement_id"] = df_codes["census_section_code"].str[:2].astype("category")
+    df_codes["departement_id"] = df_codes["census_section_id"].str[:2].astype("category")
     # Census_section -> commune
-    df_codes["commune_id"] = df_codes["census_section_code"].astype("category")
+    df_codes["commune_id"] = df_codes["census_section_id"].astype("category")
 
     # Fake IRIS
     df_codes["iris_id"] = df_codes["commune_id"].astype(str) + "0000"

@@ -16,11 +16,11 @@ def execute(context):
     # Load employment total ( will get single row for seville) 
     df_employment = context.stage("seville.data.census.employment")
 
-    df_employment = df_employment.groupby("census_section", as_index=False)["weight"].sum()
+    df_employment = df_employment.groupby("census_section_id", as_index=False)["weight"].sum()
     df_employment = df_employment.rename(
         columns={
             "weight": "weight", 
-            "census_section": "commune_id"
+            "census_section_id": "commune_id"
             })
     
     df_result = df_employment[["commune_id", "weight"]]

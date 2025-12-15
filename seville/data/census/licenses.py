@@ -32,7 +32,7 @@ def execute(context):
     
     df_municipality = df_municipality.iloc[:,[0,4,5,6,7,8,9]]
     colnames = [
-        "municipality", 
+        "municipality_id", 
         "population_total", 
         "male_total", 
         "female_total", 
@@ -43,13 +43,13 @@ def execute(context):
     df_municipality.columns = colnames
 
     # Remove "municipio sin especificar" ("unspecified municipality") row, that is not significance and is present for each province    
-    df_municipality = df_municipality[~df_municipality["municipality"].str.endswith("000")]
+    df_municipality = df_municipality[~df_municipality["municipality_id"].str.endswith("000")]
     # Filter only Seville municipalities
-    df_municipality = df_municipality[df_municipality["municipality"].str.startswith("41")]
+    df_municipality = df_municipality[df_municipality["municipality_id"].str.startswith("41")]
 
     df_municipality = df_municipality.astype(
         {
-        "municipality": "string", 
+        "municipality_id": "string", 
         "population_total": "int64", 
         "male_total": "int64", 
         "female_total": "int64", 
@@ -60,8 +60,8 @@ def execute(context):
     )
 
 
-    df_municipality = df_municipality[["municipality", "drivers_male", "drivers_female"]]
-    df_municipality = df_municipality.melt(id_vars=['municipality'], value_vars=['drivers_male', 'drivers_female'],
+    df_municipality = df_municipality[["municipality_id", "drivers_male", "drivers_female"]]
+    df_municipality = df_municipality.melt(id_vars=["municipality_id"], value_vars=['drivers_male', 'drivers_female'],
                   var_name='sex', value_name='weight')
     df_municipality['sex'] = df_municipality['sex'].map(
         {'drivers_male': 'male', 'drivers_female': 'female'}
@@ -76,24 +76,24 @@ def execute(context):
                               dtype = {"COD_PROVINCIA":str},
                               )
     colnames = [
-        "province", 
+        "province_id", 
         "sex", 
-        "age", 
+        "age_class", 
         "weight",
     ]
     df_province.columns = colnames
     
-    df_province = df_province[df_province["province"] == "41"]
-    df_province['province'] = df_province['province'].astype('str')
+    df_province = df_province[df_province["province_id"] == "41"]
+    df_province["province_id"] = df_province["province_id"].astype('str')
 
     df_province['sex'] = df_province['sex'].map({'M': 'male', 'V': 'female'})
     df_province['sex'] = df_province['sex'].astype("category")
 
-    df_province = df_province[df_province["age"]!= "Se desconoce"] # remove rows with unknown age, these are insignificant
-    condition = df_province["age"].str.startswith("Mas")
-    df_province.loc[condition, "age"] = 74 # extracts upper bound from "More than 74 years"
-    df_province.loc[~condition, "age"] = df_province.loc[~condition, "age"].str[0:2] 
-    df_province["age"] = df_province["age"].astype("int64")
+    df_province = df_province[df_province["age_class"]!= "Se desconoce"] # remove rows with unknown age, these are insignificant
+    condition = df_province["age_class"].str.startswith("Mas")
+    df_province.loc[condition, "age_class"] = 74 # extracts upper bound from "More than 74 years"
+    df_province.loc[~condition, "age_class"] = df_province.loc[~condition, "age_class"].str[0:2] 
+    df_province["age_class"] = df_province["age_class"].astype("int64")
 
     # Merge
     group_cols = ['sex']
@@ -101,7 +101,7 @@ def execute(context):
     df_province['proportion'] = df_province['weight'] / df_province['total']
     df_province['proportion'] = df_province['proportion'].replace(np.nan, 0)
 
-    df_municipality_expanded = pd.merge(df_municipality, df_province[group_cols + ['age' , 'proportion']], on=group_cols, how='left')
+    df_municipality_expanded = pd.merge(df_municipality, df_province[group_cols + ["age_class" , 'proportion']], on=group_cols, how='left')
     df_municipality_expanded['weight'] = df_municipality_expanded['weight'] * df_municipality_expanded['proportion']
 
 
