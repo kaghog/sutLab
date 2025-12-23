@@ -3,6 +3,7 @@ import pandas as pd
 
 def configure(context):
     context.stage("data.hts.entd.filtered")
+    context.config("ignore_age_19_and_below")
 
 def execute(context):
     df_households, df_persons, df_trips = context.stage("data.hts.entd.filtered")
@@ -29,27 +30,14 @@ def execute(context):
     # This is reverse of the original approach,
     df_trips["routed_distance"] = df_trips["euclidean_distance"] * 1.3
 
-    # TODO: remove this part, as this is temporary solution
-    print("================================================================================")
-    print("============ REMOVE ====================")
-    print("================================================================================")
-    print("START: FAKING HTS PEOPLE UNDER 15 YEARS OLD")
-    df_fake_persons = df_persons.copy()
-    df_fake_households = df_households.copy()
-    df_fake_trips = df_trips.copy()
 
-    df_fake_persons["age"] = df_fake_persons["age"] % 20
-    df_fake_persons["person_id"] = df_fake_persons["person_id"] + len(df_fake_persons) * 2
-    df_fake_persons["household_id"] = df_fake_persons["household_id"] + len(df_fake_persons) * 2
-    df_fake_households["household_id"] = df_fake_households["household_id"] + len(df_fake_persons) * 2
-    df_fake_trips["person_id"] = df_fake_trips["person_id"] + len(df_fake_persons) * 2
-    df_fake_trips["trip_id"] = df_fake_trips["trip_id"] + df_fake_trips["trip_id"]
+    ##################################################################
+    # TODO: TEMPORARY MEASURE
+    ##################################################################
+    # We have only this to align ages with census
 
-
-    df_persons = pd.concat([df_persons, df_fake_persons], ignore_index=True)
-    df_households = pd.concat([df_households, df_fake_households], ignore_index=True)
-    df_trips = pd.concat([df_trips, df_fake_trips], ignore_index=True)
-    print("FINISHED: FAKING HTS PEOPLE UNDER 15 YEARS OLD")
-
+    if context.config("ignore_age_19_and_below") == True:
+        df_persons = df_persons[df_persons["age"] >= 20]
+    ##################################################################
 
     return df_households, df_persons, df_trips

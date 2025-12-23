@@ -7,6 +7,7 @@ from sklearn.neighbors import KDTree
 A stage that finds education locations for the individuals.
 """
 
+
 def configure(context):
     context.stage("synthesis.population.spatial.home.locations")
     context.stage("synthesis.population.enriched")
@@ -16,13 +17,21 @@ def configure(context):
 
     context.stage("synthesis.population.spatial.primary.candidates")
 
+    context.config("ignore_age_19_and_below")
+        
 ASSIGNMENT = [
     { "filter": lambda x: x["age"].between(0, 6), "education_type": "kindergarten", "distance": 2e3 }, # 5
     { "filter": lambda x: x["age"].between(7, 17), "education_type": "school", "distance": 2e3,  }, # 10
     { "filter": lambda x: x["age"].between(18, np.inf), "education_type": "university", "distance": 10e3 }, # 50
 ]
 
+
 def execute(context):
+    global ASSIGNMENT
+    # Ignore population under age 20. Therefore no data for kindergarten and school population.
+    if context.config("ignore_age_19_and_below") == True:
+        ASSIGNMENT = ASSIGNMENT[2:]
+
     # Initialize RNG
     random = np.random.RandomState(context.config("random_seed"))
 

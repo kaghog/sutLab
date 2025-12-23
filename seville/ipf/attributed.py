@@ -9,6 +9,7 @@ This stage adds additional attributes to the generated synthetic population from
 def configure(context):
     context.stage("seville.ipf.model")
     context.config("random_seed")
+    context.config("ignore_age_19_and_below")
 
 def execute(context):
     df = context.stage("seville.ipf.model")
@@ -76,5 +77,16 @@ def execute(context):
 
     final_weight = df["weight"].sum()
     assert np.abs(initial_weight - final_weight) < 1e-6, f"initial_weight ({initial_weight})  final_weight ({final_weight})"
+
+    ##########################################################
+    # to remove young population from census population
+    ##########################################################
+    if context.config("ignore_age_19_and_below") == True:
+        df = df[df["age"] >= 20]
+
+    ##########################################################
+    # END OF TEMPORARY SOLUTION
+    ##########################################################
+
 
     return df

@@ -34,6 +34,8 @@ def configure(context):
     context.config("specific_weekend_scenario", "all") # options are "all", "saturday", "sunday"
     context.config("specific_day_scenario", "avgworkday") #options can be any of the days of the week or "avgworkday"
     
+    context.config("ignore_age_19_and_below")
+
     
 def import_data_synthetic(context, population_selector = None, custom_output_path = None):
     """
@@ -183,6 +185,10 @@ def import_data_actual(context, population_selector = None):
     
 def import_data_census(context, population_selector = None):
     df_population = context.stage("seville.data.census.population")
+
+    if context.config("ignore_age_19_and_below") == True:
+        df_population = df_population[df_population["age_class"] >= 20]
+
     return df_population
     
 
@@ -398,9 +404,9 @@ def demographics_comparison(context, df_act_persons, df_syn_persons, df_census, 
             df_syn_persons = df_syn_persons[df_syn_persons["is_active"]]
 
     # Cut ages into labeled bins (person-level)
-    df_act_persons['age_bin'] = pd.cut(df_act_persons["age"], bins=bins, labels=labels)
-    df_syn_persons['age_bin'] = pd.cut(df_syn_persons["age"], bins=bins, labels=labels)
-    df_cen['age_bin'] = pd.cut(df_cen["age_class"], bins=bins, labels=labels)
+    df_act_persons['age_bin'] = pd.cut(df_act_persons["age"], bins=bins, labels=labels, right=False)
+    df_syn_persons['age_bin'] = pd.cut(df_syn_persons["age"], bins=bins, labels=labels, right=False)
+    df_cen['age_bin'] = pd.cut(df_cen["age_class"], bins=bins, labels=labels, right=False)
 
 
     # Debug: bins and basic distributions before weighting/percentages

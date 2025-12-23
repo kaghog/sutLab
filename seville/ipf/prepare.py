@@ -20,6 +20,7 @@ def configure(context):
     context.stage("seville.data.census.population")
     context.stage("seville.data.census.employment")
     context.stage("seville.data.census.licenses")
+    context.config("ignore_age_19_and_below")
 
 def execute(context):
     # Load data
@@ -36,7 +37,16 @@ def execute(context):
     for df in [df_population, df_employment, df_licenses_municipality]:
         df.rename(MAP_COLUMNS, axis=1, inplace=True)
 
-
+    # ===================================================================================
+    # ===================================================================================
+    # THIS IS REMOVING YOUNG PEOPLE FROM CENSUS, JUST THAT IT MATCHES THE HTS SAMPLES
+    if context.config("ignore_age_19_and_below") == True:
+        for df in [df_population, df_employment, df_licenses_municipality]:
+            df = df[df["age_class"] >= 20]
+    # ===================================================================================
+    # ===================================================================================
+    
+    
     # Generate numeric sex
     df_population["sex"] = df_population["sex"].replace({ "male": 1, "female": 2 })
     df_employment["sex"] = df_employment["sex"].replace({ "male": 1, "female": 2 })
