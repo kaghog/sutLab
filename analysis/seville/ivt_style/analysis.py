@@ -694,14 +694,14 @@ def summary_horizontal(context, df_act_persons, df_syn_persons, df_census, suffi
     age_bins = [x for x in range(0, 110, 5)]
     age_labels = [f"{x}-{x+4}" for x in age_bins[:-1]]
     if "age" in df_syn_persons.columns:
-        syn_age = _pd.cut(df_syn_persons["age"], bins=age_bins, labels=age_labels)
+        syn_age = _pd.cut(df_syn_persons["age"], bins=age_bins, labels=age_labels, right=False)
         syn_age_pct = myplottools.compute_counts(syn_age, categories=age_labels)
     else:
         syn_age_pct = _pd.Series([float("nan")] * len(age_labels), index=age_labels)
 
     if df_census is not None and {"age_class", "weight"}.issubset(df_census.columns):    
         df_cen = df_census.copy()
-        df_cen['age_bin'] = pd.cut(df_cen["age_class"], bins=age_bins, labels=age_labels)
+        df_cen['age_bin'] = pd.cut(df_cen["age_class"], bins=age_bins, labels=age_labels, right=False)
         census_counts = myplottools.compute_counts(df_cen['age_bin'], weights=df_cen['weight'], categories=age_labels)
         census_counts = _pd.Series(census_counts).reindex(age_labels).fillna(0)
 
