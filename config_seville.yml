@@ -6,8 +6,7 @@ working_directory: cache
 
 # This section defines which parts of the pipeline should be run
 run:
-  #- synthesis.population.spatial.locations
-  - synthesis.population.spatial.locations
+  - analysis.seville.ivt_style.analysis
 
 # Here the configuraiton of the pipeline starts
 config:
@@ -21,7 +20,7 @@ config:
   sampling_rate: 0.01
   acquisition_sample_size: 1
   random_seed: 1234
- 
+
   # Paths to the input data and where the output should be stored
   data_path: ../raw_data/Seville
   output_path: output
@@ -31,20 +30,24 @@ config:
   osm_path_seville: osm/andalucia-latest.osm.pbf
   check_spatial_codes: True
   analysis_path: output/analysis
-  osmconvert_binary: /{fill in}/sutLab/osmconvert" # absolute path to osmconvert_binary
-
+  osmconvert_binary: "/your/path/to/binary/osmconvert"
+  simulation_output_dir: output/simulation
   # Only interesting if you run the simulation
   java_memory: 6G
 
   # Defaults for seville
+  
+
   home_location_sampling: weighted
-  mode_choice: true
+  mode_choice: false
   matching_attributes: ["sex", "age_class", "has_license"]
 
   gtfs_path: gtfs
   osm_path: osm
   osmosis_binary: osmosis/bin
 
+  # Debug settings
+  ignore_age_19_and_below: True
 
 # Overrides for the seville pipeline compared to the Île-de-France pipeline
 aliases:
@@ -61,12 +64,10 @@ aliases:
   data.spatial.codes: seville.entd_codes
   synthesis.population.spatial.primary.locations: seville.locations.synthesis.replacement
   #synthesis.population.enriched: seville.synthesis.population.enriched #taken from munich mid aggregate
-  matsim.simulation.prepare: seville.matsim.simulation.prepare
   #analysis.statistics: analysis.seville.statistics
   data.hts.entd.raw: seville.data.hts.entd.raw
   data.hts.entd.filtered: seville.data.hts.entd.filtered
   data.hts.entd.cleaned: seville.data.hts.entd.cleaned
   data.hts.entd.reweighted: seville.data.hts.entd.reweighted
-  matsim.simulation.prepare: matsim.scenario.prepare
-  
-
+  matsim.simulation.prepare: seville.matsim.simulation.prepare
+  matsim.simulation.run: seville.matsim.simulation.run
