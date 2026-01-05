@@ -53,5 +53,7 @@ def execute(context):
         "preceding_purpose", "following_purpose",
         "is_first_trip", "is_last_trip",
         "trip_duration", "activity_duration",
-        "mode"
+        "mode",
+        "euclidean_distance",
+
     ]]

@@ -155,7 +155,8 @@ def execute(context):
         "preceding_activity_index", "following_activity_index",
         "departure_time", "arrival_time",
         "preceding_purpose", "following_purpose",
-        "is_first", "is_last"
+        "is_first", "is_last", 
+        "euclidean_distance",
     ]]
 
     if context.config("mode_choice"):
