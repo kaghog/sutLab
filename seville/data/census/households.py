@@ -1,0 +1,44 @@
+import pandas as pd
+
+"""
+This stage extracts household-level census data for seville from raw census.
+Provides household size distribution at census section (commune) level for IPU constraints.
+"""
+
+
+def configure(context):
+    context.stage("seville.data.spatial.codes")
+    context.config("data_path")
+    context.config("seville.household_data", "households.xlsx")
+
+
+def execute(context):
+
+    EXCEL_PATH = "{}/{}".format(context.config("data_path"),context.config("seville.household_data"))
+    SHEET_NAME = "tabla-59543"
+
+    print(f"Loading licenses data from {EXCEL_PATH}")
+    df_households = pd.read_excel(EXCEL_PATH, sheet_name=SHEET_NAME, skiprows=8)
+    household_cols = [
+        "municipality_id",
+        "total_households",
+        "households_1_person",
+        "households_2_persons",
+        "households_3_persons",
+        "households_4_persons",
+        "households_5plus_persons",
+    ]
+    df_households.columns = household_cols
+
+    # Clean
+    df_households["municipality_id"] = df_households["municipality_id"].str[:5]
+    df_households["departement_id"] = df_households["municipality_id"].str[:2]
+
+    # Filter
+    df_households = df_households[df_households["departement_id"] == "41"]
+
+    assert len(df_households) != 0
+
+    print(df_households.head())
+    return df_households
+

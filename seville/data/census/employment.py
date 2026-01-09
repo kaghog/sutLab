@@ -197,4 +197,6 @@ def execute(context):
     
     assert not result_df.isna().any().any(), "There are NaN values in the Employment DataFrame"
 
-    return result_df[["municipality_id", "census_section_id", 'sex', "age_class", 'weight']]
+    result_df['province_id'] = "41"
+
+    return result_df[["province_id", "municipality_id", "census_section_id", 'sex', "age_class", 'weight']]
