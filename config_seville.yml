@@ -30,7 +30,7 @@ config:
   osm_path_seville: osm/andalucia-latest.osm.pbf
   check_spatial_codes: True
   analysis_path: output/analysis
-  osmconvert_binary: "/your/path/to/binary/osmconvert"
+  osmconvert_binary: "/cluster/scratch/snekula/sutlab/sutLab/osmconvert"
   simulation_output_dir: output/simulation
   # Only interesting if you run the simulation
   java_memory: 6G
@@ -50,24 +50,30 @@ config:
   ignore_age_19_and_below: True
 
 # Overrides for the seville pipeline compared to the Île-de-France pipeline
+
 aliases:
-  data.census.filtered: seville.ipf.attributed
+  synthesis.population.sampled: seville.ipu.attributed
+  data.census.filtered: seville.ipu.attributed
   synthesis.population.income.selected: seville.income
-  synthesis.population.matched: seville.matched
   synthesis.population.spatial.home.zones: seville.homes
   synthesis.locations.home.locations: seville.locations.home
   synthesis.locations.education: seville.locations.education
   synthesis.locations.secondary: seville.locations.secondary
   synthesis.locations.work: seville.locations.work
-  data.od.weighted: seville.gravity.model
+  # data.od.weighted: seville.gravity.model
   data.spatial.iris: seville.data.spatial.iris
   data.spatial.codes: seville.entd_codes
-  synthesis.population.spatial.primary.locations: seville.locations.synthesis.replacement
-  #synthesis.population.enriched: seville.synthesis.population.enriched #taken from munich mid aggregate
+  # synthesis.population.spatial.primary.locations: seville.locations.synthesis.replacement
+  synthesis.population.enriched: seville.synthesis.population.enriched
   #analysis.statistics: analysis.seville.statistics
   data.hts.entd.raw: seville.data.hts.entd.raw
   data.hts.entd.filtered: seville.data.hts.entd.filtered
   data.hts.entd.cleaned: seville.data.hts.entd.cleaned
-  data.hts.entd.reweighted: seville.data.hts.entd.reweighted
+
   matsim.simulation.prepare: seville.matsim.simulation.prepare
   matsim.simulation.run: seville.matsim.simulation.run
+
+  data.hts.entd.reweighted: seville.data.hts.entd.reweighted
+
+  synthesis.population.matched: seville.matched
+  

@@ -48,12 +48,19 @@ def execute(context):
 
     # Validation
     initial_count = len(df_locations)
+    
+
+    print(f"df_home_locations {len(df_locations[df_locations['purpose'] == 'home'])} - {len(df_home_locations)}")
+    print(f"df_work_locations {len(df_locations[df_locations['purpose'] == 'work'])} - {len(df_work_locations)}")
+    print(f"df_education_locations {len(df_locations[df_locations['purpose'] == 'education'])} - {len(df_education_locations)}")
+    print(f"df_secondary_locations {len(df_locations[~df_locations['purpose'].isin(('home', 'work', 'education'))])} - {len(df_secondary_locations)}")
+
+
     df_locations = pd.concat([df_home_locations, df_work_locations, df_education_locations, df_secondary_locations])
 
     df_locations = df_locations.sort_values(by = ["person_id", "activity_index"])
     final_count = len(df_locations)
-
-    assert initial_count == final_count
+    assert initial_count == final_count, f"{initial_count} == {final_count}"
 
     assert not df_locations["geometry"].isna().any()
     df_locations = gpd.GeoDataFrame(df_locations, crs = df_home.crs)

@@ -117,6 +117,14 @@ def execute(context):
     df_households["household_weight"] = df_households["household_weight"].astype(float)
     df_trips["trip_weight"] = df_trips["trip_weight"].astype(float)
 
+    # Clean houosehold member count
+    df_households["household_size"] = (
+        df_households["household_size"]
+        .astype(str)
+        .str.split(" ", n=1)
+        .str[0]
+    ).astype(int)
+
     # Clean sex
     df_persons["sex"] = df_persons["sex"].astype("str")
     df_persons.loc[df_persons["sex"] == "1", "sex"] = "male"

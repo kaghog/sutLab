@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 #plt.rcParams.update({'font.size': 18})
 
 # ---- Centralized color constants ----
-COLOR_SYNTHETIC = "#D3D3D3"  # Gray for synthetic population (input)
+COLOR_SYNTHETIC = "#F80707"  # Gray for synthetic population (input)
 COLOR_SIMULATION = "#9370DB"  # Purple for simulation results (output)
 COLOR_ACTUAL_HTS = "#00205B"  # Dark blue for HTS reference
 COLOR_CENSUS = "#E69F00"      # Orange for census
@@ -44,9 +44,9 @@ def autolabel(rects, ax):
 
 def add_small_hist(axes, r, c, act, x, y, bins, lab = ["Synthetic", "HTS"]):
     # Synthetic histogram (unweighted)
-    axes[r,c].hist(x, bins, alpha=0.5, density=True, color=COLOR_SYNTHETIC)
+    axes[r,c].hist(x, bins, alpha=0.6, density=True, color=COLOR_SYNTHETIC)
     # HTS histogram (weighted)
-    axes[r,c].hist(y["crowfly_distance"], bins, weights=y["weight_person"], alpha=0.5, density=True, color=COLOR_ACTUAL_HTS)
+    axes[r,c].hist(y["crowfly_distance"], bins, weights=y["weight_person"], alpha=0.6, density=True, color=COLOR_ACTUAL_HTS)
     axes[r,c].set_ylabel("Percentage")
     axes[r,c].set_xlabel("Crowfly Distance [km]")
     axes[r,c].set_title(act.capitalize())

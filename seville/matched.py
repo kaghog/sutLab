@@ -37,6 +37,8 @@ def configure(context):
     assert hts == "entd", " only entd 'calculate_income_class' is implemented"
     context.stage("data.hts.selected", alias = "hts")
 
+    context.config("ignore_age_19_and_below")
+
 @numba.jit(nopython = True) # Already parallelized parallel = True)
 def sample_indices(uniform, cdf, selected_indices):
     indices = np.arange(len(uniform))
@@ -191,6 +193,8 @@ def execute(context):
 
     # Define matching attributes
     AGE_BOUNDARIES = [15, 29, 44, 59, 74, 1000]
+    if context.config("ignore_age_19_and_below") == True:
+        AGE_BOUNDARIES = [20, 29, 44, 59, 74, 1000]
 
     if "age_class" in columns:
         df_target["age_class"] = np.digitize(df_target["age"], AGE_BOUNDARIES, right = True)
@@ -245,6 +249,24 @@ def execute(context):
     context.set_info("matched_counts", {
         count: np.count_nonzero(levels >= count) for count in range(len(columns) + 1)
     })
+
+
+    # ----------------------
+    if context.config("ignore_age_19_and_below") == True:
+        df_check = (
+            df_target[["hts_id"]]
+            .merge(
+                df_source[["hts_id", "age"]],
+                on="hts_id",
+                how="left",
+                validate="many_to_one"
+            )
+        )
+        under20 = df_check[df_check["age"] < 20]
+        print(f"HTS donors under 20: {len(under20)}")
+        print(under20["age"].value_counts())
+        assert (df_check["age"] >= 20).all()
+    # -------------------------
 
     for count in range(len(columns) + 1):
         print("%d matched levels:" % count, np.count_nonzero(levels >= count), "%.2f%%" % (100 * np.count_nonzero(levels >= count) / len(df_target),))
