@@ -270,7 +270,7 @@ def execute(context):
 
     print(len(set(df_persons["person_id"].values) - set(df_trips["person_id"].values)), "raw number of persons without trips")
 
-    return df_households, df_persons, df_trips
+    return df_households, df_persons, df_trips, df_household_members
 
 
 
@@ -421,6 +421,8 @@ def calculate_distance(context, df_trips):
     print("Calculating euclidean distance:")
     df_result['euclidean_distance'] = df_result.apply(lambda x: geodesic(x.ori, x.des).m, axis=1) # result in meters
     df_trips['euclidean_distance'] = df_result['euclidean_distance']
+    df_trips['origin_location'] = df_result["ori"]
+    df_trips['destination_location'] = df_result["des"]
 
     print(f"Deleting {delete_condition.sum()} trips due to unknown start/end of the trip")
     df_trips = df_trips[~delete_condition]

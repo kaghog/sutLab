@@ -8,7 +8,6 @@ This stage adds additional attributes to the generated synthetic population from
 def configure(context):
     context.stage("seville.ipu.population")
     context.stage("seville.data.spatial.iris")
-    context.config("ignore_age_19_and_below")
 
     context.config("random_seed")
 
@@ -87,13 +86,6 @@ def execute(context):
         f"{df['departement_id'].nunique()} departements"
     )
 
-    # ===================================================================================
-    # ===================================================================================
-    # THIS IS REMOVING YOUNG PEOPLE FROM CENSUS, JUST THAT IT MATCHES THE HTS SAMPLES
-    if context.config("ignore_age_19_and_below") == True:
-        df = df[df["age_class"] >= 20]
-    # ===================================================================================
-    # ===================================================================================
 
 
     return df

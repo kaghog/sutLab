@@ -14,8 +14,7 @@ def configure(context):
 
     context.config("random_seed")
 
-    context.config("ignore_age_19_and_below", default=False)
-
+    context.config("missing_trips_for_young_people")
 
 
 def prepare_education_persons(context):
@@ -82,9 +81,8 @@ def impute_education_locations_radius(context):
 
     
     # Group destinations into age categories
-    age_bounds = [(-np.inf, 6), (7, 17), (18, np.inf)]
-    if context.config("ignore_age_19_and_below"):
-        age_bounds = [(-np.inf, 6), (7, 19), (20, np.inf)]
+    age_bounds = [(-np.inf, 6), (7, 16), (17, np.inf)]
+
     education_types = [["kindergarten"], ["school"], ["university"]]
     query_sizes = [5, 5, 5]
     
@@ -99,9 +97,10 @@ def impute_education_locations_radius(context):
     
     # Process each age group
     for (lower_bound, upper_bound), types, query_size in zip(age_bounds, education_types, query_sizes):
-
+        print()
+        print(f"[INFO] synthesis/population/location/primary/education.py: \n {((lower_bound, upper_bound), types, query_size)}")
         # TODO: TEMP FIX: ignore all education assignment for ages < 20
-        if context.config("ignore_age_19_and_below") and lower_bound < 20:
+        if context.config("missing_trips_for_young_people") == True and lower_bound < 15:
             continue
 
         f_persons = (df_education_persons["age"] >= lower_bound) & (df_education_persons["age"] <= upper_bound)        

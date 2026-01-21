@@ -17,20 +17,20 @@ def configure(context):
 
     context.stage("synthesis.population.spatial.primary.candidates")
 
-    context.config("ignore_age_19_and_below")
+    context.config("missing_trips_for_young_people")
         
 ASSIGNMENT = [
     { "filter": lambda x: x["age"].between(0, 6), "education_type": "kindergarten", "distance": 2e3 }, # 5
-    { "filter": lambda x: x["age"].between(7, 17), "education_type": "school", "distance": 2e3,  }, # 10
-    { "filter": lambda x: x["age"].between(18, np.inf), "education_type": "university", "distance": 10e3 }, # 50
+    { "filter": lambda x: x["age"].between(7, 16), "education_type": "school", "distance": 2e3,  }, # 10
+    { "filter": lambda x: x["age"].between(17, np.inf), "education_type": "university", "distance": 10e3 }, # 50
 ]
 
 
 def execute(context):
     global ASSIGNMENT
     # Ignore population under age 20. Therefore no data for kindergarten and school population.
-    if context.config("ignore_age_19_and_below") == True:
-        ASSIGNMENT = ASSIGNMENT[2:]
+    if context.config("missing_trips_for_young_people") == True:
+        ASSIGNMENT = ASSIGNMENT[1:]
 
     # Initialize RNG
     random = np.random.RandomState(context.config("random_seed"))

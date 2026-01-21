@@ -3,7 +3,6 @@ import pandas as pd
 
 def configure(context):
     context.stage("data.hts.entd.filtered")
-    context.config("ignore_age_19_and_below")
 
 def execute(context):
     df_households, df_persons, df_trips = context.stage("data.hts.entd.filtered")
@@ -31,22 +30,9 @@ def execute(context):
     df_trips["routed_distance"] = df_trips["euclidean_distance"] * 1.3
 
 
-    ##################################################################
-    # TODO: TEMPORARY MEASURE
-    ##################################################################
-    # We have only this to align ages with census
-
-    if context.config("ignore_age_19_and_below") == True:
-
-        df_trips = df_trips[df_trips["person_id"].isin(df_persons[df_persons["age"]>=20]["person_id"])]
-
-        df_persons = df_persons[df_persons["age"] >= 20]
-        
 
     # Each trip has to belong to valid person
     invalid_trips = ~df_trips["person_id"].isin(df_persons["person_id"])
     assert invalid_trips.sum() == 0, invalid_trips.sum()
-
-    ##################################################################
 
     return df_households, df_persons, df_trips

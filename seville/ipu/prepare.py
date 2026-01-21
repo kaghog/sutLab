@@ -9,14 +9,13 @@ Aggregates census data to departement level:
 Handles mismatched population vs employment age bins by
 proportional disaggregation and structural zeros.
 """
-
+import pandas as pd
 
 def configure(context):
     context.stage("seville.data.census.population")
     context.stage("seville.data.census.households")
     context.stage("seville.data.census.employment")
     context.config("sampling_rate", 1.0)
-    context.config("ignore_age_19_and_below")
 
 
 def execute(context):
@@ -38,16 +37,6 @@ def execute(context):
     for df in [df_population, df_employment]:
         df.rename(MAP_COLUMNS, axis=1, inplace=True)
 
-    # ===================================================================================
-    # ===================================================================================
-    # THIS IS REMOVING YOUNG PEOPLE FROM CENSUS, JUST THAT IT MATCHES THE HTS SAMPLES
-    if context.config("ignore_age_19_and_below") == True:
-        for df in [df_population, df_employment]:
-            df = df[df["age_class"] >= 20]
-    # ===================================================================================
-    # ===================================================================================
-
-
 
     departements = sorted(df_population["departement_id"].unique())
 
@@ -57,9 +46,9 @@ def execute(context):
     # Population → employment age-bin mapping (lower bound representation)
     # ------------------------------------------------------------------
     AGE_BIN_MAPPING = {
-        0: None,
-        5: None,
-        10: None,
+        0: 0,
+        5: 0,
+        10: 0,
         15: 16,     # 15–19 → 16–19
         20: 20,
         25: 25,
@@ -79,6 +68,16 @@ def execute(context):
         95: 70,
         100: 70
     }
+    # add empty rows of employment for persons younger than 15
+    columns = ['commune_id', 'municipality_id', 'departement_id', 'sex']
+    df_employment_young = df_employment[columns].drop_duplicates(columns)
+    df_employment_young['weight'] = 0
+    df_employment_young['age_class'] = 0
+
+    print(df_employment_young)
+    df_employment = pd.concat([df_employment, df_employment_young])
+
+    # ------------------------------------------------------------------------
 
     targets_by_departement = {}
 
@@ -131,9 +130,6 @@ def execute(context):
         # Map population ages to employment bins
         df_pop_emp = df_pop.copy()
         df_pop_emp["emp_age_bin"] = df_pop_emp["age_class"].map(AGE_BIN_MAPPING)
-
-        # Keep only employable population (>=16)
-        df_pop_emp = df_pop_emp[df_pop_emp["emp_age_bin"].notnull()]
 
         # Population per coarse + fine bin
         pop_by_coarse_and_fine = (
