@@ -6,7 +6,7 @@ working_directory: cache
 
 # This section defines which parts of the pipeline should be run
 run:
-  - analysis.seville.ivt_style.analysis
+  - analysis.seville.ivt_style.compare_ipu
 
 # Here the configuraiton of the pipeline starts
 config:
@@ -47,7 +47,7 @@ config:
   osmosis_binary: osmosis/bin
 
   # Debug settings
-  missing_trips_for_young_people: False
+  missing_trips_for_young_people: True
 # Overrides for the seville pipeline compared to the Île-de-France pipeline
 
 aliases:

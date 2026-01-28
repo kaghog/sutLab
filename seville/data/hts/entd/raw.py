@@ -96,6 +96,17 @@ MAP_HOUSEHOLD_MEMBERS_COLUMNS = {
     'SIND_ERG_8': 'age8',
     'SIND_ERG_9': 'age9',
     'SIND_ERG_10': 'age10',
+    'SIND_SEXO_1': 'sex1',
+    'SIND_SEXO_2': 'sex2',
+    'SIND_SEXO_3': 'sex3',
+    'SIND_SEXO_4': 'sex4',
+    'SIND_SEXO_5': 'sex5',
+    'SIND_SEXO_6': 'sex6',
+    'SIND_SEXO_7': 'sex7',
+    'SIND_SEXO_8': 'sex8',
+    'SIND_SEXO_9': 'sex9',
+    'SIND_SEXO_10': 'sex10',
+
 }
 
 

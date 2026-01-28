@@ -100,7 +100,7 @@ def impute_education_locations_radius(context):
         print()
         print(f"[INFO] synthesis/population/location/primary/education.py: \n {((lower_bound, upper_bound), types, query_size)}")
         # TODO: TEMP FIX: ignore all education assignment for ages < 20
-        if context.config("missing_trips_for_young_people") == True and lower_bound < 15:
+        if context.config("missing_trips_for_young_people") == True and lower_bound < 6:
             continue
 
         f_persons = (df_education_persons["age"] >= lower_bound) & (df_education_persons["age"] <= upper_bound)        

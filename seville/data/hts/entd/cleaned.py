@@ -222,20 +222,27 @@ def execute(context):
     )
     
 
-    # Calculate consumption units    
-    df_household_members = df_household_members.melt(id_vars=["household_id"], value_vars=["age1", "age2", "age3", "age4", "age5", "age6", "age7", "age8", "age9", "age10"],
-                        value_name="age")
-    # Drop 'variable' column since it isn't needed
-    df_household_members = df_household_members.drop(columns=["variable"])
-
+    # Clean household members data   
+    df_household_members = pd.wide_to_long(
+        df_household_members,
+        stubnames=["age", "sex"],
+        i="household_id",
+        j="person",
+        sep="",
+        suffix="\d+"
+    ).reset_index()
     # Drop rows with NaN values (empty ages)
     df_household_members = df_household_members.dropna(subset=["age"])
     df_household_members = df_household_members[df_household_members['age']!='-']
-
-    # Reset index for a clean result
     df_household_members.reset_index(drop=True, inplace=True)
 
+    df_household_members["sex"] = df_household_members["sex"].astype("str")
+    df_household_members.loc[df_household_members["sex"] == "1", "sex"] = "male"
+    df_household_members.loc[df_household_members["sex"] == "2", "sex"] = "female"
+    df_household_members["sex"] = df_household_members["sex"].astype("category")
 
+
+    # Calculate consumption units    
     df_households = pd.merge(df_households, hts.calculate_consumption_units(df_household_members), on = "household_id")
 
     # Socioprofessional class

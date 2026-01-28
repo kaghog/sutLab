@@ -12,8 +12,10 @@ from pyproj import Transformer, Geod
 def configure(context):
     context.stage("data.hts.entd.cleaned")
     context.stage("seville.locations.education")
+    context.stage("seville.data.census.population")
+    context.config("random_seed")
 
-def add_young_persons(df_persons, df_trips, df_household_members):
+def add_young_persons(random, df_persons, df_trips, df_household_members):
     """since HTS does not contain any population under age of 15,
     this function aims to extrapolate population under age of 15
     based on the known HTS data
@@ -23,45 +25,53 @@ def add_young_persons(df_persons, df_trips, df_household_members):
     Return: return_description
     """
     # GENERATE PEOPLE
-    df_young_people = df_household_members[df_household_members['age']<15]
-    df_young_people = pd.merge(df_young_people, df_persons[['person_id', 'household_id', 'person_weight']], on='household_id')
-    
-    # add home location
-    # currently not used, might be in the future
-    df_homes = df_trips[df_trips["preceding_purpose"] == "home"].drop_duplicates("person_id")
-    df_young_people = pd.merge(df_young_people, df_homes[['person_id', 'origin_location']], on='person_id', how="left")
-    df_young_people['home_geometry'] = df_young_people['origin_location']
+    #df_young_people = df_household_members[df_household_members['age']<15].copy()
+    df_young_people = df_household_members.copy()
 
+    df_young_people = pd.merge(df_young_people, df_persons[['person_id', 'household_id', 'person_weight']], on='household_id')
+    df_young_people = (
+        df_young_people
+        .merge(
+            df_persons[['household_id', 'age', 'sex']],
+            on=['household_id', 'age', 'sex'],
+            how='left',
+            indicator=True
+        )
+        .query('_merge == "left_only"')
+        .drop(columns='_merge')
+    )
+    
     # generate new person_id and sex for young persons
     df_young_people = df_young_people.reset_index(drop=True) 
     df_young_people['person_id'] = df_young_people.index
-    df_young_people['sex'] = df_young_people['person_id'].apply(lambda x: 'male' if x%2 == 0 else 'female') 
     # person_id negative number to mark it as mock data, avoid duplicate zero
     df_young_people['person_id'] = -df_young_people['person_id'] - 1
         
-    df_young_people['age_class'] = pd.cut(
-        df_young_people['age'],
-        bins=[0, 5, 10, 15],
-        labels=[0, 5, 10],
-        right=False
-    ).astype(float)
-
-    weight_15_19 = df_persons.loc[df_persons['age']<20, 'person_weight'].sum()
-
-    df_young_people['person_weight'] = (
-        weight_15_19
-        / df_young_people.groupby('age_class')['age_class'].transform('size')
-    )
+    df_young_people['person_weight'] = 1
 
     print(df_young_people.head())
 
     # add other attributes
-    df_young_people['employed'] = False
-    df_young_people['studies'] = True
+    
+    df_young_people.loc[df_young_people['age'] <= 15, 'employed'] = False
+    filter = (df_young_people['age'] > 15) & (df_young_people['age'] <= 20)
+    df_young_people.loc[filter , 'employed'] = random.choice(
+        [True, False],
+        size=len(df_young_people[filter]),
+        p=[0.3, 0.7]
+    )
+    filter = df_young_people['age'] > 20
+    df_young_people.loc[filter, 'employed'] = random.choice(
+        [True, False],
+        size=len(df_young_people[filter]),
+        p=[0.5, 0.5]
+    )
+
+    df_young_people['studies'] = df_young_people['age'].apply(lambda x: False if x >= 20 else True)
     df_young_people['has_license'] = False
     df_young_people['has_pt_subscription'] = False
     #df_young_people['number_of_trips'] = df_young_people['age'].apply(lambda x: 2 if x >=3 else 0)
-    df_young_people['number_of_trips'] = 2
+    df_young_people['number_of_trips'] = 0
     df_young_people['departement_id'] = "41"
     df_young_people['trip_weight'] = df_young_people['person_weight']
     df_young_people['is_passenger'] = True
@@ -188,12 +198,67 @@ def impute_education_locations(df_young_persons, df_edu_location):
 def execute(context):
     df_households, df_persons, df_trips, df_household_members = context.stage("data.hts.entd.cleaned")
 
-    df_young_persons = add_young_persons(df_persons, df_trips, df_household_members)
-    df_persons = pd.concat([df_persons, df_young_persons[df_persons.columns]])
+    random = np.random.RandomState(context.config("random_seed"))
 
-    # add education trips your young persons
-    df_edu_locations = context.stage("seville.locations.education")
-    df_young_trips = impute_education_locations(df_young_persons, df_edu_locations)    
-    df_trips = pd.concat([df_trips, df_young_trips])
+
+    print(df_household_members.info())
+    print(df_household_members.head())
+
+
+    df_young_persons = add_young_persons(random, df_persons, df_trips, df_household_members)
+    
+    df_persons = pd.concat([df_persons, df_young_persons[df_persons.columns]])
+    
+    df_persons["person_weight"] = 1
+    # df_households['household_weight'] = 1
+    
+    age_min = 0
+    age_max = 4
+    factor = 4
+    filter = (df_persons['age'] <= age_max) & (df_persons['age'] >= age_min)
+    young_households_ids = df_persons.loc[filter, 'household_id']
+    filter = df_households['household_id'].isin(young_households_ids)
+    df_households.loc[filter, "household_weight"] *= factor
+
+    age_min = 5
+    age_max = 9
+    factor = 2
+    filter = (df_persons['age'] <= age_max) & (df_persons['age'] >= age_min)
+    young_households_ids = df_persons.loc[filter, 'household_id']
+    filter = df_households['household_id'].isin(young_households_ids)
+    df_households.loc[filter, "household_weight"] *= factor
+
+    age_min = 10
+    age_max = 14
+    factor = 1.5
+    filter = (df_persons['age'] <= age_max) & (df_persons['age'] >= age_min)
+    young_households_ids = df_persons.loc[filter, 'household_id']
+    filter = df_households['household_id'].isin(young_households_ids)
+    df_households.loc[filter, "household_weight"] *= factor
+
+    age_min = 45
+    age_max = 49
+    factor = 0.65
+    filter = (df_persons['age'] <= age_max) & (df_persons['age'] >= age_min)
+    young_households_ids = df_persons.loc[filter, 'household_id']
+    filter = df_households['household_id'].isin(young_households_ids)
+    df_households.loc[filter, "household_weight"] *= factor
+
+    age_min = 50
+    age_max = 55
+    factor = 0.85
+    filter = (df_persons['age'] <= age_max) & (df_persons['age'] >= age_min)
+    young_households_ids = df_persons.loc[filter, 'household_id']
+    filter = df_households['household_id'].isin(young_households_ids)
+    df_households.loc[filter, "household_weight"] *= factor
+
+    age_min = 60
+    age_max = 65
+    factor = 0.85
+    filter = (df_persons['age'] <= age_max) & (df_persons['age'] >= age_min)
+    young_households_ids = df_persons.loc[filter, 'household_id']
+    filter = df_households['household_id'].isin(young_households_ids)
+    df_households.loc[filter, "household_weight"] *= factor
+
 
     return df_households, df_persons, df_trips
