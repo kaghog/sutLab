@@ -7,6 +7,8 @@ working_directory: cache
 # This section defines which parts of the pipeline should be run
 run:
   - analysis.seville.ivt_style.compare_ipu
+  - analysis.seville.ivt_style.analysis
+
 
 # Here the configuraiton of the pipeline starts
 config:
@@ -45,6 +47,9 @@ config:
   gtfs_path: gtfs
   osm_path: osm
   osmosis_binary: osmosis/bin
+
+  # Include Seville City data only
+  seville_city_data_only: True
 
   # Debug settings
   missing_trips_for_young_people: False

@@ -11,6 +11,8 @@ def configure(context):
     context.config("data_path")
     context.config("seville.household_data", "households.xlsx")
 
+    context.config("seville_city_data_only")
+
 
 def execute(context):
 
@@ -29,8 +31,9 @@ def execute(context):
         "households_5plus_persons",
     ]
     df_households.columns = household_cols
-
+    
     # Clean
+    df_households["municipality_id"] = df_households["municipality_id"].astype(str)
     df_households["municipality_id"] = df_households["municipality_id"].str[:5]
     df_households["departement_id"] = df_households["municipality_id"].str[:2]
 
@@ -40,5 +43,9 @@ def execute(context):
     assert len(df_households) != 0
 
     print(df_households.head())
+
+    if context.config("seville_city_data_only") == True:
+        df_households = df_households[df_households["municipality_id"] == "41091"]
+    
     return df_households
 

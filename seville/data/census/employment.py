@@ -20,6 +20,8 @@ def configure(context):
 
     context.config("seville.emplo_province", "employment/emplo_province.csv")
 
+    context.config("seville_city_data_only")
+
 
 def extrapolate_age_group(context, path1, path2, path3):
     """
@@ -198,5 +200,8 @@ def execute(context):
     assert not result_df.isna().any().any(), "There are NaN values in the Employment DataFrame"
 
     result_df['province_id'] = "41"
+
+    if context.config("seville_city_data_only") == True:
+        result_df = result_df[result_df["municipality_id"] == "41091"]
 
     return result_df[["province_id", "municipality_id", "census_section_id", 'sex', "age_class", 'weight']]

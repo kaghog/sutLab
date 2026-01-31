@@ -14,6 +14,8 @@ def configure(context):
 
     context.stage("seville.data.census.population")
 
+    context.config("seville_city_data_only")
+
 
 def execute(context):
 
@@ -41,6 +43,7 @@ def execute(context):
         "drivers_total"
     ]
     df_municipality.columns = colnames
+    df_municipality["municipality_id"] = df_municipality["municipality_id"].astype(str)
 
     # Remove "municipio sin especificar" ("unspecified municipality") row, that is not significance and is present for each province    
     df_municipality = df_municipality[~df_municipality["municipality_id"].str.endswith("000")]
@@ -104,5 +107,9 @@ def execute(context):
     df_municipality_expanded = pd.merge(df_municipality, df_province[group_cols + ["age_class" , 'proportion']], on=group_cols, how='left')
     df_municipality_expanded['weight'] = df_municipality_expanded['weight'] * df_municipality_expanded['proportion']
 
+    result_df = df_municipality_expanded
+    
+    if context.config("seville_city_data_only") == True:
+        result_df = result_df[result_df["municipality_id"] == "41091"]
 
-    return df_municipality_expanded
+    return result_df

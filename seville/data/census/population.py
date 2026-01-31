@@ -8,6 +8,8 @@ def configure(context):
     context.config("data_path")
     context.config("seville.population", "population.csv")
 
+    context.config("seville_city_data_only")
+
 def execute(context):
 
 
@@ -45,5 +47,8 @@ def execute(context):
     condition = population_df["age_class"].str.startswith("100") 
     population_df.loc[condition, "age_class"] = 100 # sets category 100 and more years
     population_df["age_class"] = population_df["age_class"].astype("int64")
+
+    if context.config("seville_city_data_only") == True:
+        population_df = population_df[population_df["municipality_id"] == "41091"]
 
     return population_df

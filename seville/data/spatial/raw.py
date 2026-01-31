@@ -11,26 +11,38 @@ This serves as alternative to missleadingly named population.raw
 def configure(context):
     context.config("data_path")
     context.config("seville.population_shp", "shapefiles/census_district_shapefiles/SECC_CE_20220101.shp")
+    context.config("seville_city_data_only")
 
 def execute(context):
     # Load shapes
     CSV_FILE = f"{context.config('data_path')}/{context.config('seville.population_shp')}"
     gdf_census_sections = gpd.read_file(CSV_FILE)[
-            ["CUSEC", "CMUN", "CPRO", "geometry"]
+            ["CUSEC", "CUMUN", "CPRO", "geometry"]
         ]
 
     # Rename
     gdf_census_sections = gdf_census_sections.rename(columns = {
         "CUSEC": "census_section_id",
-        "CMUN": "municipality_id",
+        "CUMUN": "municipality_id",
         "CPRO": "province_id",
     })
     
+
+
     # Clean
-    gdf_census_sections = gdf_census_sections[gdf_census_sections["census_section_id"].astype(str).str.isdigit()].copy()
+    gdf_census_sections["province_id"] = gdf_census_sections["province_id"].astype(str)
+    gdf_census_sections["municipality_id"] = gdf_census_sections["municipality_id"].astype(str)
+    gdf_census_sections["census_section_id"] = gdf_census_sections["census_section_id"].astype(str)
+
     
-    # Filter only Seville
+    # Filter
+    gdf_census_sections = gdf_census_sections[gdf_census_sections["census_section_id"].str.isdigit()].copy()
     gdf_census_sections =  gdf_census_sections[gdf_census_sections["province_id"] == "41"]
+
+    if context.config("seville_city_data_only") == True:
+        gdf_census_sections = gdf_census_sections[gdf_census_sections["municipality_id"] == "41091"]
+
+
 
     return gdf_census_sections[["census_section_id", "geometry"]]
 
