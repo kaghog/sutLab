@@ -9,10 +9,10 @@ This stage cleans the national HTS.
 
 
 def configure(context):
-    context.stage("seville.data.hts.entd.add_young")
+    context.stage("seville.data.hts.entd.add_trips")
 
 def execute(context):
-    df_households, df_persons, df_trips = context.stage("seville.data.hts.entd.add_young")
+    df_households, df_persons, df_trips = context.stage("seville.data.hts.entd.add_trips")
     
     # Finish up
     df_households = df_households[hts.HOUSEHOLD_COLUMNS + ["urban_type", "income_class"]]

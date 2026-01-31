@@ -47,7 +47,8 @@ config:
   osmosis_binary: osmosis/bin
 
   # Debug settings
-  missing_trips_for_young_people: True
+  missing_trips_for_young_people: False
+  
 # Overrides for the seville pipeline compared to the Île-de-France pipeline
 
 aliases:

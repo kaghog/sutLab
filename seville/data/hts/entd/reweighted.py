@@ -2,10 +2,10 @@ import numpy as np
 import pandas as pd
 
 def configure(context):
-    context.stage("data.hts.entd.filtered")
+    context.stage("seville.data.hts.entd.filtered")
 
 def execute(context):
-    df_households, df_persons, df_trips = context.stage("data.hts.entd.filtered")
+    df_households, df_persons, df_trips = context.stage("seville.data.hts.entd.filtered")
 
     # ENTD defines multiple weights. For comparison with EGT we keep them in the
     # data set for the previous stages. In this one we override the weight,

@@ -6,7 +6,8 @@ import geopandas as gpd
 import geopy
 
 """
-This stage loads the raw data of the MiD german ENTD (Mobilität in Deutschland) 2017 survey and converts it to the format used by the HTS.
+This stage loads the raw data of the Household Travel Survey 2017 from Seville municipality 
+and converts it to the format used by the HTS.
 """
 
 
