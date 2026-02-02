@@ -12,7 +12,7 @@ def configure(context):
     context.stage("data.hts.entd.cleaned")
 
 def execute(context):
-    df_households, df_persons, df_trips = context.stage("data.hts.entd.cleaned")
+    df_households, df_persons, df_trips, _ = context.stage("data.hts.entd.cleaned")
 
     values = set(df_persons["departement_id"])
     values |= set(df_trips["origin_departement_id"])

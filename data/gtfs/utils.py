@@ -49,6 +49,8 @@ def read_feed(path):
 
                 with zip.open("%s%s.txt" % (prefix, slot)) as f:
                     feed[slot] = pd.read_csv(f, skipinitialspace = True)
+                    feed[slot].columns = feed[slot].columns.str.strip()
+                    feed[slot] = feed[slot].apply(lambda col: col.str.strip() if col.dtype == "object" else col)
             else:
                 print("  Not loading %s.txt" % slot)
 
@@ -141,6 +143,9 @@ def cut_feed(feed, df_area, crs = None):
 
     df_stops = feed["stops"]
 
+    if "location_type" not in df_stops.columns:
+        df_stops["location_type"] = np.nan
+
     if np.count_nonzero(df_stops["location_type"] == 1) == 0:
         print("Warning! Location types seem to be malformatted. Keeping all stops.")
         df_stations = df_stops.copy()
@@ -187,6 +192,7 @@ def cut_feed(feed, df_area, crs = None):
     # 2) Remove stop times
     df_times = feed["stop_times"]
     df_times = df_times[df_times["stop_id"].astype(str).isin(remaining_stops.astype(str))]
+    df_times = interpolate_stop_times(df_times)
     feed["stop_times"] = df_times.copy()
 
     # 3) Remove transfers
@@ -344,3 +350,36 @@ def despace_stop_ids(feed, replacement = ":::"):
     print("De-spaced %d/%d stops" % (len(search_ids), len(df_stops)))
 
     return feed
+
+
+def interpolate_stop_times(df_times):
+    def time_to_seconds(t):
+        if pd.isna(t) or t.strip() == "":
+            return np.nan
+        h, m, s = map(int, t.split(":"))
+        return h*3600 + m*60 + s
+
+    df_times["arrival_sec"] = df_times["arrival_time"].apply(time_to_seconds)
+    df_times["departure_sec"] = df_times["departure_time"].apply(time_to_seconds)
+
+    # Interpolate missing arrival times per trip
+    df_times["arrival_sec"] = df_times.groupby("trip_id")["arrival_sec"].transform(
+        lambda x: x.interpolate(method='linear', limit_direction='both')
+    )
+
+    # Fill departure times with arrival if missing
+    df_times["departure_sec"] = df_times["departure_sec"].fillna(df_times["arrival_sec"])
+
+    def seconds_to_time(sec):
+        sec = int(sec)
+        h = sec // 3600
+        m = (sec % 3600) // 60
+        s = sec % 60
+        return f"{h:02d}:{m:02d}:{s:02d}"
+
+    df_times["arrival_time"] = df_times["arrival_sec"].apply(seconds_to_time)
+    df_times["departure_time"] = df_times["departure_sec"].apply(seconds_to_time)
+    df_times.drop(columns=["arrival_sec","departure_sec"], inplace=True)
+
+    return df_times
+
