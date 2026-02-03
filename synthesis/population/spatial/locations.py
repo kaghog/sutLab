@@ -20,7 +20,7 @@ def patch_missing_primary_locations(
     mock_location_id
 ):
     """
-    Patch missing primary locations (work / education) by falling back to home geometry.
+    Patch missing primary locations (work / education) by falling back to first non-missing location.
     """
 
     df_result = df_locations[df_locations["purpose"] == purpose].copy()
@@ -39,17 +39,12 @@ def patch_missing_primary_locations(
     if n_missing > 0:
         print(f"INFO: Mocking {n_missing} missing {purpose} locations")
 
-        df_home = context.stage("synthesis.population.spatial.home.locations")
-        df_persons = context.stage("synthesis.population.sampled")[["person_id", "household_id"]]
 
-        fallback = (
-            df_result.loc[missing, ["person_id"]]
-            .merge(df_persons, on="person_id")
-            .merge(df_home[["household_id", "geometry"]], on="household_id")
-        )
+        fallback_geometry = df_result[~missing]['geometry'][0]
+        fallback_location_id = df_result[~missing]['location_id'][0]
 
-        df_result.loc[missing, "geometry"] = fallback["geometry"].values
-        df_result.loc[missing, "location_id"] = mock_location_id
+        df_result.loc[missing, "geometry"] = fallback_geometry
+        df_result.loc[missing, "location_id"] = fallback_location_id
 
     return df_result[["person_id", "activity_index", "location_id", "geometry"]]
 
