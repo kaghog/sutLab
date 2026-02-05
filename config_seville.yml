@@ -6,8 +6,7 @@ working_directory: cache
 
 # This section defines which parts of the pipeline should be run
 run:
-  - analysis.seville.ivt_style.compare_ipu
-  - analysis.seville.ivt_style.analysis
+  - matsim.output 
 
 
 # Here the configuraiton of the pipeline starts
@@ -75,10 +74,10 @@ aliases:
   data.hts.entd.filtered: seville.data.hts.entd.filtered
   data.hts.entd.cleaned: seville.data.hts.entd.cleaned
 
-  matsim.simulation.prepare: seville.matsim.simulation.prepare
-  matsim.simulation.run: seville.matsim.simulation.run
+  #matsim.simulation.prepare: seville.matsim.simulation.prepare
+  #matsim.simulation.run: seville.matsim.simulation.run
 
   data.hts.entd.reweighted: seville.data.hts.entd.reweighted
 
-  synthesis.population.matched: seville.matched
+  #synthesis.population.matched: seville.matched
   
