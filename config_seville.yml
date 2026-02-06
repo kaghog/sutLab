@@ -79,5 +79,12 @@ aliases:
 
   data.hts.entd.reweighted: seville.data.hts.entd.reweighted
 
+
+  matsim.scenario.population: seville.matsim.scenario.population #
+  synthesis.population.spatial.locations: seville.synthesis.population.spatial.locations #
+  data.gtfs.cleaned: seville.data.gtfs.cleaned #
+  synthesis.population.spatial.primary.education: seville.synthesis.population.spatial.primary.education
+  synthesis.output: seville.output
+  synthesis.population.trips: seville.synthesis.population.trips
   #synthesis.population.matched: seville.matched
   
