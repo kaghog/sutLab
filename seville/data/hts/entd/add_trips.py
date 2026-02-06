@@ -41,7 +41,7 @@ def get_home_locations(df_persons, df_trips):
 
 
 
-def impute_education_trips(df_young_persons, df_home_locations ,df_edu_locations):
+def impute_education_trips(df_young_persons, df_home_locations ,df_edu_locations, random):
 
 
     df = df_young_persons.copy()
@@ -66,7 +66,7 @@ def impute_education_trips(df_young_persons, df_home_locations ,df_edu_locations
     df["edu_geometry"] = None
     df["euclidean_distance"] = np.nan
 
-    age_bounds = [(-np.inf, 6), (7, 16),]
+    age_bounds = [(-np.inf, 5), (6, 16),]
     education_types = [["kindergarten"], ["school"],]
 
     geod = Geod(ellps="WGS84")
@@ -121,22 +121,27 @@ def impute_education_trips(df_young_persons, df_home_locations ,df_edu_locations
     # 1.3 is routed distance detour factor
     # we assume speed of 15 kms^-1
     # trip duration is in seconds
-    df_young_trips['trip_duration'] = df_young_trips['euclidean_distance'] * 1.3 / 15 * 3.6
+    speed_ms = 15 * 3.6
+    df_young_trips['trip_duration'] = df_young_trips['euclidean_distance'] * 1.3 / speed_ms  # in seconds
+    
+    df_young_trips['education_start'] = 8*3600 + random.randint(0, 3600, size=len(df_young_trips))
+    df_young_trips['education_end'] = 14*3600 + random.randint(0, 3600, size=len(df_young_trips))
+    df_young_trips['education_duration'] = df_young_trips['education_end'] - df_young_trips['education_start']
 
     df_to_school_trips = df_young_trips.copy()
     df_to_school_trips["trip_id"] = df_to_school_trips['person_id'].astype(str) + '_1'
-    df_to_school_trips['departure_time'] = 9*3600 - df_to_school_trips['trip_duration']
-    df_to_school_trips['arrival_time'] = 9*3600
-    df_to_school_trips['activity_duration'] = 15*3600 - 9*3600
+    df_to_school_trips['arrival_time'] = df_to_school_trips['education_start']
+    df_to_school_trips['activity_duration'] = df_to_school_trips['education_duration']
+    df_to_school_trips['departure_time'] = df_to_school_trips['arrival_time'] - df_to_school_trips['trip_duration']
     df_to_school_trips['following_purpose'] = "education"
     df_to_school_trips['preceding_purpose'] = "home"
     df_to_school_trips['is_first_trip'] = True
     df_to_school_trips['is_last_trip'] = False
 
     df_from_school_trips = df_young_trips.copy()
-    df_from_school_trips["trip_id"] = df_to_school_trips['person_id'].astype(str) + '_2'
-    df_from_school_trips['departure_time'] = 15*3600
-    df_from_school_trips['arrival_time'] = 15*3600 + df_to_school_trips['trip_duration']
+    df_from_school_trips["trip_id"] = df_from_school_trips['person_id'].astype(str) + '_2'
+    df_from_school_trips['departure_time'] = df_from_school_trips['education_end']
+    df_from_school_trips['arrival_time'] = df_from_school_trips['departure_time'] + df_from_school_trips['trip_duration']
     df_from_school_trips['activity_duration'] = np.nan
     df_from_school_trips['following_purpose'] = "home"
     df_from_school_trips['preceding_purpose'] = "education"
@@ -150,6 +155,8 @@ def impute_education_trips(df_young_persons, df_home_locations ,df_edu_locations
     df_young_trips = pd.concat([df_to_school_trips, df_from_school_trips])
     df_young_trips = df_young_trips.sort_values(by = ["person_id", "trip_id"])
     
+    df_young_trips.drop(columns=['education_start', 'education_end', 'education_duration'])
+
     return df_young_trips
 
 
@@ -164,7 +171,7 @@ def execute(context):
 
     
     filter_age_5_15 = (df_persons['age'] >= 5) & (df_persons['age'] <= 15)
-    df_young_trips = impute_education_trips(df_persons[filter_age_5_15], df_homes, df_edu_locations)
+    df_young_trips = impute_education_trips(df_persons[filter_age_5_15], df_homes, df_edu_locations, random)
     df_trips = pd.concat([df_trips, df_young_trips])    
     
     df_persons.loc[df_persons['age'] < 5, 'number_of_trips'] = 0    

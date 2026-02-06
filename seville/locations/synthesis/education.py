@@ -20,8 +20,8 @@ def configure(context):
     context.config("missing_trips_for_young_people")
         
 ASSIGNMENT = [
-    { "filter": lambda x: x["age"].between(0, 6), "education_type": "kindergarten", "distance": 2e3 }, # 5
-    { "filter": lambda x: x["age"].between(7, 16), "education_type": "school", "distance": 2e3,  }, # 10
+    { "filter": lambda x: x["age"].between(0, 5), "education_type": "kindergarten", "distance": 2e3 }, # 5
+    { "filter": lambda x: x["age"].between(6, 16), "education_type": "school", "distance": 2e3,  }, # 10
     { "filter": lambda x: x["age"].between(17, np.inf), "education_type": "university", "distance": 10e3 }, # 50
 ]
 

@@ -81,7 +81,7 @@ def impute_education_locations_radius(context):
 
     
     # Group destinations into age categories
-    age_bounds = [(-np.inf, 6), (7, 16), (17, np.inf)]
+    age_bounds = [(-np.inf, 5), (6, 16), (17, np.inf)]
 
     education_types = [["kindergarten"], ["school"], ["university"]]
     query_sizes = [5, 5, 5]
