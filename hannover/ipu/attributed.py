@@ -8,11 +8,13 @@ This stage adds additional attributes to the generated synthetic population from
 def configure(context):
     context.stage("hannover.ipu.population")
     context.stage("hannover.data.spatial.iris")
+    context.stage("hannover.data.census.population")
     context.config("random_seed")
 
 
 def execute(context):
     df = context.stage("hannover.ipu.population").copy()
+    random = np.random.RandomState(context.config("random_seed"))
 
     df_iris = context.stage("hannover.data.spatial.iris")[
         ["departement_id", "commune_id", "iris_id"]
@@ -21,12 +23,41 @@ def execute(context):
     print(f"Adding attributes to {len(df):,} persons from IPU...")
 
     # Spatial identifiers: departement -> commune -> iris
-    dept_to_commune = df_iris.groupby("departement_id")["commune_id"].first().to_dict()
-    commune_to_iris = dict(zip(df_iris["commune_id"], df_iris["iris_id"]))
-
+    # Distribute households across communes within each departement based on population
     if "commune_id" not in df.columns:
-        df["commune_id"] = df["departement_id"].map(dept_to_commune)
+        # Get population per commune for weighting
+        df_pop = context.stage("hannover.data.census.population")
+        commune_pop = df_pop.groupby("commune_id")["weight"].sum().to_dict()
 
+        # Assign commune_id to each household based on departement
+        household_communes = {}
+        for dept_id in df["departement_id"].unique():
+            # Get all communes in this departement
+            communes_in_dept = df_iris[df_iris["departement_id"] == dept_id][
+                "commune_id"
+            ].unique()
+
+            # Get populations for weighting
+            weights = np.array([commune_pop.get(c, 1.0) for c in communes_in_dept])
+            weights = weights / weights.sum()
+
+            # Get households in this departement
+            dept_households = df[df["departement_id"] == dept_id][
+                "household_id"
+            ].unique()
+
+            # Randomly assign communes based on population weights
+            assigned_communes = random.choice(
+                communes_in_dept, size=len(dept_households), p=weights
+            )
+
+            for hh_id, commune_id in zip(dept_households, assigned_communes):
+                household_communes[hh_id] = commune_id
+
+        df["commune_id"] = df["household_id"].map(household_communes)
+
+    # Map commune to iris
+    commune_to_iris = dict(zip(df_iris["commune_id"], df_iris["iris_id"]))
     if "iris_id" not in df.columns or df["iris_id"].isna().any():
         df["iris_id"] = df["commune_id"].map(commune_to_iris)
 
