@@ -21,8 +21,7 @@ def execute(context):
 
     df_population = context.stage("seville.data.census.population").copy()
 
-    # ---------------------------------------------------------------------------------
-    # Importing license data per municipality by sex
+    # ========== Load municipality-level data (by sex) ==========
 
     EXCEL_PATH = "{}/{}".format(context.config("data_path"),context.config("seville.licenses_path1"))
     print(f"Loading licenses data from {EXCEL_PATH}")
@@ -69,8 +68,9 @@ def execute(context):
     df_municipality['sex'] = df_municipality['sex'].map(
         {'drivers_male': 'male', 'drivers_female': 'female'}
         ).astype('str')
-    # ---------------------------------------------------------------------------------
-    # Importing license data per province by age and sex
+
+    # ========== Load province-level data (by age and sex) ==========
+
     FILE_PATH = "{}/{}".format(context.config("data_path"),context.config("seville.licenses_path2"))
     print(f"Loading licenses data from {FILE_PATH}")
 
@@ -98,7 +98,7 @@ def execute(context):
     df_province.loc[~condition, "age_class"] = df_province.loc[~condition, "age_class"].str[0:2] 
     df_province["age_class"] = df_province["age_class"].astype("int64")
 
-    # Merge
+    # ========== Merge both datasets ==========
     group_cols = ['sex']
     df_province['total'] = df_province.groupby(group_cols)['weight'].transform('sum')
     df_province['proportion'] = df_province['weight'] / df_province['total']

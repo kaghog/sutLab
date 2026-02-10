@@ -61,7 +61,7 @@ MAP_TRIPS_COLUMNS = {
     # '': 'destination_departement_id', # Seville - 41
 
     # we could probably calculate this by using average speed of the type of transport or something
-    # '': 'routed_distance' # TODO: NOT FOUND
+    # '': 'routed_distance' # calculated from euclidean distance
     '#Den_CALLESEV_ORI': 'source_address',
     '#Den_CALLESEVDES': 'destination_address',
 

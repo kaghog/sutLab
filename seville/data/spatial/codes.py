@@ -1,26 +1,22 @@
 """
-The codes (Amtlichen Regionalschlüssel - ARS)
-are hierarchichally structred as follows:
+The codes are hierarchichally structred as follows:
 
-- 2 digits: Bundesland (or city state)
-- 1 digit: Regierungsbezirk / Bezirk
-- 2 digits: Landkreis or Kreisfreie Stadt (city without "Landkreis / Kreis")
-- 4 digits: Gemeindeverband (municipality associations)
-- 3 digits: Gemeinde (municipality)
+- 2 digits: Province (departement)
+- 3 digits: Municipality (municipality)
+- 5 digits: Census section (commune)
 
 The correspondance to the code initially developed for France is as follows:
 
-- Bundesland -> région
-- Regierungsbezirk -> no correspondance
-- Landkreis -> département
-- Gemeindeverband -> no correspondance (theoretically communauté de communes)
-- Gemeinde -> commune 
+- '' -> région (is not used, empty string value)
+- province -> département
+- municipality -> (municipality)
+- census section -> commune 
 - The French statistical unit (IRIS) does not exist
 
-In Hannover, the official AGS (ARS) starts with: 03241
-03: Bundesland = Niedersachsen (Lower Saxony)
-2: Regierungsbezirk = Hannover
-41: Kreisfreie Stadt = Region Hannover
+In Seville, the official code starts with: 41
+41: Province = Sevilla (Seville)
+
+41091: Seville City code
 """
 
 def configure(context):

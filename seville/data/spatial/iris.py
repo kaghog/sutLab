@@ -1,6 +1,6 @@
 """
 Generates the IRIS zoning system that is not used in Spain. Instead, we create one
-fake IRIS for each municipality in Spain. See the `codes` stage for more information.
+fake IRIS for each census section in Spain. See the `codes` stage for more information.
 """
 
 def configure(context):

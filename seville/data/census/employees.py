@@ -3,7 +3,7 @@ import os
 import numpy as np
 
 """
-This stage output the number of employed people in each Mikrobezirk (commune_id) in seville.
+This stage output the number of employed people in each census section (commune) in Seville.
 """
 
 def configure(context):

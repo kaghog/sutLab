@@ -1,7 +1,7 @@
 import pandas as pd
 
 """
-This stage extracts household-level census data for seville from raw census.
+This stage extracts household-level census data for Seville.
 Provides household size distribution at census section (commune) level for IPU constraints.
 """
 

@@ -1,7 +1,7 @@
 import numpy as np
 
 """
-This stage adds additional attributes to the generated synthetic population from IPU.
+This stage exports synthetic population from IPU.
 """
 
 

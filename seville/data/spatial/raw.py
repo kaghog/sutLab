@@ -5,7 +5,9 @@ import numpy as np
 
 """
 This stages loads a file containing census section codes and census section shapefiles.
-This serves as alternative to missleadingly named population.raw
+
+NOTE: This is stage is alternatively called "population.raw" in other pipelines (e.g., Hannover). 
+For Seville, the stage is renamed to better reflect its nature since it is no longer related to population data.
 """
 
 def configure(context):

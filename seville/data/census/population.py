@@ -40,7 +40,7 @@ def execute(context):
     population_df['weight'] = pd.to_numeric(population_df['weight'], errors='coerce')
 
 
-    # age-group column cleanup
+    # Normalize age groups
     population_df = population_df[~(population_df["age_class"].str.startswith("16"))] # remove "16 and more years" age range
     condition = population_df["age_class"].str.startswith("From")
     population_df.loc[condition, "age_class"] = population_df.loc[condition, "age_class"].str[5:7] # extracts lower bound from "From 16 to 19 years" like string
