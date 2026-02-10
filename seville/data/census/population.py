@@ -1,4 +1,5 @@
 import pandas as pd
+import os
 
 """
 Load population data
@@ -52,3 +53,10 @@ def execute(context):
         population_df = population_df[population_df["municipality_id"] == "41091"]
 
     return population_df
+
+def validate(context):
+    CSV_FILE = f"{context.config('data_path')}/{context.config('seville.population')}"
+    if not os.path.exists(CSV_FILE):
+        raise RuntimeError(f"Census population data is not available at location {CSV_FILE}")
+
+    return os.path.getsize(CSV_FILE)

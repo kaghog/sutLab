@@ -2,6 +2,7 @@ import pandas as pd
 import numpy as np
 import geopandas as gpd
 from shapely.geometry import Point
+import os
 from unidecode import unidecode
 
 
@@ -470,3 +471,21 @@ def execute(context):
 
     return df_streets[['municipality', 'zone', 'street', 'geometry', 'location']]
 
+def validate(context):
+    filenames = [
+        "seville.province_shapefile",
+        "seville.borroughs_shp",
+        "seville.streets_shp",
+        "seville.street_data",
+        "seville.street_name_mapping",
+    ]
+
+    FILE_LIST = [f"{context.config('data_path')}/{context.config(filename)}" for filename in filenames]
+
+    for FILE in FILE_LIST:
+        if not os.path.exists(FILE):
+            raise RuntimeError(f"HTS trip validation data is not available at location {FILE}")
+
+    size_list = [os.path.getsize(FILE) for FILE in FILE_LIST]
+
+    return size_list

@@ -1,6 +1,7 @@
 
 import pandas as pd
 import numpy as np
+import os
 
 """
 This stage loads the driving license data for Seville provided at municipality level.
@@ -113,3 +114,16 @@ def execute(context):
         result_df = result_df[result_df["municipality_id"] == "41091"]
 
     return result_df
+
+def validate(context):
+
+    CSV_FILE1 = f"{context.config('data_path')}/{context.config('licenses_2024.xlsx')}"
+    if not os.path.exists(CSV_FILE1):
+        raise RuntimeError(f"Driving license data is not available at location {CSV_FILE1}")
+
+    CSV_FILE2 = f"{context.config('data_path')}/{context.config('censo_conductores202510.txt')}"
+    if not os.path.exists(CSV_FILE2):
+        raise RuntimeError(f"Driving license data is not available at location {CSV_FILE2}")
+
+
+    return os.path.getsize(CSV_FILE1), os.path.getsize(CSV_FILE2)

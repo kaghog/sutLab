@@ -5,6 +5,8 @@ import data.hts.hts as hts
 from geopy.distance import geodesic
 import geopy
 import time
+import os
+
 
 # IMPORTANT! WHEN DEBUGGING LIMIT REQUEST RATE and size of input dataframe
 
@@ -165,3 +167,19 @@ def execute(context):
     df_streets.to_csv(TARGET_PATH, sep='\t', index=False)
 
     return df_streets
+
+def validate(context):
+    filenames = [
+        "seville.street_data_2",
+        "seville.street_data_3",
+    ]
+
+    FILE_LIST = [f"{context.config('data_path')}/{context.config(filename)}" for filename in filenames]
+
+    for FILE in FILE_LIST:
+        if not os.path.exists(FILE):
+            raise RuntimeError(f"HTS trip validation data is not available at location {FILE}")
+
+    size_list = [os.path.getsize(FILE) for FILE in FILE_LIST]
+
+    return size_list

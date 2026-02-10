@@ -1,5 +1,6 @@
 import pandas as pd
 import numpy as np
+import os
 
 """
 This stage loads raw census employment data for Seville.
@@ -215,3 +216,25 @@ def execute(context):
         result_df = result_df[result_df["municipality_id"] == "41091"]
 
     return result_df[["province_id", "municipality_id", "census_section_id", 'sex', "age_class", 'weight']]
+
+
+def validate(context):
+    filenames = [
+        "seville.emplo_census_branch",
+        "seville.emplo_census_occupation",
+        "seville.emplo_census_situation",
+        "seville.emplo_mun_branch",
+        "seville.emplo_mun_occupation",
+        "seville.emplo_mun_situation",
+        "seville.emplo_province",
+    ]
+
+    FILE_LIST = [f"{context.config('data_path')}/{context.config(filename)}" for filename in filenames]
+
+    for FILE in FILE_LIST:
+        if not os.path.exists(FILE):
+            raise RuntimeError(f"Census household data is not available at location {FILE}")
+
+    size_list = [os.path.getsize(FILE) for FILE in FILE_LIST]
+
+    return size_list

@@ -1,4 +1,5 @@
 import pandas as pd
+import os
 
 """
 This stage extracts household-level census data for Seville.
@@ -49,3 +50,9 @@ def execute(context):
     
     return df_households
 
+def validate(context):
+    FILE = f"{context.config('data_path')}/{context.config('seville.household_data')}"
+    if not os.path.exists(FILE):
+        raise RuntimeError(f"Census household data is not available at location {FILE}")
+
+    return os.path.getsize(FILE)
