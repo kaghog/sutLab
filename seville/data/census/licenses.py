@@ -105,7 +105,7 @@ def execute(context):
     df_province['proportion'] = df_province['weight'] / df_province['total']
     df_province['proportion'] = df_province['proportion'].replace(np.nan, 0)
 
-    df_municipality_expanded = pd.merge(df_municipality, df_province[group_cols + ["age_class" , 'proportion']], on=group_cols, how='left')
+    df_municipality_expanded = pd.merge(df_municipality, df_province[group_cols + ["age_class" , 'proportion', 'province_id']], on=group_cols, how='left')
     df_municipality_expanded['weight'] = df_municipality_expanded['weight'] * df_municipality_expanded['proportion']
 
     result_df = df_municipality_expanded
@@ -117,11 +117,11 @@ def execute(context):
 
 def validate(context):
 
-    CSV_FILE1 = f"{context.config('data_path')}/{context.config('licenses_2024.xlsx')}"
+    CSV_FILE1 = f"{context.config('data_path')}/{context.config('seville.licenses_path1')}"
     if not os.path.exists(CSV_FILE1):
         raise RuntimeError(f"Driving license data is not available at location {CSV_FILE1}")
 
-    CSV_FILE2 = f"{context.config('data_path')}/{context.config('censo_conductores202510.txt')}"
+    CSV_FILE2 = f"{context.config('data_path')}/{context.config('seville.licenses_path2')}"
     if not os.path.exists(CSV_FILE2):
         raise RuntimeError(f"Driving license data is not available at location {CSV_FILE2}")
 
