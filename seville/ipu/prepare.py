@@ -69,8 +69,7 @@ def execute(context):
         100: 70
     }
     # add empty rows of employment for persons younger than 15
-    columns = ['commune_id', 'municipality_id', 'departement_id', 'sex']
-    df_employment_young = df_employment[columns].drop_duplicates(columns)
+    df_employment_young = df_employment[df_employment['age_class'] == 16].copy()
     df_employment_young['weight'] = 0
     df_employment_young['age_class'] = 0
 
