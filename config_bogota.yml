@@ -1,0 +1,86 @@
+## Synthetic population pipeline for seville
+## based on the synpp package
+
+# This is the path to a directory where the pipeline can store temporary data
+working_directory: ../cache_bogota
+
+# This section defines which parts of the pipeline should be run
+run:
+  - matsim.output
+
+
+# Here the configuraiton of the pipeline starts
+config:
+  # Some general configuration
+  processes: 8
+
+  # Define whether to use ENTD or EGT as the household travel survey (HTS)
+  hts: entd
+
+  # Define sampling rate and random seed for the output population
+  sampling_rate: 0.00001
+  acquisition_sample_size: 1
+  random_seed: 1234
+
+  # Paths to the input data and where the output should be stored
+  data_path: /cluster/work/adey/kaghog/BN/colombia/Data
+  output_path: ../output_bogota
+  output_prefix: bogota_1pct_
+
+  bogota.population: /synpop.csv
+  bogota.geospatial_shp: /hts/Encuesta de Movilidad/UTAM2023/UTAM2023.shp
+  buildings.buildings_path: buildings/GDB_MR_V03_2025.gdb/
+  osm_path_bogota: osm/bogota-latest.osm.pbf
+
+  check_spatial_codes: True
+  analysis_path: output_bogota/analysis
+  osmconvert_binary: "/cluster/work/adey/kaghog/SUT/sutLab/osmconvert"
+  simulation_output_dir: output/simulation
+  # Only interesting if you run the simulation
+  java_memory: 8G
+
+  # Defaults for Bogota
+  
+
+  home_location_sampling: weighted
+  mode_choice: false
+  matching_attributes: ["sex", "age_class"]
+
+  gtfs_path: gtfs
+  osm_path: osm
+  osmosis_binary: osmosis/bin
+
+  # Debug settings
+  missing_trips_for_young_people: False
+  
+# Overrides for the Bogota pipeline compared to the Île-de-France pipeline
+
+aliases:
+
+  data.census.filtered: bogota.data.census.processed
+  
+  synthesis.population.income.selected: bogota.income
+  synthesis.population.enriched: bogota.synthesis.population.enriched
+  synthesis.population.spatial.home.zones: bogota.homes
+
+  synthesis.locations.home.locations: bogota.locations.home
+  synthesis.locations.education: bogota.locations.education
+  synthesis.locations.secondary: bogota.locations.secondary
+  synthesis.locations.work: bogota.locations.work
+
+  #synthesis.population.matched: bogota.matched #not necessary
+  data.od.weighted: bogota.gravity.model
+
+  data.spatial.iris: bogota.data.spatial.iris
+  data.spatial.codes: bogota.entd_codes
+  data.hts.entd.raw: bogota.data.hts.raw
+  data.hts.entd.filtered: bogota.data.hts.filtered
+  data.hts.entd.cleaned: bogota.data.hts.cleaned
+
+  data.gtfs.utils: bogota.data.gtfs.utils
+
+  matsim.simulation.prepare: bogota.matsim.simulation.prepare
+  matsim.simulation.run: bogota.matsim.simulation.run
+
+
+  
