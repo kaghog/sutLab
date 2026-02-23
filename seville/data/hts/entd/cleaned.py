@@ -64,7 +64,7 @@ PURPOSE_MAP = {
 #    16 Other 16
 
 MODES_BASIC_MAP = {
-    "-": 0, # empty
+    "-": 0, # "-" marks that the trip does not have phase of corresponding number
     1: 1,
     2: 4,
     3: 5,
@@ -306,20 +306,24 @@ def aggregate_transport_mode(df_trips):
     for mode_column in MODE_COLUMNS:
         df_trips[mode_column] = df_trips[mode_column].map(MODES_BASIC_MAP)
 
+
     # Aggregate mode
     def mode_aggregator(row):
         if(row['mode_part1'] + row['mode_part2'] + row['mode_part3'] + row['mode_part4'] == 1):
-            return 1
+            return 1 # walk
         for mode_column in MODE_COLUMNS:
             if row[mode_column] == 2:
-                return 2
+                return 2 # pt
         for mode_column in MODE_COLUMNS:
             if row[mode_column] == 3:
-                return 3
+                return 3 # bike
         for mode_column in MODE_COLUMNS:
             if row[mode_column] == 4:
-                return 4
-        return 5
+                return 4 # car
+        for mode_column in MODE_COLUMNS:
+            if row[mode_column] == 5:
+                return 5 # car_passenger
+        return 6 # other
 
     df_trips['mode'] = df_trips.apply(mode_aggregator, axis=1)
 
