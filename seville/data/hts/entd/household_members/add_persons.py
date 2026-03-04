@@ -7,7 +7,7 @@ are necessary for the IPU, we add them all.
 """
 
 def configure(context):
-    context.stage("seville.data.hts.entd.cleaned")
+    context.stage("seville.data.hts.entd.trip_distance")
     context.stage("seville.locations.education")
     context.config("random_seed")
 
@@ -59,7 +59,7 @@ def add_young_persons(random, df_persons, df_trips, df_household_members):
 
 
 def execute(context):
-    df_households, df_persons, df_trips, df_household_members = context.stage("seville.data.hts.entd.cleaned")
+    df_households, df_persons, df_trips, df_household_members = context.stage("seville.data.hts.entd.trip_distance")
     random = np.random.RandomState(context.config("random_seed"))
 
 

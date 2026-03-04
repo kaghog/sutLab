@@ -19,9 +19,7 @@ MAP_HOUSEHOLDS_COLUMNS = {
     'N_VEH_4': 'number_of_bikes', 
 #    '': 'departement_id', # Seville - 41
 #    '': 'consumption_units', # calculated in cleaned.py using df_households_members
-
-    'NOCAPITAL': 'urban_type', # 
-
+#    '': 'urban_type' # unknown - default set to urban_center
     'INGRESOS': 'income_class' # income class
 }
 
@@ -62,9 +60,6 @@ MAP_TRIPS_COLUMNS = {
 
     # we could probably calculate this by using average speed of the type of transport or something
     # '': 'routed_distance' # calculated from euclidean distance
-    '#Den_CALLESEV_ORI': 'source_address',
-    '#Den_CALLESEVDES': 'destination_address',
-
 
     'MODO_D1_E1': 'mode_part1',
     'MODO_D1_E2': 'mode_part2',
@@ -79,10 +74,15 @@ MAP_TRIPS_COLUMNS = {
 
     "#Den_CALLESEV_ORI": "street_ori",
     "#Zona_CALLESEV_ORI": "zone_code_ori",
+    "NUM_CALLE_ORI_D1": "street_num_ori",
+    "NUM_CALLE_DES_D1": "street_num_des",
     "MUNI_ORI_SEV_D1": "municipality_code_ori",
     "#Den_CALLESEVDES": "street_des",
     "#Zona_CALLESEV_DES": "zone_code_des",
     "MUNI_DES_SEV_D1": "municipality_code_des",
+
+    "TCAMORI_D1": "walk_origin",
+    "TCAMDES_D1": "walk_destination",
 }
 
 MAP_HOUSEHOLD_MEMBERS_COLUMNS = {
@@ -116,6 +116,7 @@ MAP_HOUSEHOLD_MEMBERS_COLUMNS = {
 def configure(context):
     context.config("data_path")
     context.config("seville.hts", "Household Travel Survey 2017/BD entrevistas telefonicas Completa_Final_v2.xlsb.xlsx")
+    context.config("seville_city_data_only")
 
 def execute(context):
 

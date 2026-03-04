@@ -117,7 +117,7 @@ def execute(context):
     df_households["household_weight"] = df_households["household_weight"].astype(float)
     df_trips["trip_weight"] = df_trips["trip_weight"].astype(float)
 
-    # Clean houosehold member count
+    # Clean household member count
     df_households["household_size"] = (
         df_households["household_size"]
         .astype(str)
@@ -139,9 +139,7 @@ def execute(context):
     df_trips["destination_departement_id"] = df_trips["destination_departement_id"].astype("category")
 
     # Clean urban type
-    df_households['urban_type'] = df_households['urban_type'].apply(
-        lambda x: "central_city" if x=="-" else "none"
-        )
+    df_households['urban_type'] = "central_city"
     df_households["urban_type"] = df_households["urban_type"].astype("category")
 
     # -------------------------------------------------------------------------------------
@@ -193,8 +191,7 @@ def execute(context):
     df_trips = aggregate_transport_mode(df_trips)
 
     # Trip distance
-    df_trips = calculate_distance(context, df_trips)
-    # df_trips["routed_distance"] = df_trips["routed_distance"].fillna(0.0) # This should be just one within Île-de-France
+    #df_trips = calculate_trip_distance(context, df_trips)
 
     # Trip flags
     df_trips = hts.compute_first_last(df_trips)
@@ -343,7 +340,7 @@ MAP_MUNICIPALITY_COLUMNS = {
     "MUNICIPIO": "municipality" # name of the municipality
 }
 
-def calculate_distance(context, df_trips):
+def calculate_trip_distance(context, df_trips):
     EXCEL_PATH = f"{context.config('data_path')}/{context.config('seville.hts')}"
     # List of all zones with name-code mapping
     df_zones = pd.read_excel(
