@@ -4,6 +4,7 @@ import numpy as np
 import pandas as pd
 
 """
+This stages calibrates HTS weights to help match attribute distribution of IPU population with census distribution.
 """
 
 def configure(context):

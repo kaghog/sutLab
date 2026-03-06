@@ -4,6 +4,7 @@ import numpy as np
 import pandas as pd
 
 """
+This stage sets attributes for household members based on the census distribution.
 """
 
 def configure(context):

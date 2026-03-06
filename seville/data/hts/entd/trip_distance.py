@@ -309,7 +309,7 @@ def execute(context):
 
     df_addresses['geometry'] = np.nan
 
-    # Just to mark trip addresses that are inside Seville and have no street information
+    # mark trip addresses that are inside Seville and have no street information
     unknown_street = (~notna) & (df_addresses['municipality_code'] == SEVILLE_MUNICIPALITY_CODE)
     df_addresses['known_address'] = True
     df_addresses.loc[unknown_street, 'known_address'] = False
@@ -340,7 +340,7 @@ def execute(context):
     gdf_real_addresses["street_name"] = gdf_real_addresses["street_name"].apply(normalize_street_type)
     gdf_real_addresses['street_name'] = remove_articles(gdf_real_addresses['street_name'])
     gdf_real_addresses = gdf_real_addresses[~gdf_real_addresses.duplicated(subset=['street_name'], keep=False)]
-    # TODO: clean street_number properly
+    # TODO: clean irregular street number values (e.g., "8-10")
     df_addresses = df_addresses.merge(gdf_real_addresses[['street_name', 'street_num', 'geometry']], on='street_name', how='left', suffixes=('', '_street'))
     df_addresses['geometry'] = df_addresses['geometry'].fillna(df_addresses['geometry_street'])
     df_addresses = df_addresses.drop(columns=['geometry_street'])
@@ -447,6 +447,12 @@ def execute(context):
         walk_time = walk_time * 60 # minutes => seconds
         main_mode_time = row['trip_duration'] - walk_time
 
+        # if the main mode is lesser than 0, assume only main mode time travel
+        if main_mode_time < 0:
+            print(f"[WARNING] duration of the main mode transport of trip is negative {main_mode_time}, defaulting to {row['trip_duration']}")
+            main_mode_time = row['trip_duration']
+
+
         SPEEDS_MS = {
             "walk": 1.3,  # walk (~4.7 km/h)
             "pt": 3.8,  # public transport (~13.7 km/h)
@@ -459,6 +465,8 @@ def execute(context):
         routed_distance = SPEEDS_MS[row['mode']] * main_mode_time
         routed_distance += SPEEDS_MS['walk'] * walk_time
 
+
+
         euclidean_distance = routed_distance / 1.3
 
         return euclidean_distance
@@ -466,9 +474,6 @@ def execute(context):
     df_trips.loc[df_trips['walk_origin'] == '-', 'walk_origin'] = 0
     df_trips.loc[df_trips['walk_destination'] == '-', 'walk_destination'] = 0
 
-    # print(df_trips['euclidean_distance'].value_counts().sort_index())
-
-    #TODO: also if there is no street info and the location is inside Seville-city
 
     invalid_distance = (
         (df_trips['euclidean_distance'].isna()) |
@@ -480,15 +485,12 @@ def execute(context):
     invalid_dist_pct = invalid_distance.sum() / len(df_trips) * 100
     print(f"[INFO] Distance fallback for {invalid_distance.sum()} / {len(df_trips)} ({invalid_dist_pct:.2f}%)")
 
-    print(df_trips['euclidean_distance'].value_counts().sort_index())
-
 
     df_trips.loc[invalid_distance, 'euclidean_distance'] = df_trips[invalid_distance].apply(distance_from_time, axis=1)
     df_trips.loc[invalid_distance, "origin_location"] = np.nan
     df_trips.loc[invalid_distance, "destination_location"] = np.nan
 
-
-    print(df_trips['euclidean_distance'].value_counts().sort_index())
-    print(df_trips.loc[df_trips['euclidean_distance'] < 0, 'trip_id'])
+    invalid_euclidean_distance = len(df_trips.loc[(df_trips['euclidean_distance'] < 0) | df_trips['euclidean_distance'].isna()])
+    assert invalid_euclidean_distance == 0, f"invalid euclidean distance for {invalid_euclidean_distance} trips"
 
     return df_households, df_persons, df_trips, df_household_members

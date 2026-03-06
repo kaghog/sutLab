@@ -2,6 +2,10 @@ from tqdm import tqdm
 import pandas as pd
 import numpy as np
 
+"""
+This stage extracts all trip addresses that are present in the Seville HTS survey.
+"""
+
 
 def configure(context):
     context.config("data_path")

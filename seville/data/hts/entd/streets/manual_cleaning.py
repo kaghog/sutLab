@@ -8,8 +8,9 @@ import time
 import os
 from shapely import Point
 
-
-# IMPORTANT! WHEN DEBUGGING LIMIT REQUEST RATE and size of input dataframe
+"""
+This stage resolves some addresses by manually assigned geographic coordinates.
+"""
 
 
 def configure(context):

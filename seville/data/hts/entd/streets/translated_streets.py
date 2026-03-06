@@ -7,6 +7,11 @@ import geopy
 import time
 
 # IMPORTANT! WHEN DEBUGGING LIMIT REQUEST RATE and size of input dataframe
+"""
+This stage resolves addresses using Nominatim, an online OSM API. This stage
+is not used every time during the pipeline due to the time it takes to resolve
+all the queries (several hours).
+"""
 
 
 def configure(context):
