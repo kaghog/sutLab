@@ -309,9 +309,11 @@ def execute(context):
 
     df_addresses['geometry'] = np.nan
 
-
+    # Just to mark trip addresses that are inside Seville and have no street information
+    unknown_street = (~notna) & (df_addresses['municipality_code'] == SEVILLE_MUNICIPALITY_CODE)
+    df_addresses['known_address'] = True
+    df_addresses.loc[unknown_street, 'known_address'] = False
     ###
-    METRIC_CRS = "EPSG:25830"
     COMMON_CRS = "EPSG:4326"
 
     ##################################################
@@ -356,43 +358,6 @@ def execute(context):
     print(f"[INFO] not resolved after street number {invalid_geometry.sum()} / {len(df_addresses)} ({invalid_dist_pct:.2f}%)")
 
 
-    ##################################################
-    # ASSIGN GEOMETRY BY STREET ONLY
-    ##################################################
-
-    FILE_URL = f"{context.config('data_path')}/{context.config('seville.streets_shp')}"
-    gdf_streets = gpd.read_file(FILE_URL)
-    gdf_streets = gdf_streets.to_crs(COMMON_CRS)
-    gdf_streets = gdf_streets.rename(columns={
-        "nom_normal": "street_name_original",
-        "nom_via": "street_name",
-        "nom_tip_vi": "street_type"
-        })
-    gdf_streets['street_name'] = gdf_streets['street_name'].str.upper()
-    gdf_streets['street_name'] = gdf_streets['street_type'] + " " + gdf_streets['street_name']
-    gdf_streets['street_name'] = gdf_streets['street_name'].apply(unidecode)
-    gdf_streets['street_name'] = remove_articles(gdf_streets['street_name'])
-    gdf_streets = gdf_streets[~gdf_streets.duplicated(subset=['street_name'], keep=False)]
-    gdf_streets['geometry'] = gdf_streets['geometry'].representative_point()
-
-
-    df_addresses = df_addresses.merge(gdf_streets[['street_name', 'geometry']], on='street_name', how='left', suffixes=('', '_street'))
-    df_addresses['geometry'] = df_addresses['geometry'].fillna(df_addresses['geometry_street'])
-    df_addresses = df_addresses.drop(columns=['geometry_street'])
-
-
-    total = len(df_addresses)
-    potentially_assignable = df_addresses['street_name'].notna()
-    actually_assigned = df_addresses['street_name'].notna() & df_addresses['geometry'].notna()
-    pct = actually_assigned.sum() / potentially_assignable.sum() * 100
-    print(f"[INFO] potentially_assignable {potentially_assignable.sum()} / {total} ({potentially_assignable.sum() / total * 100:.2f}%)")
-    print(f"[INFO] managed to convert using street name {actually_assigned.sum()} / {potentially_assignable.sum()} ({pct:.2f}%)")
-
-    invalid_geometry = df_addresses['geometry'].isna()
-    invalid_dist_pct = invalid_geometry.sum() / len(df_addresses) * 100
-    print(f"[INFO] unresolved after using street name {invalid_geometry.sum()} / {len(df_addresses)} ({invalid_dist_pct:.2f}%)")
-
-
     ###########################################
     # STREET MANUAL MAPPING
     ###########################################
@@ -402,12 +367,13 @@ def execute(context):
     CSV_FILE = f"{context.config('data_path')}/{context.config('seville.street_name_mapping')}"
     df_street_manual_mapping = pd.read_csv(CSV_FILE, sep=',')
     mapping = df_street_manual_mapping.set_index('street_name')['street_name_original']
-    df_addresses['street_name_original'] = df_addresses['street_name'].map(mapping)
 
-    df_addresses = df_addresses.merge(gdf_streets[['street_name_original', 'geometry']], on='street_name_original', how='left', suffixes=('', '_street'))
+    df_addresses['street_name_'] = df_addresses['street_name']
+    df_addresses['street_name'] = df_addresses['street_name'].map(mapping)
+    df_addresses = df_addresses.merge(gdf_real_addresses[['street_name', 'street_num', 'geometry']], on='street_name', how='left', suffixes=('', '_street'))
     df_addresses['geometry'] = df_addresses['geometry'].fillna(df_addresses['geometry_street'])
-    df_addresses = df_addresses.drop(columns=['geometry_street'])
-
+    df_addresses['street_name'] = df_addresses['street_name_']
+    df_addresses = df_addresses.drop(columns=['geometry_street', 'street_name_'])
 
     ###########################################
     # TRY PREPENDING "CALLE"
@@ -415,7 +381,7 @@ def execute(context):
 
     df_addresses['street_name_'] = df_addresses['street_name']
     df_addresses['street_name'] = "CALLE " + df_addresses['street_name']
-    df_addresses = df_addresses.merge(gdf_streets[['street_name', 'geometry']], on='street_name', how='left', suffixes=('', '_street'))
+    df_addresses = df_addresses.merge(gdf_real_addresses[['street_name', 'street_num', 'geometry']], on='street_name', how='left', suffixes=('', '_street'))
     df_addresses['geometry'] = df_addresses['geometry'].fillna(df_addresses['geometry_street'])
     df_addresses['street_name'] = df_addresses['street_name_']
     df_addresses = df_addresses.drop(columns=['geometry_street', 'street_name_'])
@@ -428,10 +394,11 @@ def execute(context):
     df_addresses['street_name_'] = df_addresses['street_name']
     notna = df_addresses['street_name'].notna()
     df_addresses.loc[notna, 'street_name'] = swap_calle_avenida(df_addresses.loc[notna, 'street_name'])
-    df_addresses = df_addresses.merge(gdf_streets[['street_name', 'geometry']], on='street_name', how='left', suffixes=('', '_street'))
+    df_addresses = df_addresses.merge(gdf_real_addresses[['street_name', 'street_num', 'geometry']], on='street_name', how='left', suffixes=('', '_street'))
     df_addresses['geometry'] = df_addresses['geometry'].fillna(df_addresses['geometry_street'])
     df_addresses['street_name'] = df_addresses['street_name_']
     df_addresses = df_addresses.drop(columns=['geometry_street', 'street_name_'])
+
 
     invalid_geometry = df_addresses['geometry'].isna()
     invalid_dist_pct = invalid_geometry.sum() / len(df_addresses) * 100
@@ -444,49 +411,28 @@ def execute(context):
     print(len(df_addresses[failed_to_assign]))
 
 
-
-    ##################################################
-    # ASSIGN GEOMTERY - OUTSIDE SEVILLE
-    ##################################################
-
-    outside_seville = df_addresses['municipality_code']!=SEVILLE_MUNICIPALITY_CODE
-    
-    df_addresses.loc[outside_seville, 'geometry'] = (
-        df_addresses.loc[outside_seville, 'municipality_name'].map(MUNICIPALITIES)
-    )
-    print(len(df_addresses))
-    print(len(df_addresses[df_addresses['geometry'].isna()]))
-    print(len(df_addresses[outside_seville]))
-    
-
-    # TODO:
-    # assert len(df_addresses[outside_seville & df_addresses['geometry'].isna()]) == 0, f"{len(df_addresses[outside_seville & df_addresses['geometry'].isna()])}"
-
-
-    invalid_geometry = df_addresses['geometry'].isna()
-    invalid_dist_pct = invalid_geometry.sum() / len(df_addresses) * 100
-    print(f"[INFO] Merging geomtetries to trips with invalid numbers: {invalid_geometry.sum()} / {len(df_addresses)} ({invalid_dist_pct:.2f}%)")
-
-
     ##################################################
     # MERGE BACK TO TRIPS
     ##################################################
 
-    ori_geom = df_addresses[df_addresses["type"] == "ori"][["trip_id", "geometry"]]
-    des_geom = df_addresses[df_addresses["type"] == "des"][["trip_id", "geometry"]]
-    ori_geom = ori_geom.rename(columns={"geometry": "geometry_ori"})
-    des_geom = des_geom.rename(columns={"geometry": "geometry_des"})
-    df_trips = df_trips.merge(ori_geom[['trip_id', 'geometry_ori']], on="trip_id", how="left")
-    df_trips = df_trips.merge(des_geom[['trip_id', 'geometry_des']], on="trip_id", how="left")
+    ori_geom = df_addresses[df_addresses["type"] == "ori"][["trip_id", "geometry", 'known_address']]
+    des_geom = df_addresses[df_addresses["type"] == "des"][["trip_id", "geometry", 'known_address']]
+    ori_geom = ori_geom.rename(columns={"geometry": "geometry_ori", 'known_address':'known_address_ori'})
+    des_geom = des_geom.rename(columns={"geometry": "geometry_des", 'known_address':'known_address_des'})
+    df_trips = df_trips.merge(ori_geom, on="trip_id", how="left")
+    df_trips = df_trips.merge(des_geom, on="trip_id", how="left")
 
     # Calculate euclidean distance
-    df_trips['euclidean_distance'] = np.nan
+    # df_trips['euclidean_distance'] = np.nan
     has_valid_geometry = df_trips['geometry_ori'].notna() & df_trips['geometry_des'].notna()
     df_trips.loc[has_valid_geometry, 'euclidean_distance'] = df_trips.loc[has_valid_geometry].apply(
         lambda x: geodesic((x.geometry_ori.y, x.geometry_ori.x), (x.geometry_des.y, x.geometry_des.x)).meters, 
         axis=1
     )
+    df_trips.loc[has_valid_geometry]
 
+    df_trips.loc[has_valid_geometry, 'origin_location'] = df_trips.loc[has_valid_geometry, "geometry_ori"]
+    df_trips.loc[has_valid_geometry, 'destination_location'] = df_trips.loc[has_valid_geometry, "geometry_des"]
 
 
     ##################################################
@@ -522,17 +468,27 @@ def execute(context):
 
     # print(df_trips['euclidean_distance'].value_counts().sort_index())
 
+    #TODO: also if there is no street info and the location is inside Seville-city
 
     invalid_distance = (
         (df_trips['euclidean_distance'].isna()) |
-        (df_trips['euclidean_distance'] <= 10)
+        (df_trips['euclidean_distance'] <= 10) |
+        (df_trips['known_address_des'] == False) |
+        (df_trips['known_address_des'] == False)
     )
 
     invalid_dist_pct = invalid_distance.sum() / len(df_trips) * 100
     print(f"[INFO] Distance fallback for {invalid_distance.sum()} / {len(df_trips)} ({invalid_dist_pct:.2f}%)")
 
+    print(df_trips['euclidean_distance'].value_counts().sort_index())
+
+
     df_trips.loc[invalid_distance, 'euclidean_distance'] = df_trips[invalid_distance].apply(distance_from_time, axis=1)
+    df_trips.loc[invalid_distance, "origin_location"] = np.nan
+    df_trips.loc[invalid_distance, "destination_location"] = np.nan
 
 
+    print(df_trips['euclidean_distance'].value_counts().sort_index())
+    print(df_trips.loc[df_trips['euclidean_distance'] < 0, 'trip_id'])
 
     return df_households, df_persons, df_trips, df_household_members

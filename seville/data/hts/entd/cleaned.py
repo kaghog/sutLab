@@ -191,7 +191,7 @@ def execute(context):
     df_trips = aggregate_transport_mode(df_trips)
 
     # Trip distance
-    #df_trips = calculate_trip_distance(context, df_trips)
+    df_trips = calculate_trip_distance(context, df_trips)
 
     # Trip flags
     df_trips = hts.compute_first_last(df_trips)
@@ -400,40 +400,28 @@ def calculate_trip_distance(context, df_trips):
     assert len(df_des) == len(df_ori)
 
 
-    def parse_location(location):
-        # Clean and parse the string
-        location_str = str(location)
-        cleaned_str = location_str.strip("()")
-        try:
-            latitude, longitude  = cleaned_str.split(',')
-        except:
-            print(f"Following location caused fail:{location}")
-            raise Exception
-        return (float(longitude), float(latitude))
-
-
-    df_result = pd.DataFrame()
     assert len(df_ori) == len(df_des) == len(df_trips), f"df_ori:{len(df_ori)} == df_des:{len(df_des)} == df_trips:{len(df_trips)}"
-    delete_condition = df_ori['location'].isna() | df_des['location'].isna()
+    known_geometry = df_ori['geometry'].notna() & df_des['geometry'].notna()
     #delete_condition = delete_condition.reindex(df_trips.index, fill_value=False)
 
-    df_ori.loc[df_ori['location'].isna(), "location"] = "(0, 0)"
-    df_des.loc[df_des['location'].isna(), "location"] = "(0, 0)"
-
-
-    df_result["ori"] = df_ori['location'].apply(parse_location)
-    df_result["des"] = df_des['location'].apply(parse_location)
-
-
-
     print("Calculating euclidean distance:")
-    df_result['euclidean_distance'] = df_result.apply(lambda x: geodesic(x.ori, x.des).m, axis=1) # result in meters
-    df_trips['euclidean_distance'] = df_result['euclidean_distance']
-    df_trips['origin_location'] = df_result["ori"]
-    df_trips['destination_location'] = df_result["des"]
+    print(f"[INFO] Cannot calculate distance for {(~known_geometry).sum()} trips.")
 
-    print(f"Deleting {delete_condition.sum()} trips due to unknown start/end of the trip")
-    df_trips = df_trips[~delete_condition]
+    df_trips["ori"] = np.nan
+    df_trips["des"] = np.nan
+    df_trips.loc[known_geometry, "ori"] = df_ori.loc[known_geometry, 'geometry']
+    df_trips.loc[known_geometry, "des"] = df_des.loc[known_geometry, 'geometry']
+
+
+    df_trips['euclidean_distance'] = np.nan
+    df_trips.loc[known_geometry, 'euclidean_distance'] = df_trips[known_geometry].apply(
+        lambda x: geodesic((x.ori.y, x.ori.x), (x.des.y, x.des.x)).meters, 
+        axis=1
+    ) # result in meters
+    
+    df_trips['origin_location'] = df_trips["ori"]
+    df_trips['destination_location'] = df_trips["des"]
+
     return df_trips
 
 

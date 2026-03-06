@@ -18,9 +18,9 @@ def execute(context):
     df_households, df_persons, df_trips = context.stage("seville.data.hts.entd.household_members.add_trips")
 
     df_persons["person_weight"] = 1.0
-#   df_persons["trip_weight"] = 1.0
-#   df_trips["person_weight"] = 1.0
-#   df_trips["trip_weight"] = 1.0
+    #df_persons["trip_weight"] = 1.0
+    #df_trips["person_weight"] = 1.0
+    #df_trips["trip_weight"] = 1.0
 
     # NOTE: in seville.data.hts.entd.reweighted is following:
     # df_persons["person_weight"] = df_persons["trip_weight"]

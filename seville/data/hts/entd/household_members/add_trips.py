@@ -9,6 +9,7 @@ import matplotlib.pyplot as plt
 from pyproj import Geod
 from pyproj import Transformer, Geod
 from scipy.spatial import cKDTree
+from shapely import Point
 
 """
 This stage removes adult persons that were added in add_persons stage and adds trips to childrens added in add_persons stage.
@@ -48,9 +49,11 @@ def impute_education_trips(df_young_persons, df_home_locations ,df_edu_locations
     df = pd.merge(df, df_home_locations, on='household_id', how='left')
     df.dropna(subset=['home_geometry'], inplace=True)
 
+    print(df[~df["home_geometry"].apply(lambda x: isinstance(x, Point))])
+
     # Extract home coordinates
-    df["home_x"] = df["home_geometry"].apply(lambda p: p[0])
-    df["home_y"] = df["home_geometry"].apply(lambda p: p[1])
+    df["home_x"] = df["home_geometry"].apply(lambda p: p.x)
+    df["home_y"] = df["home_geometry"].apply(lambda p: p.y)
 
 
     # Extract education coordinates
