@@ -54,7 +54,8 @@ config:
   # IPU aggregation levels:
   # - commune_id
   # - departement_id (obsolete)
-  IPU_aggregation_level: "commune_id" 
+  IPU_aggregation_level: "commune_id"
+  weighted_trips: True
 
   # Debug settings
   missing_trips_for_young_people: False
