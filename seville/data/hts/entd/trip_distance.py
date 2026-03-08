@@ -16,7 +16,7 @@ This stage calculates trip distance for HTS trips.
 def configure(context):
     context.stage("seville.data.hts.entd.cleaned")
     context.config("seville.hts", "Household Travel Survey 2017/BD entrevistas telefonicas Completa_Final_v2.xlsb.xlsx")
-    context.config('seville.addresses.gpkg', 'osm/addresses_seville_municipality.gpkg')
+    context.config('seville.addresses.gpkg', 'shapefiles/addresses_seville_municipality.gpkg')
     context.config("seville.street_name_mapping", "street_data/street_name_mapping.csv")
 
 # TODO: add more here
