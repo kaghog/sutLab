@@ -1,11 +1,12 @@
 __pycache__
 env
-cache
-output
+cache*
+output*
 
 .vscode
 .idea
 
 config_local_*.yml
-
+euler_*.sh
+slurm-*.out
 *.xlsx
