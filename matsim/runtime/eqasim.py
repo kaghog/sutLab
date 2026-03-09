@@ -5,9 +5,9 @@ import matsim.runtime.git as git
 import matsim.runtime.java as java
 import matsim.runtime.maven as maven
 
-DEFAULT_EQASIM_VERSION = "1.5.0"
-DEFAULT_EQASIM_BRANCH = "bavaria-main"
-DEFAULT_EQASIM_COMMIT = "33dc546"
+DEFAULT_EQASIM_VERSION = "2.0.0"
+DEFAULT_EQASIM_BRANCH = "sutlab"
+DEFAULT_EQASIM_COMMIT = "67b9626"
 
 def configure(context):
     context.stage("matsim.runtime.git")
@@ -26,9 +26,9 @@ def run(context, command, arguments):
     # Make sure there is a dependency
     context.stage("matsim.runtime.eqasim")
 
-    jar_path = "%s/eqasim-java/bavaria/target/bavaria-%s.jar" % (
-        context.path("matsim.runtime.eqasim"), version
-    )
+    jar_path = context.stage("matsim.runtime.eqasim")
+    jar_path = "{}/{}".format(context.path("matsim.runtime.eqasim"), jar_path)
+
     java.run(context, command, arguments, jar_path)
 
 def execute(context):
@@ -52,19 +52,17 @@ def execute(context):
         ], cwd = "{}/eqasim-java".format(context.path()))
 
         # Build eqasim
-        maven.run(context, ["-Pstandalone", "--projects", "bavaria", "--also-make", "package", "-DskipTests=true"], cwd = "%s/eqasim-java" % context.path())
-
-        if not os.path.exists("{}/eqasim-java/bavaria/target/bavaria-{}.jar".format(context.path(), version)):
-            raise RuntimeError("The JAR was not created correctly. Wrong eqasim_version specified?")
+        maven.run(context, ["-Pstandalone", "--projects", "sutlab", "--also-make", "package", "-DskipTests"], cwd = "%s/eqasim-java" % context.path())
+        jar_path = "%s/eqasim-java/sutlab/target/sutlab-%s.jar" % (context.path(), version)
 
     # Special case: We provide the jar directly. This is mainly used for
     # creating input to unit tests of the eqasim-java package.
     else:
-        os.makedirs("%s/eqasim-java/bavaria/target" % context.path())
+        os.makedirs("%s/eqasim-java/sutlab/target" % context.path())
         shutil.copy(context.config("eqasim_path"),
-            "%s/eqasim-java/bavaria/target/bavaria-%s.jar" % (context.path(), version))
+            "%s/eqasim-java/sutlab/target/sutlab-%s.jar" % (context.path(), version))
 
-    return "eqasim-java/bavaria/target/bavaria-%s.jar" % version
+    return "eqasim-java/sutlab/target/sutlab-%s.jar" % version
 
 def validate(context):
     path = context.config("eqasim_path")

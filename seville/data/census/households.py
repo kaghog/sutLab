@@ -9,6 +9,7 @@ Provides household size distribution at census section (commune) level for IPU c
 
 def configure(context):
     context.stage("seville.data.spatial.codes")
+    context.stage("seville.data.census.population")
     context.config("data_path")
     context.config("seville.household_data", "households.xlsx")
 
@@ -43,11 +44,51 @@ def execute(context):
 
     assert len(df_households) != 0
 
-    print(df_households.head())
+    print(df_households.head())    
 
     if context.config("seville_city_data_only") == True:
         df_households = df_households[df_households["municipality_id"] == "41091"]
     
+    # =============== Census section level household =============================
+    df_population = context.stage("seville.data.census.population").copy()
+    # group by municipality + census section
+    df_population_grouped = (
+        df_population
+        .groupby(['municipality_id', 'census_section_id'], as_index=False)['weight']
+        .sum()
+    )
+
+    # compute proportions within municipality
+    df_population_grouped['proportion'] = (
+        df_population_grouped['weight'] /
+        df_population_grouped
+            .groupby('municipality_id')['weight']
+            .transform('sum')
+    )    
+
+    print(df_population_grouped.info())
+    print(df_population_grouped.head())
+
+    df_households = df_households.merge(
+        df_population_grouped[['municipality_id', 'census_section_id', 'proportion']],
+        on='municipality_id'
+    )
+
+    columns = [
+        "total_households",
+        "households_1_person",
+        "households_2_persons",
+        "households_3_persons",
+        "households_4_persons",
+        "households_5plus_persons"
+    ]
+    for column in columns:
+        df_households[column] = df_households[column] * df_households['proportion']
+
+    df_households.drop(columns=['proportion'])
+
+    
+
     return df_households
 
 def validate(context):

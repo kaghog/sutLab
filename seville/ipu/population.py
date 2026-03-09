@@ -20,6 +20,8 @@ def configure(context):
     context.config("ipu_apply_trs", True)
     context.config("processes")
 
+    context.config("IPU_aggregation_level")
+
 POP_AGE_CLASSES = [
     0, 5, 10, 15, 20, 25, 30, 35, 40, 45,
     50, 55, 60, 65, 70, 75, 80, 85, 90, 95, 100
@@ -112,7 +114,7 @@ def execute(context):
         print(f"{'=' * 70}")
         print(f"Total synthetic population: {len(full_synthetic_pop):,} persons")
         print(f"Total households: {full_synthetic_pop['household_id'].nunique():,}")
-        print(f"Departements covered: {full_synthetic_pop['departement_id'].nunique()}")
+        print(f"Departements covered: {full_synthetic_pop[context.config('IPU_aggregation_level')].nunique()}")
 
         return full_synthetic_pop
     else:
@@ -192,7 +194,7 @@ def process_ipu_batch(context, arguments):
                 final_df = weighted_df.copy()
 
             # Add departement ID to result
-            final_df["departement_id"] = dept_id
+            final_df[context.config("IPU_aggregation_level")] = dept_id
 
             batch_results.append(final_df)
             context.progress.update()

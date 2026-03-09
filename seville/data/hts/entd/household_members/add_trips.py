@@ -9,20 +9,21 @@ import matplotlib.pyplot as plt
 from pyproj import Geod
 from pyproj import Transformer, Geod
 from scipy.spatial import cKDTree
+from shapely import Point
 
 """
-This stage removes adult persons that were added in add_young stage and adds trips to childrens added in add_young stage.
+This stage removes adult persons that were added in add_persons stage and adds trips to childrens added in add_persons stage.
 
-Adult persons from add_young stage are removed, because we do not have any trip information about them, but we have adults
+Adult persons from add_persons stage are removed, because we do not have any trip information about them, but we have adults
 from the original HTS dataset with trip information and those are kept.
 
-Original HTS does not contain any trip information about children with age < 15. As mentioned, these were added in add_young
+Original HTS does not contain any trip information about children with age < 15. As mentioned, these were added in add_persons
 and this stage generates education trips to and from to closest kindergarten/school of their home location.
 """
 
 
 def configure(context):
-    context.stage("seville.data.hts.entd.add_young")
+    context.stage("seville.data.hts.entd.household_members.set_attributes")
     context.stage("seville.locations.education")
 
 
@@ -48,9 +49,11 @@ def impute_education_trips(df_young_persons, df_home_locations ,df_edu_locations
     df = pd.merge(df, df_home_locations, on='household_id', how='left')
     df.dropna(subset=['home_geometry'], inplace=True)
 
+    print(df[~df["home_geometry"].apply(lambda x: isinstance(x, Point))])
+
     # Extract home coordinates
-    df["home_x"] = df["home_geometry"].apply(lambda p: p[0])
-    df["home_y"] = df["home_geometry"].apply(lambda p: p[1])
+    df["home_x"] = df["home_geometry"].apply(lambda p: p.x)
+    df["home_y"] = df["home_geometry"].apply(lambda p: p.y)
 
 
     # Extract education coordinates
@@ -161,7 +164,7 @@ def impute_education_trips(df_young_persons, df_home_locations ,df_edu_locations
 
 
 def execute(context):
-    df_households, df_persons, df_trips = context.stage("seville.data.hts.entd.add_young")
+    df_households, df_persons, df_trips = context.stage("seville.data.hts.entd.household_members.set_attributes")
     df_edu_locations = context.stage("seville.locations.education")
 
     random = np.random.RandomState(context.config("random_seed"))

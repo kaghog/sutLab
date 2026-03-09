@@ -7,22 +7,21 @@ import geopy
 import time
 
 # IMPORTANT! WHEN DEBUGGING LIMIT REQUEST RATE and size of input dataframe
+"""
+This stage resolves addresses using Nominatim, an online OSM API. This stage
+is not used every time during the pipeline due to the time it takes to resolve
+all the queries (several hours).
+"""
 
 
 def configure(context):
     context.config("data_path")
     context.stage("seville.data.hts.entd.raw_streets")
     context.config("seville.street_data", "street_data/street_data.csv")
-    context.config("seville.street_data_2", "street_data/street_data_2.csv")
 
 def execute(context):
 
     df_streets = context.stage("seville.data.hts.entd.raw_streets")
-
-
-    # DEBUG
-    #    df_streets = df_streets.iloc[:10]
-
 
 
     chunk_size = 20

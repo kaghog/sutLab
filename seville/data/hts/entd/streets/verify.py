@@ -167,6 +167,7 @@ def streets_to_points(df_streets):
     # Set municipality
     filter = (
         (gdf_points['municipality'] == "")
+        | (gdf_points['municipality'] == "NAN")
         | (gdf_points['municipality'].isna())
     )
     gdf_points.loc[filter, 'municipality'] = 'Sevilla'
@@ -175,6 +176,7 @@ def streets_to_points(df_streets):
     filter = (
         (gdf_points['zone'] == "")
         | (gdf_points['zone'] == "-")
+        | (gdf_points['zone'] == "NAN")
         | (gdf_points['zone'].isna())
     )
     gdf_points.loc[filter, 'zone'] = np.nan
@@ -184,6 +186,7 @@ def streets_to_points(df_streets):
         (gdf_points["street"] == "LA CALLE NO APARECE EN EL LISTADO")
         | (gdf_points["street"] == "")
         | (gdf_points["street"] == "-")
+        | (gdf_points["street"] == "NAN")
         | (gdf_points["street"].isna())
     )
     gdf_points.loc[filter, 'street'] = np.nan
@@ -224,13 +227,17 @@ def verify_and_fix_by_borrough(gdf_borroughs, gdf_points):
     print(f"[INFO] Seville locations outside Seville: {mask_no_borrough.sum()}. Moving to this to zone.")
 
 
-    # Use representative points as fallback locations
-    gdf_borroughs['centroid'] = gdf_borroughs.geometry.representative_point()
-    MAP_ZONES = dict(zip(gdf_borroughs['Barrio'], gdf_borroughs['centroid']))
+    if False:
+        # Use representative points as fallback locations
+        gdf_borroughs['centroid'] = gdf_borroughs.geometry.representative_point()
+        MAP_ZONES = dict(zip(gdf_borroughs['Barrio'], gdf_borroughs['centroid']))
 
-    joined.loc[mask_no_borrough, 'geometry'] = (
-        joined.loc[mask_no_borrough, 'zone'].map(MAP_ZONES)
-    )
+        joined.loc[mask_no_borrough, 'geometry'] = (
+            joined.loc[mask_no_borrough, 'zone'].map(MAP_ZONES)
+        )
+    else:
+        joined.loc[mask_no_borrough, 'geometry'] = np.nan
+
 
     # Apply fixes back to the original dataframe
     fixed = joined.loc[mask_no_borrough, ['id', 'geometry']]
@@ -353,10 +360,13 @@ def verify_and_fix_street_proximity(gdf_streets, gdf_borroughs, gdf_points, df_s
     gdf = pd.concat([gdf, gdf2])
     unmatched = gdf.loc[gdf['geometry_street'].isna()]
     gdf = gdf[gdf['geometry_street'].notna()]
+    
+
 
     
     print("[INFO] number of unmatched street names:", len(unmatched))
-
+    unmatched['geometry_point'] = np.nan
+    
 
     # Constrain street geometry to borough boundaries
     gdf_borroughs = gdf_borroughs.rename(
@@ -389,14 +399,24 @@ def verify_and_fix_street_proximity(gdf_streets, gdf_borroughs, gdf_points, df_s
     gdf['dist_to_street'] = gdf.distance(gdf['geometry_street'])
     MAX_DIST = 60  # meters
     gdf['is_near_street'] = gdf['dist_to_street'] <= MAX_DIST
+
     mask = ~gdf['is_near_street'] & gdf['geometry_street'].notna()  
     gdf['old_geometry_point'] = gdf['geometry_point']
-    print(f'[INFO] fixing {len(gdf.loc[mask])} locations by assigning them street coordinates')
+    print(f'[INFO] fixing {len(gdf.loc[mask])} locations by assigning them street coordinates (total = {len(gdf)})')
+
+    print(f'[INFO] fixing with numbers {len(gdf.loc[mask & True])} locations by assigning them street coordinates (total = {len(gdf)})')
+
+
     gdf.loc[mask, 'geometry_point'] = gdf.loc[mask, 'geometry_street'].representative_point()
 
     # Return to geographic CRS
     gdf = gdf.to_crs("EPSG:4326")
+
+    # Final gdf with also with unmatched streets set to np.nan
+    gdf = pd.concat([gdf, unmatched], ignore_index=True)
     gdf['geometry'] = gdf['geometry_point']
+
+
     gdf.set_geometry('geometry')
 
     return gdf
@@ -427,7 +447,10 @@ def execute(context):
         latitude, longitude  = cleaned_str.split(',')
         return Point(float(longitude), float(latitude))
 
+
+
     df_streets['geometry'] = df_streets['location'].apply(parse_location)
+    df_streets = df_streets.drop(columns=['location'])
     df_streets['id'] = np.arange(len(df_streets))
 
 
@@ -469,7 +492,7 @@ def execute(context):
 
     print("[INFO] parsing HTS trip addresses finished successfully.")
 
-    return df_streets[['municipality', 'zone', 'street', 'geometry', 'location']]
+    return df_streets[['municipality', 'zone', 'street', 'geometry']]
 
 def validate(context):
     filenames = [

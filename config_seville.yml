@@ -6,7 +6,9 @@ working_directory: cache
 
 # This section defines which parts of the pipeline should be run
 run:
-  - matsim.output 
+  - matsim.output
+  - analysis.seville.ivt_style.analysis
+  - analysis.seville.ivt_style.compare_ipu
 
 
 # Here the configuraiton of the pipeline starts
@@ -40,7 +42,7 @@ config:
   
 
   home_location_sampling: weighted
-  mode_choice: false
+  mode_choice: true
   matching_attributes: ["sex", "age_class", "has_license"]
 
   gtfs_path: gtfs
@@ -49,10 +51,18 @@ config:
 
   # Include Seville City data only
   seville_city_data_only: True
+  # IPU aggregation levels:
+  # - commune_id
+  # - departement_id (obsolete)
+  IPU_aggregation_level: "commune_id"
+  weighted_trips: True
 
   # Debug settings
   missing_trips_for_young_people: False
-  
+  eqasim_commit: f375a37
+  eqasim_version: "2.0.0"
+  eqasim_branch: "sutlab" 
+
 # Overrides for the seville pipeline compared to the Île-de-France pipeline
 
 aliases:
@@ -74,8 +84,8 @@ aliases:
   data.hts.entd.filtered: seville.data.hts.entd.filtered
   data.hts.entd.cleaned: seville.data.hts.entd.cleaned
 
-  #matsim.simulation.prepare: seville.matsim.simulation.prepare
-  #matsim.simulation.run: seville.matsim.simulation.run
+  matsim.simulation.prepare: seville.matsim.simulation.prepare
+  matsim.simulation.run: seville.matsim.simulation.run
 
   data.hts.entd.reweighted: seville.data.hts.entd.reweighted
 

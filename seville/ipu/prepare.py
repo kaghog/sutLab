@@ -1,13 +1,17 @@
 """
-This stage prepares census targets at departement level for IPU (Sevilla).
+This stage prepares census targets at configured aggregation level for IPU (Sevilla).
 
-Aggregates census data to departement level:
+Aggregates census data to aggregate level:
 - Person-level: age_class x sex
 - Household-level: household_size
 - Employment: age_class x sex x employed
 
 Handles mismatched population vs employment age bins by
 proportional disaggregation and structural zeros.
+
+NOTE: available aggregation levels: 
+    - departement
+    - commune
 """
 import pandas as pd
 
@@ -16,9 +20,14 @@ def configure(context):
     context.stage("seville.data.census.households")
     context.stage("seville.data.census.employment")
     context.config("sampling_rate", 1.0)
+    context.config("IPU_aggregation_level")
 
 
 def execute(context):
+
+    aggregation_level = context.config("IPU_aggregation_level")
+
+
     df_population = context.stage("seville.data.census.population")
     df_households = context.stage("seville.data.census.households")
     df_employment = context.stage("seville.data.census.employment")
@@ -34,13 +43,13 @@ def execute(context):
         "province_id": "departement_id",
         "census_section_id": "commune_id"
     }
-    for df in [df_population, df_employment]:
+    for df in [df_population, df_employment, df_households]:
         df.rename(MAP_COLUMNS, axis=1, inplace=True)
 
 
-    departements = sorted(df_population["departement_id"].unique())
+    aggregation_areas = sorted(df_population[aggregation_level].unique())
 
-    print(f"Preparing IPU targets for {len(departements)} departements...")
+    print(f"Preparing IPU targets for {len(aggregation_areas)} {aggregation_level[:-3]}s...")
 
     # ------------------------------------------------------------------
     # Population → employment age-bin mapping (lower bound representation)
@@ -69,8 +78,7 @@ def execute(context):
         100: 70
     }
     # add empty rows of employment for persons younger than 15
-    columns = ['commune_id', 'municipality_id', 'departement_id', 'sex']
-    df_employment_young = df_employment[columns].drop_duplicates(columns)
+    df_employment_young = df_employment[df_employment['age_class'] == 16].copy()
     df_employment_young['weight'] = 0
     df_employment_young['age_class'] = 0
 
@@ -79,14 +87,14 @@ def execute(context):
 
     # ------------------------------------------------------------------------
 
-    targets_by_departement = {}
+    targets_by_aggregation_area = {}
 
-    for departement_id in departements:
-        targets_by_departement[departement_id] = {}
+    for aggregation_area_id in aggregation_areas:
+        targets_by_aggregation_area[aggregation_area_id] = {}
 
-        df_pop = df_population[df_population["departement_id"] == departement_id]
-        df_hh = df_households[df_households["departement_id"] == departement_id]
-        df_emp = df_employment[df_employment["departement_id"] == departement_id]
+        df_pop = df_population[df_population[aggregation_level] == aggregation_area_id]
+        df_hh = df_households[df_households[aggregation_level] == aggregation_area_id]
+        df_emp = df_employment[df_employment[aggregation_level] == aggregation_area_id]
 
         # --------------------------------------------------------------
         # Person targets: age × sex
@@ -98,7 +106,7 @@ def execute(context):
             .to_dict()
         )
 
-        targets_by_departement[departement_id]["age_sex"] = age_sex_targets
+        targets_by_aggregation_area[aggregation_area_id]["age_sex"] = age_sex_targets
 
         # --------------------------------------------------------------
         # Household size targets
@@ -115,7 +123,7 @@ def execute(context):
             k: v * sampling_rate for k, v in household_size_targets.items()
         }
 
-        targets_by_departement[departement_id]["household_size"] = household_size_targets
+        targets_by_aggregation_area[aggregation_area_id]["household_size"] = household_size_targets
 
         # --------------------------------------------------------------
         # Employment targets
@@ -178,9 +186,9 @@ def execute(context):
             unemployed = pop_total - employed
             employment_targets[(sex, age_class, False)] = max(0, unemployed)
 
-        targets_by_departement[departement_id]["employment"] = employment_targets
+        targets_by_aggregation_area[aggregation_area_id]["employment"] = employment_targets
 
-    print(f"✓ Prepared targets for {len(targets_by_departement)} departements")
+    print(f"✓ Prepared targets for {len(targets_by_aggregation_area)} {aggregation_level[:-3]}s")
 
 
-    return targets_by_departement
+    return targets_by_aggregation_area
