@@ -5,7 +5,7 @@ import numpy as np
 
 # ---- Centralized color constants ----
 COLOR_SYNTHETIC = "#D3D3D3"  # Gray for synthetic population (input)
-COLOR_SIMULATION = "#9370DB"  # Purple for simulation results (output)
+COLOR_SIMULATION = "#CC79A7"  # Pink for simulation results (output)
 COLOR_ACTUAL_HTS = "#00205B"  # Dark blue for HTS reference
 COLOR_CENSUS = "#E69F00"  # Orange for census
 COLOR_CARLA = "#2E8B57"  # Sea green for CARLA algorithm
@@ -47,7 +47,9 @@ def autolabel(rects, ax):
 
 def add_small_hist(axes, r, c, act, x, y, bins, lab=["Synthetic", "HTS"]):
     # Synthetic histogram (unweighted)
-    axes[r, c].hist(x, bins, alpha=0.5, density=True, color=COLOR_SYNTHETIC)
+    axes[r, c].hist(
+        x, bins, alpha=0.5, density=True, color=COLOR_SYNTHETIC, label="Synthetic"
+    )
     # HTS histogram (weighted)
     axes[r, c].hist(
         y["crowfly_distance"],
@@ -56,10 +58,12 @@ def add_small_hist(axes, r, c, act, x, y, bins, lab=["Synthetic", "HTS"]):
         alpha=0.5,
         density=True,
         color=COLOR_ACTUAL_HTS,
+        label="HTS",
     )
     axes[r, c].set_ylabel("Percentage")
     axes[r, c].set_xlabel("Crowfly Distance [km]")
     axes[r, c].set_title(act.capitalize())
+    axes[r, c].legend(fontsize="small", loc="lower right")
     return axes
 
 
@@ -80,13 +84,13 @@ def add_small_cdf(axes, r, c, act, x, y, bins=None, lab=["Synthetic", "HTS"]):
         y_cdf /= y_cdf[-1]
 
     # HTS as blue, Synthetic as gray
-    axes[r, c].plot(y_data[y_sorted], y_cdf, color=COLOR_ACTUAL_HTS)
-    axes[r, c].plot(x_data[x_sorted], x_cdf, color=COLOR_SYNTHETIC)
+    axes[r, c].plot(y_data[y_sorted], y_cdf, color=COLOR_ACTUAL_HTS, label="HTS")
+    axes[r, c].plot(x_data[x_sorted], x_cdf, color=COLOR_SYNTHETIC, label="Synthetic")
 
     axes[r, c].set_ylabel("Probability")
     axes[r, c].set_xlabel("Crowfly Distance [km]")
     axes[r, c].set_title(act.capitalize())
-    # Legend will be added once to the entire figure, not per subplot
+    axes[r, c].legend(fontsize="small", loc="lower right")
     return axes
 
 
@@ -555,21 +559,8 @@ def plot_comparison_hist_purpose(
                 # Hide unused subplots
                 axes[r, c].set_visible(False)
 
-    # Add a single legend for the entire figure positioned on the right
-    # Create dummy plots for legend
-    import matplotlib.lines as mlines
-
-    hts_line = mlines.Line2D([], [], color=COLOR_ACTUAL_HTS, label="HTS")
-    synthetic_line = mlines.Line2D([], [], color=COLOR_SYNTHETIC, label="Synthetic")
-    fig.legend(
-        handles=[hts_line, synthetic_line],
-        loc="center right",
-        bbox_to_anchor=(0.98, 0.5),
-    )
-
     fig.suptitle("Distribution of Distances by Activity", fontsize=14)
     fig.tight_layout()
-    fig.subplots_adjust(right=0.85)  # Make room for legend on the right
     plt.savefig(
         "%s/" % context.config("analysis_path") + title, bbox_inches="tight", dpi=dpi
     )
@@ -621,23 +612,8 @@ def plot_comparison_hist_mode(
             else:
                 axes[r, c].set_visible(False)
 
-    # Add a single legend for the entire figure positioned on the right
-    # Create dummy plots for legend
-    from matplotlib.patches import Rectangle
-
-    hts_patch = Rectangle((0, 0), 1, 1, fc=COLOR_ACTUAL_HTS, alpha=0.5, label="HTS")
-    synthetic_patch = Rectangle(
-        (0, 0), 1, 1, fc=COLOR_SYNTHETIC, alpha=0.5, label="Synthetic"
-    )
-    fig.legend(
-        handles=[hts_patch, synthetic_patch],
-        loc="center right",
-        bbox_to_anchor=(0.98, 0.5),
-    )
-
     fig.suptitle("Distribution of Distances by Mode", fontsize=14)
     fig.tight_layout()
-    fig.subplots_adjust(right=0.85)  # Make room for legend on the right
     plt.savefig(
         "%s/" % context.config("analysis_path") + title, bbox_inches="tight", dpi=dpi
     )
@@ -709,21 +685,8 @@ def plot_comparison_cdf_purpose(
                 # Hide unused subplots
                 axes[r, c].set_visible(False)
 
-    # Add a single legend for the entire figure positioned on the right
-    # Create dummy plots for legend
-    import matplotlib.lines as mlines
-
-    hts_line = mlines.Line2D([], [], color=COLOR_ACTUAL_HTS, label="HTS")
-    synthetic_line = mlines.Line2D([], [], color=COLOR_SYNTHETIC, label="Synthetic")
-    fig.legend(
-        handles=[hts_line, synthetic_line],
-        loc="center right",
-        bbox_to_anchor=(0.98, 0.5),
-    )
-
     fig.suptitle("Distribution of Distances by Activity", fontsize=14)
     fig.tight_layout()
-    fig.subplots_adjust(right=0.85)  # Make room for legend on the right
     plt.savefig(
         "%s/" % context.config("analysis_path") + title, bbox_inches="tight", dpi=dpi
     )
@@ -775,21 +738,8 @@ def plot_comparison_cdf_mode(
             else:
                 axes[r, c].set_visible(False)
 
-    # Add a single legend for the entire figure positioned on the right
-    # Create dummy plots for legend
-    import matplotlib.lines as mlines
-
-    hts_line = mlines.Line2D([], [], color=COLOR_ACTUAL_HTS, label="HTS")
-    synthetic_line = mlines.Line2D([], [], color=COLOR_SYNTHETIC, label="Synthetic")
-    fig.legend(
-        handles=[hts_line, synthetic_line],
-        loc="center right",
-        bbox_to_anchor=(0.98, 0.5),
-    )
-
     fig.suptitle("Distribution of Distances by Mode", fontsize=14)
     fig.tight_layout()
-    fig.subplots_adjust(right=0.85)  # Make room for legend on the right
     plt.savefig(
         "%s/" % context.config("analysis_path") + title, bbox_inches="tight", dpi=dpi
     )
@@ -921,17 +871,23 @@ def add_threeway_hist(
             alpha=0.4,
             density=True,
             color=COLOR_ACTUAL_HTS,
+            label="HTS",
         )
     # CARLA histogram (unweighted)
     if len(x_syn1) > 0:
-        axes[r, c].hist(x_syn1, bins, alpha=0.4, density=True, color=COLOR_CARLA)
+        axes[r, c].hist(
+            x_syn1, bins, alpha=0.4, density=True, color=COLOR_CARLA, label=label_syn1
+        )
     # Hoerl histogram (unweighted)
     if len(x_syn2) > 0:
-        axes[r, c].hist(x_syn2, bins, alpha=0.4, density=True, color=COLOR_HOERL)
+        axes[r, c].hist(
+            x_syn2, bins, alpha=0.4, density=True, color=COLOR_HOERL, label=label_syn2
+        )
 
     axes[r, c].set_ylabel("Percentage")
     axes[r, c].set_xlabel("Crowfly Distance [km]")
     axes[r, c].set_title(act.capitalize())
+    axes[r, c].legend(fontsize="small", loc="lower right")
     return axes
 
 
@@ -946,7 +902,9 @@ def add_threeway_cdf(
         y_weights = np.array(x_hts["weight_person"], dtype=np.float64)
         y_cdf = np.cumsum(y_weights[y_sorted])
         y_cdf = y_cdf / y_cdf[-1]
-        axes[r, c].plot(y_data[y_sorted], y_cdf, color=COLOR_ACTUAL_HTS, linewidth=2)
+        axes[r, c].plot(
+            y_data[y_sorted], y_cdf, color=COLOR_ACTUAL_HTS, linewidth=2, label="HTS"
+        )
 
     # CARLA CDF (unweighted)
     if len(x_syn1) > 0:
@@ -954,7 +912,9 @@ def add_threeway_cdf(
         x1_sorted = np.argsort(x1_data)
         x1_cdf = np.cumsum([1.0] * len(x1_data))
         x1_cdf = x1_cdf / x1_cdf[-1]
-        axes[r, c].plot(x1_data[x1_sorted], x1_cdf, color=COLOR_CARLA, linewidth=2)
+        axes[r, c].plot(
+            x1_data[x1_sorted], x1_cdf, color=COLOR_CARLA, linewidth=2, label=label_syn1
+        )
 
     # Hoerl CDF (unweighted)
     if len(x_syn2) > 0:
@@ -962,12 +922,15 @@ def add_threeway_cdf(
         x2_sorted = np.argsort(x2_data)
         x2_cdf = np.cumsum([1.0] * len(x2_data))
         x2_cdf = x2_cdf / x2_cdf[-1]
-        axes[r, c].plot(x2_data[x2_sorted], x2_cdf, color=COLOR_HOERL, linewidth=2)
+        axes[r, c].plot(
+            x2_data[x2_sorted], x2_cdf, color=COLOR_HOERL, linewidth=2, label=label_syn2
+        )
 
     axes[r, c].set_ylabel("Probability")
     axes[r, c].set_xlabel("Crowfly Distance (km)")
     axes[r, c].set_title(act.capitalize())
     axes[r, c].grid(True, alpha=0.3)
+    axes[r, c].legend(fontsize="small", loc="lower right")
     return axes
 
 
@@ -1040,21 +1003,8 @@ def plot_threeway_hist_purpose(
             else:
                 axes[r, c].set_visible(False)
 
-    # Add a single legend for the entire figure positioned on the right
-    import matplotlib.lines as mlines
-
-    hts_line = mlines.Line2D([], [], color=COLOR_ACTUAL_HTS, label="HTS")
-    syn1_line = mlines.Line2D([], [], color=COLOR_CARLA, label=label_syn1)
-    syn2_line = mlines.Line2D([], [], color=COLOR_HOERL, label=label_syn2)
-    fig.legend(
-        handles=[hts_line, syn1_line, syn2_line],
-        loc="center right",
-        bbox_to_anchor=(0.98, 0.5),
-    )
-
     fig.suptitle("Distribution of Distances by Activity", fontsize=14)
     fig.tight_layout()
-    fig.subplots_adjust(right=0.85)  # Make room for legend on the right
     plt.savefig(
         "%s/%s" % (context.config("analysis_path"), title), bbox_inches="tight", dpi=dpi
     )
@@ -1128,21 +1078,8 @@ def plot_threeway_cdf_purpose(
             else:
                 axes[r, c].set_visible(False)
 
-    # Add a single legend for the entire figure positioned on the right
-    import matplotlib.lines as mlines
-
-    hts_line = mlines.Line2D([], [], color=COLOR_ACTUAL_HTS, linewidth=2, label="HTS")
-    syn1_line = mlines.Line2D([], [], color=COLOR_CARLA, linewidth=2, label=label_syn1)
-    syn2_line = mlines.Line2D([], [], color=COLOR_HOERL, linewidth=2, label=label_syn2)
-    fig.legend(
-        handles=[hts_line, syn1_line, syn2_line],
-        loc="center right",
-        bbox_to_anchor=(0.98, 0.5),
-    )
-
     fig.suptitle("Distribution of Distances by Activity", fontsize=14)
     fig.tight_layout()
-    fig.subplots_adjust(right=0.85)  # Make room for legend on the right
     plt.savefig(
         "%s/%s" % (context.config("analysis_path"), title), bbox_inches="tight", dpi=dpi
     )
@@ -1218,21 +1155,8 @@ def plot_threeway_hist_mode(
             else:
                 axes[r, c].set_visible(False)
 
-    # Add a single legend for the entire figure positioned on the right
-    import matplotlib.lines as mlines
-
-    hts_line = mlines.Line2D([], [], color=COLOR_ACTUAL_HTS, label="HTS")
-    syn1_line = mlines.Line2D([], [], color=COLOR_CARLA, label=label_syn1)
-    syn2_line = mlines.Line2D([], [], color=COLOR_HOERL, label=label_syn2)
-    fig.legend(
-        handles=[hts_line, syn1_line, syn2_line],
-        loc="center right",
-        bbox_to_anchor=(0.98, 0.5),
-    )
-
     fig.suptitle("Distribution of Distances by Mode", fontsize=14)
     fig.tight_layout()
-    fig.subplots_adjust(right=0.85)  # Make room for legend on the right
     plt.savefig(
         "%s/%s" % (context.config("analysis_path"), title), bbox_inches="tight", dpi=dpi
     )
@@ -1306,21 +1230,8 @@ def plot_threeway_cdf_mode(
             else:
                 axes[r, c].set_visible(False)
 
-    # Add a single legend for the entire figure positioned on the right
-    import matplotlib.lines as mlines
-
-    hts_line = mlines.Line2D([], [], color=COLOR_ACTUAL_HTS, linewidth=2, label="HTS")
-    syn1_line = mlines.Line2D([], [], color=COLOR_CARLA, linewidth=2, label=label_syn1)
-    syn2_line = mlines.Line2D([], [], color=COLOR_HOERL, linewidth=2, label=label_syn2)
-    fig.legend(
-        handles=[hts_line, syn1_line, syn2_line],
-        loc="center right",
-        bbox_to_anchor=(0.98, 0.5),
-    )
-
     fig.suptitle("Distribution of Distances by Mode", fontsize=14)
     fig.tight_layout()
-    fig.subplots_adjust(right=0.85)  # Make room for legend on the right
     plt.savefig(
         "%s/%s" % (context.config("analysis_path"), title), bbox_inches="tight", dpi=dpi
     )
