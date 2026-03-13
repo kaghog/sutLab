@@ -45,7 +45,8 @@ config:
   mode_choice: true
   matching_attributes: ["sex", "age_class", "has_license"]
 
-  gtfs_path: gtfs
+  gtfs_path: gtfs/Line1_3North_Line3South_Line2Propuesta
+  
   osm_path: osm
   osmosis_binary: osmosis/bin
 
@@ -89,7 +90,7 @@ aliases:
 
   data.hts.entd.reweighted: seville.data.hts.entd.reweighted
 
-
+  matsim.scenario.prepare: matsim.simulation.prepare # matsim.scenario.prepare stage is not used in simulation at all
   matsim.scenario.population: seville.matsim.scenario.population
   synthesis.population.spatial.locations: seville.synthesis.population.spatial.locations
   data.gtfs.cleaned: seville.data.gtfs.cleaned
