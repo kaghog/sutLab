@@ -9,6 +9,7 @@ run:
   - matsim.output
   - analysis.seville.ivt_style.analysis
   - analysis.seville.ivt_style.compare_ipu
+  - synthesis.output
 
 
 # Here the configuraiton of the pipeline starts
@@ -42,10 +43,10 @@ config:
   
 
   home_location_sampling: weighted
-  mode_choice: true
+  mode_choice: True
   matching_attributes: ["sex", "age_class", "has_license"]
 
-  gtfs_path: gtfs/Line1_3North_Line3South_Line2Propuesta
+  gtfs_path: gtfs/Line1
   
   osm_path: osm
   osmosis_binary: osmosis/bin
@@ -55,7 +56,7 @@ config:
   # IPU aggregation levels:
   # - commune_id
   # - departement_id (obsolete)
-  IPU_aggregation_level: "commune_id"
+  IPU_aggregation_level: "departement_id"
   weighted_trips: True
 
   # Debug settings
