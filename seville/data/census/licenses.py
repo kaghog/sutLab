@@ -15,7 +15,7 @@ def configure(context):
 
     context.stage("seville.data.census.population")
 
-    context.config("seville_city_data_only")
+    context.config("seville_city_census_only")
 
 
 def execute(context):
@@ -110,7 +110,7 @@ def execute(context):
 
     result_df = df_municipality_expanded
     
-    if context.config("seville_city_data_only") == True:
+    if context.config("seville_city_census_only") == True:
         result_df = result_df[result_df["municipality_id"] == "41091"]
 
     return result_df

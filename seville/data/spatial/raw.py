@@ -13,7 +13,7 @@ For Seville, the stage is renamed to better reflect its nature since it is no lo
 def configure(context):
     context.config("data_path")
     context.config("seville.population_shp", "shapefiles/census_district_shapefiles/SECC_CE_20220101.shp")
-    context.config("seville_city_data_only")
+    context.config("seville_city_locations_only")
 
 def execute(context):
     # Load shapes
@@ -41,7 +41,7 @@ def execute(context):
     gdf_census_sections = gdf_census_sections[gdf_census_sections["census_section_id"].str.isdigit()].copy()
     gdf_census_sections =  gdf_census_sections[gdf_census_sections["province_id"] == "41"]
 
-    if context.config("seville_city_data_only") == True:
+    if context.config("seville_city_locations_only") == True:
         gdf_census_sections = gdf_census_sections[gdf_census_sections["municipality_id"] == "41091"]
 
 

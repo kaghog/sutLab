@@ -116,7 +116,7 @@ MAP_HOUSEHOLD_MEMBERS_COLUMNS = {
 def configure(context):
     context.config("data_path")
     context.config("seville.hts", "Household Travel Survey 2017/BD entrevistas telefonicas Completa_Final_v2.xlsb.xlsx")
-    context.config("seville_city_data_only")
+    context.config("seville_city_locations_only")
 
 def execute(context):
 
