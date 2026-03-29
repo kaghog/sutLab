@@ -1,7 +1,5 @@
 import numpy as np
 import pandas as pd
-import numpy as np
-import pandas as pd
 
 """
 This stage sets attributes for household members based on the census distribution.
@@ -78,6 +76,27 @@ def assign_attribute(df_population, df_attribute, df_persons, column_name, rando
 
     return df_persons
 
+
+def fix_ids(df_persons: pd.DataFrame, df_trips: pd.DataFrame):
+    
+    # Sort
+    df_persons = df_persons.sort_values(by='household_id').reset_index(drop=True)
+    
+    df_persons['new_person_id'] = np.arange(len(df_persons))
+    id_map = dict(zip(df_persons['person_id'], df_persons['new_person_id']))
+    
+    # Apply mapping to trips
+    df_trips['person_id'] = df_trips['person_id'].map(id_map)
+    
+    # Replace old IDs in persons
+    df_persons['person_id'] = df_persons['new_person_id']
+    
+    # drop helper column
+    df_persons = df_persons.drop(columns=['new_person_id'])
+    
+    return df_persons, df_trips
+
+
 def execute(context):
     df_households, df_persons, df_trips, df_added_persons = context.stage("seville.data.hts.entd.household_members.add_persons")
     random = np.random.RandomState(context.config("random_seed"))
@@ -119,5 +138,8 @@ def execute(context):
 
     # merge results
     df_persons = pd.concat([df_persons, df_added_persons])
+
+
+    df_persons, df_trips = fix_ids(df_persons, df_trips)
 
     return df_households, df_persons, df_trips

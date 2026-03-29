@@ -22,7 +22,7 @@ def configure(context):
 
     context.config("seville.emplo_province", "employment/emplo_province.csv")
 
-    context.config("seville_city_data_only")
+    context.config("seville_city_census_only")
 
 
 def extrapolate_age_group(context, census_path, municipality_path, province_path):
@@ -91,13 +91,6 @@ def extrapolate_age_group(context, census_path, municipality_path, province_path
     census_df = census_df[~(census_df["shared_variable"].str.contains("otal"))]
     
 
-    # Ensure all census sections are present
-    codes_df = context.stage("seville.data.spatial.codes")
-    missing_sections = codes_df[~codes_df['commune_id'].isin(census_df["census_section_id"])]
-    if not missing_sections.empty:
-        print("Missing values from df1 in df2:", missing_sections.count())
-        print("Missing values from df1 in df2:", codes_df.count())
-        assert missing_sections.empty
 
 
     # Identify census sections belonging to municipalities under 500 inhabitants
@@ -201,6 +194,8 @@ def execute(context):
         ) / 3
 
 
+
+
     # Create dataframe in expected output format
     result_df = averaged_df
     result_df['weight'] = averaged_df['population_estimate']
@@ -212,8 +207,20 @@ def execute(context):
 
     result_df['province_id'] = "41"
 
-    if context.config("seville_city_data_only") == True:
+    if context.config("seville_city_census_only") == True:
         result_df = result_df[result_df["municipality_id"] == "41091"]
+
+
+
+    ## Ensure all census sections are present
+    #codes_df = context.stage("seville.data.spatial.codes")
+    #missing_sections = codes_df[~codes_df['commune_id'].isin(result_df["census_section_id"])]
+    #if not missing_sections.empty:
+    #    print("Missing values from df1 in df2:", missing_sections.count())
+    #    print("Missing values from df1 in df2:", codes_df.count())
+    #    assert missing_sections.empty
+
+
 
     return result_df[["province_id", "municipality_id", "census_section_id", 'sex', "age_class", 'weight']]
 

@@ -8,12 +8,11 @@ Provides household size distribution at census section (commune) level for IPU c
 
 
 def configure(context):
-    context.stage("seville.data.spatial.codes")
     context.stage("seville.data.census.population")
     context.config("data_path")
     context.config("seville.household_data", "households.xlsx")
 
-    context.config("seville_city_data_only")
+    context.config("seville_city_census_only")
 
 
 def execute(context):
@@ -46,7 +45,7 @@ def execute(context):
 
     print(df_households.head())    
 
-    if context.config("seville_city_data_only") == True:
+    if context.config("seville_city_census_only") == True:
         df_households = df_households[df_households["municipality_id"] == "41091"]
     
     # =============== Census section level household =============================

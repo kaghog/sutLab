@@ -171,11 +171,11 @@ def process_ipu_batch(context, arguments):
         # 2. Household size constraints (household-level)
         census_targets["household_size_capped"] = dept_targets["household_size"]
 
-        # 3. Employment x Age x Sex constraints (person-level)
-        employment_age_sex = {}
-        for (sex, age_class, employed), count in dept_targets["employment"].items():
-            employment_age_sex[(employed, sex, age_class)] = count
-        census_targets["employment_age_sex"] = employment_age_sex
+        # Include total constraints if present
+        if "total_households" in dept_targets:
+            census_targets["total_households"] = dept_targets["total_households"]
+        if "total_population" in dept_targets:
+            census_targets["total_population"] = dept_targets["total_population"]
 
         # Run IPU
         # OPTION 1: Use Global Seed (Recommended for small zones)
@@ -187,14 +187,40 @@ def process_ipu_batch(context, arguments):
                 initial_weight_col="household_weight",
             )
 
+            # Debug: check weight distribution after raking
+            hh_weights = weighted_df.groupby("household_id")["weight"].first()
+            target_hh = sum(dept_targets["household_size"].values())
+            if dept_id in ["011", "101"]:  # Sample small and large departments
+                print(f"\nDept {dept_id} raking output:")
+                print(f"  Target HH: {target_hh}")
+                print(f"  Weight sum: {hh_weights.sum():.1f}")
+                print(
+                    f"  Weight stats: min={hh_weights.min():.4f}, max={hh_weights.max():.2f}, mean={hh_weights.mean():.4f}, median={hh_weights.median():.4f}"
+                )
+                print(
+                    f"  HH with weight >= 1.0: {(hh_weights >= 1.0).sum()} ({(hh_weights >= 1.0).sum() / len(hh_weights) * 100:.1f}%)"
+                )
+                print(
+                    f"  HH with weight < 0.1: {(hh_weights < 0.1).sum()} ({(hh_weights < 0.1).sum() / len(hh_weights) * 100:.1f}%)"
+                )
+
             # Integerize (Create Synthetic Population)
             if apply_trs:
-                final_df = synthesizer.integerize_weights(weighted_df)
+                final_df = synthesizer.integerize_weights(
+                    weighted_df, department_id=dept_id
+                )
+                # Debug: check TRS output
+                target_hh = sum(dept_targets["household_size"].values())
+                actual_hh = final_df["household_id"].nunique()
+                if actual_hh < target_hh * 0.5:  # Less than 50% of target
+                    print(
+                        f"WARNING: Dept {dept_id} TRS under-generated: target={target_hh}, actual={actual_hh} ({actual_hh / target_hh * 100:.1f}%)"
+                    )
             else:
                 final_df = weighted_df.copy()
 
             # Add departement ID to result
-            final_df[context.config("IPU_aggregation_level")] = dept_id
+            final_df[context.config('IPU_aggregation_level')] = dept_id
 
             batch_results.append(final_df)
             context.progress.update()

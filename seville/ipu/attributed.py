@@ -32,6 +32,7 @@ def execute(context):
     if "commune_id" not in df.columns:
         # Get population per commune for weighting
         df_pop = context.stage("seville.data.census.population")
+        df_pop = df_pop.rename(columns={"province_id":"departement_id", "census_section_id":"commune_id"})
         commune_pop = df_pop.groupby("commune_id")["weight"].sum().to_dict()
 
         # Assign commune_id to each household based on departement
