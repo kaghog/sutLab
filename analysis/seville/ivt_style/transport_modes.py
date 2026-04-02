@@ -18,16 +18,99 @@ def import_data_synthetic(context):
     filepath = "%s/%strips.csv" % (output_path, output_prefix)
     df_trips = pd.read_csv(filepath, encoding = "latin1", sep = ";")
 
-    return df_trips   
+    filepath = "%s/%spersons.csv" % (output_path, output_prefix)
+    df_persons = pd.read_csv(filepath, encoding = "latin1", sep = ";")
+
+
+    return df_persons, df_trips   
 
 
 def import_data_actual(context):
-    _, _, df_act_trips = context.stage("data.hts.entd.reweighted")
-    return df_act_trips
+    _, df_persons, df_act_trips = context.stage("data.hts.entd.reweighted")
+    return df_persons, df_act_trips
+
+def export_csvs(context, df_persons, df_trips, suffix):
+    print(df_trips.info())
+
+    df_trips = df_trips.copy()
+
+    df_trips['weight'] = df_trips['trip_weight']
+    df_trips_original = df_trips[df_trips['person_id'] >= 0].copy()
+    df_trips_age = df_trips.copy()
+    df_trips_age = df_trips_age.merge(df_persons[['person_id', 'age','trip_weight']], on='person_id', suffixes=['_trip', '_person'])
+    assert len(df_trips_age[df_trips_age['trip_weight_trip'] == df_trips_age['trip_weight_person']])
+    
+    print(len(df_trips_age[df_trips_age['trip_weight_trip'] == df_trips_age['trip_weight_person']]))
+    print(df_trips_age[['trip_weight_trip', 'trip_weight_person']].head())
+
+
+
+    print(df_trips['weight'].value_counts().sort_index())
+    print("TOTAL WEIGHT", df_trips['weight'].sum())
+    print("TOTAL LENGTH", len(df_trips))
+
+    print(df_trips.info())
+
+    df_trips = (
+        df_trips.groupby("mode", as_index=False)["weight"]
+        .sum()
+    )
+    df_trips_original = (
+        df_trips_original.groupby("mode", as_index=False)["weight"]
+        .sum()
+    )
+    df_trips_age['age_group'] = (df_trips_age['age'] // 5) * 5
+
+    df_trips_age_within_age = (
+        df_trips_age.groupby("age_group")["mode"]
+          .value_counts(normalize=True)
+          .unstack(fill_value=0)
+    )
+
+    df_trips_age_within_mode = (
+        df_trips_age.groupby("mode")["age_group"]
+          .value_counts(normalize=True)
+          .unstack(fill_value=0)
+    )
+
+
+    df_trips_age = (
+        df_trips_age.groupby(['age_group', "mode"], as_index=False)["weight"]
+        .sum()
+    )
+
+    df_trips["weight_pct"] = df_trips["weight"] / df_trips["weight"].sum() #* 100
+    df_trips_original["weight_pct"] = df_trips_original["weight"] / df_trips_original["weight"].sum() #* 100
+    df_trips_age["weight_pct"] = df_trips_age["weight"] / df_trips_age["weight"].sum() #* 100
+
+    df_trips_age.loc["Total"] = df_trips_age.sum()
+
+
+    df_trips.to_csv(f"{context.config('analysis_path')}/mode_shares{suffix}.csv")
+    df_trips_original.to_csv(f"{context.config('analysis_path')}/mode_shares_original{suffix}.csv")
+    df_trips_age_within_age.to_csv(f"{context.config('analysis_path')}/mode_shares_by_age_within_age{suffix}.csv")
+    df_trips_age_within_mode.to_csv(f"{context.config('analysis_path')}/mode_shares_by_age_within_mode{suffix}.csv")
+    df_trips_age.to_csv(f"{context.config('analysis_path')}/mode_shares_by_age{suffix}.csv")
+
+    df_trips_age.to_csv(f"{context.config('analysis_path')}/randoM_check{suffix}.csv")
+
+    
+
 
 def execute(context):
-    syn_trips = import_data_synthetic(context)
-    hts_trips = import_data_actual(context)
+    syn_persons, syn_trips = import_data_synthetic(context)
+    hts_persons, hts_trips = import_data_actual(context)
+    #hts_persons, hts_trips = import_data_synthetic(context)
+
+
+    syn_trips['trip_weight'] = 1
+    syn_persons['trip_weight'] = 1
+    #export_csvs(context, syn_persons, syn_persons, "_synthetic")
+    export_csvs(context, hts_persons, hts_trips, "_hts")
+    
+    if False:
+        print("EXITED AFTER EXPORTING CSV FILES")
+        exit(0)
 
         # ----- IPU synthetic -----
     syn_trips["weight"] = 1.0
@@ -38,7 +121,8 @@ def execute(context):
     syn_trips["weight"] = syn_trips["weight"] / syn_trips["weight"].sum() * 100
 
     # ----- HTS output -----
-    hts_trips = hts_trips.rename(columns={"trip_weight":"weight"})
+
+    hts_trips['weight'] = hts_trips['trip_weight']
     hts_trips = (
         hts_trips.groupby("mode", as_index=False)["weight"]
         .sum()

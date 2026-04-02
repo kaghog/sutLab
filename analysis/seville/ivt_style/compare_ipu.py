@@ -126,26 +126,35 @@ def plot_household(context):
 
     census_dist = census_dist / census_dist.sum() * 100
 
-
     # --------------------------------------------------
     # IPU: derive household size from persons
     # --------------------------------------------------
     ipu_sizes = df_ipu.groupby("household_id").size()
 
+    # cap at 5
     ipu_sizes = ipu_sizes.clip(upper=5)
+
     ipu_dist = ipu_sizes.value_counts().sort_index()
     ipu_dist = ipu_dist / ipu_dist.sum() * 100
-
-    print("census_dist", census_dist)
-    print("ipu_dist", ipu_dist)
 
 
     # --------------------------------------------------
     # HTS: household_size column already exists
     # --------------------------------------------------
-    df_hts = df_hts[df_hts['household_size'] <= 5]
+    # cap at 5 instead of dropping
+    df_hts['household_size'] = df_hts['household_size'].clip(upper=5)
+
     hts_dist = df_hts.groupby("household_size")['household_weight'].sum().sort_index()
     hts_dist = hts_dist / hts_dist.sum() * 100
+
+    # PRINT ALL
+    print("="*10)
+    print("hts_dist", hts_dist)
+    print("="*10)
+    print("census_dist", census_dist)
+    print("="*10)
+    print("ipu_dist", ipu_dist)
+    print("="*10)
 
     # --------------------------------------------------
     # Align bins
