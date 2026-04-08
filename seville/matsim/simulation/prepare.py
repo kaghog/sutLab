@@ -5,6 +5,7 @@ import matsim.runtime.eqasim as eqasim
 
 def configure(context):
     context.config("mode_choice", False)
+    context.config("without_routing", False)
     
     context.stage("matsim.scenario.population")
     context.stage("matsim.scenario.households")
@@ -119,6 +120,7 @@ def execute(context):
 
         shutil.copy("%s/mode_choice/output_plans.xml.gz" % context.path(),
                     "%s/%spopulation.xml.gz" % (context.path(), context.config("output_prefix")))
+
     else:
         # Route population
         eqasim.run(context, "org.eqasim.core.scenario.routing.RunPopulationRouting", [
@@ -127,6 +129,16 @@ def execute(context):
             "--threads", context.config("processes"),
             "--config:plans.inputPlansFile", "prepared_population.xml.gz"
         ])
+
+    if context.config("without_routing"):
+        # Have an unrouted population so MATSim calculates routes dynamically at Iteration 0.
+        
+        shutil.copy(
+            "%s/prepared_population.xml.gz" % context.path(),
+            "%s/%spopulation_unrouted.xml.gz" % (context.path(), context.config("output_prefix"))
+        )
+        assert os.path.exists("%s/%spopulation_unrouted.xml.gz" % (context.path(), context.config("output_prefix")))
+
 
     assert os.path.exists("%s/%spopulation.xml.gz" % (context.path(), context.config("output_prefix")))
 
