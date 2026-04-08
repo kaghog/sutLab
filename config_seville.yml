@@ -98,9 +98,16 @@ aliases:
 
   matsim.scenario.prepare: matsim.simulation.prepare # matsim.scenario.prepare stage is not used in simulation at all
   matsim.scenario.population: seville.matsim.scenario.population
+
   synthesis.population.spatial.locations: seville.synthesis.population.spatial.locations
-  data.gtfs.cleaned: seville.data.gtfs.cleaned
+  synthesis.population.spatial.primary.distance_distributions: seville.synthesis.population.spatial.primary.distance_distributions
+  synthesis.population.spatial.primary.work: seville.synthesis.population.spatial.primary.work
   synthesis.population.spatial.primary.education: seville.synthesis.population.spatial.primary.education
+  synthesis.population.spatial.secondary.locations: seville.synthesis.population.spatial.secondary.locations
+  
+
+
+  data.gtfs.cleaned: seville.data.gtfs.cleaned
   synthesis.output: seville.output
   synthesis.population.trips: seville.synthesis.population.trips
   
