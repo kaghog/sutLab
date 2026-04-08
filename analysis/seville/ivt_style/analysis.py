@@ -27,7 +27,12 @@ def configure(context):
     
     context.stage("seville.data.census.population")
     # Also prepare census license totals for comparison plots
-    context.stage("seville.ipf.prepare")
+
+    context.stage("seville.data.census.population")
+    context.stage("seville.data.census.employment")
+    context.stage("seville.data.census.licenses")
+
+
     context.stage("data.hts.entd.reweighted")
 
     context.config("weekend_scenario", False)
@@ -604,7 +609,10 @@ def demographics_comparison(context, df_act_persons, df_syn_persons, df_census, 
 
     # Additional plot including Census (IPF) as third series
     try:
-        df_population, df_employment, df_licenses_municipality = context.stage("seville.ipf.prepare")
+        df_population = context.stage("seville.data.census.population")
+        df_employment = context.stage("seville.data.census.employment")
+        df_licenses_municipality = context.stage("seville.data.census.licenses")
+
         total_pop = df_population["weight"].sum()
         total_license = df_licenses_municipality["weight"].sum()
         census_yes = 100.0 * (total_license / total_pop) if total_pop > 0 else 0.0
@@ -743,7 +751,10 @@ def summary_horizontal(context, df_act_persons, df_syn_persons, df_census, suffi
     cen_emp_pct = _pd.Series([float("nan")] * 2, index=emp_labels)
     try:
         # Pull employment and population from IPF preparation
-        df_population, df_employment, _df_licenses_municipality = context.stage("seville.ipf.prepare")
+        df_population = context.stage("seville.data.census.population")
+        df_employment = context.stage("seville.data.census.employment")
+        df_licenses_municipality = context.stage("seville.data.census.licenses")
+
         total_pop = float(df_population["weight"].sum())
         total_emp = float(df_employment["weight"].sum())
         if total_pop > 0:
