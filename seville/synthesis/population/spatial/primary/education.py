@@ -84,7 +84,7 @@ def impute_education_locations_radius(context):
     age_bounds = [(-np.inf, 5), (6, 16), (17, np.inf)]
 
     education_types = [["kindergarten"], ["school"], ["university"]]
-    query_sizes = [5, 5, 5]
+    query_sizes = [1, 1, 1] #[5, 5, 5]
     
     # Initialize result columns
     df_education_persons["education_x"] = np.nan
