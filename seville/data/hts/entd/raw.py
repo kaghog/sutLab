@@ -43,6 +43,7 @@ MAP_PERSONS_COLUMNS = {
 MAP_TRIPS_COLUMNS = {
     'ID': 'person_id', 
     '#ID-VIAJE': 'trip_id',
+    'Viaje #': 'trip_sequence',
     'COEF': 'trip_weight',
     'HINI_D1': 'departure_time',
     # '': 'arrival_time', # calculated late using 'duration + departure time'
