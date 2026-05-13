@@ -1,0 +1,137 @@
+## Synthetic population pipeline for seville
+## based on the synpp package
+
+# This is the path to a directory where the pipeline can store temporary data
+working_directory: cache
+
+# This section defines which parts of the pipeline should be run
+run:
+  - analysis.seville.export_od
+
+
+# Here the configuraiton of the pipeline starts
+config:
+  # Some general configuration
+  processes: 8
+
+  # Define whether to use ENTD or EGT as the household travel survey (HTS)
+  hts: entd
+
+  # Define sampling rate and random seed for the output population
+  sampling_rate: 0.01
+  acquisition_sample_size: 1
+  random_seed: 1234
+
+  # Paths to the input data and where the output should be stored
+  data_path: ../raw_data/Seville
+  output_path: output
+  output_prefix: seville_1pct_
+  seville.population_shp: shapefiles/census_district_shapefiles/SECC_CE_20220101.shp
+  seville.buildings_path: /buildings/buildings_seville.shp
+  osm_path_seville: osm/andalucia-latest.osm.pbf
+  check_spatial_codes: True
+  analysis_path: output/analysis
+  osmconvert_binary: "/cluster/scratch/snekula/sutlab/sutLab/osmconvert"
+  #osmconvert_binary: "/home/xnekul/windir/ETH_SUTlab/sutLab/osmconvert"
+
+  simulation_output_dir: output/simulation
+  # Only interesting if you run the simulation
+  java_memory: 6G
+
+  # Defaults for seville
+  
+
+  home_location_sampling: weighted
+  mode_choice: True
+  matching_attributes: ["sex", "age_class", "has_license"]
+
+  gtfs_path: gtfs/Line1
+  
+  osm_path: osm
+  osmosis_binary: osmosis/bin
+
+  # only use locations within Seville municipality
+  seville_city_locations_only: False
+  # ['province', 'agglomeration', 'municipality']
+  # seville_locations_area_selection: 'province'
+  # only use persons/households within Seville municipality
+  # seville_city_census_only:
+  # ['province', 'agglomeration', 'municipality']
+  seville_census_area_selection: 'agglomeration' 
+
+  # IPU aggregation levels:
+  # - commune_id
+  # - departement_id (obsolete)
+  IPU_aggregation_level: "departement_id"
+  weighted_trips: True
+
+  # Debug settings
+  missing_trips_for_young_people: False
+  eqasim_commit: f375a37
+  eqasim_version: "2.0.0"
+  eqasim_branch: "sutlab" 
+
+# Overrides for the seville pipeline compared to the Île-de-France pipeline
+
+aliases:
+
+
+ # -- SHARED WITH BAVARIA
+
+  synthesis.population.sampled: seville.ipu.attributed
+  data.census.filtered: seville.ipu.attributed
+  synthesis.population.income.selected: seville.income
+  synthesis.population.spatial.home.zones: seville.homes
+  synthesis.locations.home.locations: seville.locations.home
+  synthesis.locations.education: seville.locations.education
+  synthesis.locations.secondary: seville.locations.secondary
+  synthesis.locations.work: seville.locations.work
+  data.od.weighted: seville.gravity.model
+
+  data.spatial.iris: seville.data.spatial.iris
+  data.spatial.codes: seville.entd_codes
+
+  synthesis.population.spatial.primary.locations: seville.locations.synthesis.replacement
+  synthesis.population.enriched: seville.synthesis.population.enriched
+ 
+ # SEVILLE SPECIFIC
+  data.hts.entd.raw: seville.data.hts.entd.raw
+  data.hts.entd.filtered: seville.data.hts.entd.filtered
+  data.hts.entd.cleaned: seville.data.hts.entd.cleaned
+  data.hts.entd.reweighted: seville.data.hts.entd.reweighted
+
+
+  matsim.simulation.prepare: seville.matsim.simulation.prepare
+  matsim.simulation.run: seville.matsim.simulation.run
+  matsim.scenario.prepare: matsim.simulation.prepare # matsim.scenario.prepare stage is not used in simulation at all
+  matsim.scenario.population: seville.matsim.scenario.population
+  data.gtfs.cleaned: seville.data.gtfs.cleaned
+  synthesis.output: seville.output
+
+  synthesis.population.trips: seville.synthesis.population.trips
+
+ #---
+
+  
+
+
+  # This one is just for patching
+  synthesis.population.spatial.locations: seville.synthesis.population.spatial.locations
+
+  # Secondary should be ok to keep like it
+  synthesis.population.spatial.secondary.locations: seville.synthesis.population.spatial.secondary.locations
+
+
+  # To use Bavaria version of primary locations:
+  
+  synthesis.population.spatial.primary.locations: seville.gravity.primary_locations
+
+  # CDF - we no longer want to use it
+  #synthesis.population.spatial.primary.distance_distributions: seville.synthesis.population.spatial.primary.distance_distributions
+  #synthesis.population.spatial.primary.work: seville.synthesis.population.spatial.primary.work
+  #synthesis.population.spatial.primary.education: seville.synthesis.population.spatial.primary.education
+  
+  
+  
+
+
