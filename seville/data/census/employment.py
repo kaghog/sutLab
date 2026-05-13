@@ -22,7 +22,8 @@ def configure(context):
 
     context.config("seville.emplo_province", "employment/emplo_province.csv")
 
-    context.config("seville_city_census_only")
+    if context.config("seville_census_area_selection") == 'agglomeration':
+        context.stage("seville.data.select_agglomeration")
 
 
 def extrapolate_age_group(context, census_path, municipality_path, province_path):
@@ -207,8 +208,22 @@ def execute(context):
 
     result_df['province_id'] = "41"
 
-    if context.config("seville_city_census_only") == True:
+
+
+    selected_area = context.config("seville_census_area_selection")
+    if selected_area == 'province':
+        # no changes
+        result_df = result_df
+    elif selected_area == 'agglomeration':
+        # use data of municipalities inside agglomeration
+        agglomeration_mun = context.stage("seville.data.select_agglomeration")
+        result_df = result_df[result_df["municipality_id"].isin(agglomeration_mun['municipality_id'])]
+    elif selected_area == 'municipality':
+        # use data of Seville municipality only
         result_df = result_df[result_df["municipality_id"] == "41091"]
+    else:
+        raise NotImplementedError
+        
 
 
 

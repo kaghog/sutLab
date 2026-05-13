@@ -6,11 +6,12 @@ working_directory: cache
 
 # This section defines which parts of the pipeline should be run
 run:
-  - matsim.output
-  - analysis.seville.ivt_style.analysis
-  - analysis.seville.ivt_style.compare_ipu
-  - analysis.seville.ivt_style.save_output
-
+#  - seville.data.census.licenses
+#  - matsim.output
+#  - analysis.seville.ivt_style.analysis
+#  - analysis.seville.ivt_style.compare_ipu
+#  - analysis.seville.ivt_style.save_output
+#
   - synthesis.output
 
 
@@ -37,6 +38,8 @@ config:
   check_spatial_codes: True
   analysis_path: output/analysis
   osmconvert_binary: "/cluster/scratch/snekula/sutlab/sutLab/osmconvert"
+  #osmconvert_binary: "/home/xnekul/windir/ETH_SUTlab/sutLab/osmconvert"
+
   simulation_output_dir: output/simulation
   # Only interesting if you run the simulation
   java_memory: 6G
@@ -55,8 +58,12 @@ config:
 
   # only use locations within Seville municipality
   seville_city_locations_only: False
+  # ['province', 'agglomeration', 'municipality']
+  # seville_locations_area_selection: 'province'
   # only use persons/households within Seville municipality
-  seville_city_census_only: True 
+  # seville_city_census_only:
+  # ['province', 'agglomeration', 'municipality']
+  seville_census_area_selection: 'agglomeration' 
 
   # IPU aggregation levels:
   # - commune_id

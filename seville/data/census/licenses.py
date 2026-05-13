@@ -15,7 +15,8 @@ def configure(context):
 
     context.stage("seville.data.census.population")
 
-    context.config("seville_city_census_only")
+    if context.config("seville_census_area_selection") == 'agglomeration':
+        context.stage("seville.data.select_agglomeration")
 
 
 def execute(context):
@@ -110,8 +111,19 @@ def execute(context):
 
     result_df = df_municipality_expanded
     
-    if context.config("seville_city_census_only") == True:
+    selected_area = context.config("seville_census_area_selection")
+    if selected_area == 'province':
+        # no changes
+        result_df = result_df
+    elif selected_area == 'agglomeration':
+        # use data of municipalities inside agglomeration
+        agglomeration_mun = context.stage("seville.data.select_agglomeration")
+        result_df = result_df[result_df["municipality_id"].isin(agglomeration_mun['municipality_id'])]
+    elif selected_area == 'municipality':
+        # use data of Seville municipality only
         result_df = result_df[result_df["municipality_id"] == "41091"]
+    else:
+        raise NotImplementedError
 
     return result_df
 

@@ -9,7 +9,8 @@ def configure(context):
     context.config("data_path")
     context.config("seville.population", "population.csv")
 
-    context.config("seville_city_census_only")
+    if context.config("seville_census_area_selection") == 'agglomeration':
+        context.stage("seville.data.select_agglomeration")
 
 def execute(context):
 
@@ -49,10 +50,23 @@ def execute(context):
     population_df.loc[condition, "age_class"] = 100 # sets category 100 and more years
     population_df["age_class"] = population_df["age_class"].astype("int64")
 
-    if context.config("seville_city_census_only") == True:
-        population_df = population_df[population_df["municipality_id"] == "41091"]
+    result_df = population_df
 
-    return population_df
+    selected_area = context.config("seville_census_area_selection")
+    if selected_area == 'province':
+        # no changes
+        result_df = result_df
+    elif selected_area == 'agglomeration':
+        # use data of municipalities inside agglomeration
+        agglomeration_mun = context.stage("seville.data.select_agglomeration")
+        result_df = result_df[result_df["municipality_id"].isin(agglomeration_mun['municipality_id'])]
+    elif selected_area == 'municipality':
+        # use data of Seville municipality only
+        result_df = result_df[result_df["municipality_id"] == "41091"]
+    else:
+        raise NotImplementedError
+
+    return result_df
 
 def validate(context):
     CSV_FILE = f"{context.config('data_path')}/{context.config('seville.population')}"

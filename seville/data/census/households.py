@@ -12,7 +12,8 @@ def configure(context):
     context.config("data_path")
     context.config("seville.household_data", "households.xlsx")
 
-    context.config("seville_city_census_only")
+    if context.config("seville_census_area_selection") == 'agglomeration':
+        context.stage("seville.data.select_agglomeration")
 
 
 def execute(context):
@@ -45,8 +46,6 @@ def execute(context):
 
     print(df_households.head())    
 
-    if context.config("seville_city_census_only") == True:
-        df_households = df_households[df_households["municipality_id"] == "41091"]
     
     # =============== Census section level household =============================
     df_population = context.stage("seville.data.census.population").copy()
@@ -87,8 +86,24 @@ def execute(context):
     df_households.drop(columns=['proportion'])
 
     
+    result_df = df_households
+    selected_area = context.config("seville_census_area_selection")
+    if selected_area == 'province':
+        # no changes
+        result_df = result_df
+    elif selected_area == 'agglomeration':
+        # use data of municipalities inside agglomeration
+        agglomeration_mun = context.stage("seville.data.select_agglomeration")
+        result_df = result_df[result_df["municipality_id"].isin(agglomeration_mun['municipality_id'])]
+    elif selected_area == 'municipality':
+        # use data of Seville municipality only
+        result_df = result_df[result_df["municipality_id"] == "41091"]
+    else:
+        raise NotImplementedError
 
-    return df_households
+
+    return result_df
+
 
 def validate(context):
     FILE = f"{context.config('data_path')}/{context.config('seville.household_data')}"
