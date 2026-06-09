@@ -6,9 +6,11 @@ working_directory: cache
 
 # This section defines which parts of the pipeline should be run
 run:
-  - analysis.seville.export_od
-
-
+#  - analysis.seville.ivt_style.analysis
+#  - analysis.seville.export_od
+  - seville.gravity.model_new
+#  - seville.data.census.employees_new
+#  - seville.gravity.model
 # Here the configuraiton of the pipeline starts
 config:
   # Some general configuration
@@ -51,13 +53,13 @@ config:
   osmosis_binary: osmosis/bin
 
   # only use locations within Seville municipality
-  seville_city_locations_only: False
+  seville_city_locations_only: True
   # ['province', 'agglomeration', 'municipality']
   # seville_locations_area_selection: 'province'
   # only use persons/households within Seville municipality
   # seville_city_census_only:
   # ['province', 'agglomeration', 'municipality']
-  seville_census_area_selection: 'agglomeration' 
+  seville_census_area_selection: 'municipality' 
 
   # IPU aggregation levels:
   # - commune_id
