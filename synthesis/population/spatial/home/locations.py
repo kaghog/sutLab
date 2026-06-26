@@ -24,9 +24,14 @@ def _sample_locations(context, args):
 
     # Verify counts
     home_count = len(df_homes)
-    location_count = len(df_locations)
+    location_count = len(df_locations)  
 
-    assert location_count > 0
+    print("="*10)
+    print(f"location_count {location_count}")
+    print(f"home_count {home_count}")
+    print(df_homes)
+    print(df_locations)
+    assert location_count > 0, f"{df_locations} \n {df_homes}"
     assert home_count > 0
 
     # Perform sampling

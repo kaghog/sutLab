@@ -17,10 +17,10 @@ def execute(context):
         
     assert len(population_centroids) == len(employment_centroids)
     
-    pop_locations = population_centroids.sort_values('id')
-    emplo_locations = employment_centroids.sort_values('id')
+    pop_locations = population_centroids.sort_values('macrozone_id')
+    emplo_locations = employment_centroids.sort_values('macrozone_id')
 
-    municipalities = pop_locations["id"].values
+    municipalities = pop_locations["macrozone_id"].values
 
     # Initialize matrix to zero
     distance_matrix = np.ones((len(municipalities), len(municipalities)))

@@ -13,7 +13,9 @@ For Seville, the stage is renamed to better reflect its nature since it is no lo
 def configure(context):
     context.config("data_path")
     context.config("seville.population_shp", "shapefiles/census_district_shapefiles/SECC_CE_20220101.shp")
-    context.config("seville_city_locations_only")
+    if context.config("seville_locations_area_selection") == 'agglomeration':
+        context.stage("seville.data.select_agglomeration")
+
 
 def execute(context):
     # Load shapes
@@ -41,9 +43,20 @@ def execute(context):
     gdf_census_sections = gdf_census_sections[gdf_census_sections["census_section_id"].str.isdigit()].copy()
     gdf_census_sections =  gdf_census_sections[gdf_census_sections["province_id"] == "41"]
 
-    if context.config("seville_city_locations_only") == True:
-        gdf_census_sections = gdf_census_sections[gdf_census_sections["municipality_id"] == "41091"]
 
+    selected_area = context.config("seville_locations_area_selection")
+    if selected_area == 'province':
+        # no changes
+        gdf_census_sections = gdf_census_sections
+    elif selected_area == 'agglomeration':
+        # use data of municipalities inside agglomeration
+        agglomeration_mun = context.stage("seville.data.select_agglomeration")
+        gdf_census_sections = gdf_census_sections[gdf_census_sections["municipality_id"].isin(agglomeration_mun['municipality_id'])]
+    elif selected_area == 'municipality':
+        # use data of Seville municipality only
+        gdf_census_sections = gdf_census_sections[gdf_census_sections["municipality_id"] == "41091"]
+    else:
+        raise NotImplementedError
 
 
     return gdf_census_sections[["census_section_id", "geometry"]]

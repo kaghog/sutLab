@@ -7,13 +7,13 @@ import numpy as np
 Apply gravity model to generate a distance matrix covering Seville Metropolitan Area.
 """
 
-DEFAULT_K = -0.2
-DEFAULT_A = -2.4
-DEFAULT_B = 1.0
-DEFAULT_G = 1.0
+DEFAULT_K = 3.46163624e-07
+DEFAULT_A = 1.069159
+DEFAULT_B = 1.108626
+DEFAULT_G = -0.430266
 
 def configure(context):
-    context.stage("seville.gravity.distance_matrix_new")
+    context.stage("seville.gravity.distance_matrix")
     context.stage("seville.gravity.od_zones")
 
     context.config('analysis_path')
@@ -21,17 +21,17 @@ def configure(context):
 
 def execute(context):
     # Load data
-    df_distances = context.stage("seville.gravity.distance_matrix_new")
+    df_distances = context.stage("seville.gravity.distance_matrix")
 
     od_zones, df_population, df_employees = context.stage("seville.gravity.od_zones")
 
     # Manage identifiers
     df_population = df_population.rename(columns = {
-        "id": "origin_id",
+        "macrozone_id": "origin_id",
     })[["origin_id", "population"]]
 
     df_employees = df_employees.rename(columns = {
-        "id": "destination_id",
+        "macrozone_id": "destination_id",
     })[["destination_id", "employees"]]
     
     # Find the set of used zones (also taking into account zero flows)

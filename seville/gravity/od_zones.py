@@ -19,6 +19,12 @@ def configure(context):
     context.config("seville.employees_grid", "grid/employees/mee24_250m.shp")
     context.config("seville.companies", "grid/companies/estab24_pt.shp")
 
+    context.stage("seville.data.spatial.iris")
+
+    context.config("seville_census_area_selection")
+    context.config("seville_locations_area_selection")
+
+
 
 def fix_employees_grid(gdf_companies, employees_grid):
 
@@ -133,32 +139,69 @@ def calculate_weighted_centroids(
 
     return weighted_centroids
 
+def clean_distrits(gdf_districts, gdf_iris):
+    gdf_districts = gdf_districts.to_crs(gdf_iris.crs)
+    joined = gpd.sjoin(
+        gdf_iris,
+        gdf_districts,        
+        how='left',
+        predicate='within'
+    )
+    joined = joined[['district_name', 'commune_id']]
+    joined = joined[joined['district_name'].notna()]
+    joined = joined.drop_duplicates(subset='district_name')
+    print(joined)
+    print(gdf_districts)
+    assert len(joined) == len(gdf_districts), f"{len(joined)} is not equal {len(gdf_districts)}"
+
+    # keep only PROVINCE+MUNICIPALITY+DISTRICT part of the code identifier
+    joined['macrozone_id'] = joined['commune_id'].str[:7]
+    gdf_districts = gdf_districts.merge(joined, on='district_name')
+
+    return gdf_districts
+
 def execute(context):
     # Load data
     CSV_FILE = f"{context.config('data_path')}/{context.config('seville.od_districts')}"
     gdf_districts = gpd.read_file(CSV_FILE)
-    gdf_districts = gdf_districts.rename(columns={"Distri_11D": "id"})
+    gdf_districts = gdf_districts.rename(columns={"Distri_11D": "district_name"})[['district_name', 'geometry']]
 
+    # use iris to assign ID codes to districts
+    gdf_iris = context.stage("seville.data.spatial.iris")[['commune_id', 'geometry']]
+    gdf_districts = clean_distrits(gdf_districts, gdf_iris)
+
+
+    # Import municipalities
     CSV_FILE = f"{context.config('data_path')}/{context.config('seville.municipalities_shp')}"
     gdf_municipalities = gpd.read_file(CSV_FILE)
-    gdf_municipalities = gdf_municipalities.rename(columns={"nombre": "id"})
+    gdf_municipalities = gdf_municipalities.rename(columns={"cod_mun": "macrozone_id"})
 
 
     CSV_FILE = f"{context.config('data_path')}/{context.config('seville.selected_municipalities')}"
-    df_metropolitan_mun = pd.read_csv(CSV_FILE, sep=';')
-
+    df_metropolitan_mun = pd.read_csv(CSV_FILE, sep=';', )
+    df_metropolitan_mun['municipality_id'] = df_metropolitan_mun['municipality_id'].astype(str)
+    
 
 
     # select zones for gravity model: metropolitan municipalities + seville macrozones
-    od_zones = gdf_municipalities[gdf_municipalities['id'].isin(df_metropolitan_mun['municipality'])]
+    gdf_municipalities = gdf_municipalities[gdf_municipalities['macrozone_id'].isin(df_metropolitan_mun['municipality_id'])]
 
-    # instead of seville municipality area use its individual districts
-    od_zones = od_zones[od_zones['id']!='Sevilla']
+    # instead of seville municipality use its individual districts
+    SEVILLE_MACROZONE_ID = "41091"
+    gdf_municipalities = gdf_municipalities[gdf_municipalities['macrozone_id']!=SEVILLE_MACROZONE_ID]
 
-    gdf_districts = gdf_districts.to_crs(od_zones.crs)
-    od_zones = pd.concat([od_zones, gdf_districts])
+    gdf_municipalities = gdf_municipalities[['macrozone_id', 'geometry']]
+    gdf_districts = gdf_districts[['macrozone_id', 'geometry']]
+    gdf_districts = gdf_districts.to_crs(gdf_municipalities.crs)
+
+
+
+    if context.config("seville_census_area_selection") == "municipality" or context.config("seville_locations_area_selection") == "municipality":
+        od_zones = pd.concat([gdf_districts])    
+    # merge both
+    else:
+        od_zones = pd.concat([gdf_municipalities, gdf_districts])
     
-
 
     # Add population data from 250x250m grid
     CSV_FILE = f"{context.config('data_path')}/{context.config('seville.population_grid')}"
@@ -186,14 +229,14 @@ def execute(context):
         grid_gdf=employees_grid,
         spatial_gdf=od_zones,
         value_column="employees",
-        spatial_id_column="id"
+        spatial_id_column="macrozone_id"
     )
 
     population_centroids = calculate_weighted_centroids(
         grid_gdf=population_grid,
         spatial_gdf=od_zones,
         value_column="population",
-        spatial_id_column="id"
+        spatial_id_column="macrozone_id"
     )
 
 
@@ -202,7 +245,7 @@ def execute(context):
     #employment_centroids.to_file(f"{context.config('analysis_path')}/employment_centroids.gpkg")
 
     
-    return od_zones, population_centroids, employment_centroids
+    return od_zones[['macrozone_id', 'geometry']], population_centroids, employment_centroids
 
 def validate(context):
     filenames = [

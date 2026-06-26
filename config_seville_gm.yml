@@ -6,9 +6,11 @@ working_directory: cache
 
 # This section defines which parts of the pipeline should be run
 run:
-#  - analysis.seville.ivt_style.analysis
-#  - analysis.seville.export_od
-  - seville.gravity.model_new
+  - analysis.seville.ivt_style.analysis
+  #- analysis.seville.ivt_style.analysis_metropolitan
+  #- analysis.seville.export_edu_loc
+  #- analysis.seville.export_od
+#  - seville.gravity.primary_locations
 #  - seville.data.census.employees_new
 #  - seville.gravity.model
 # Here the configuraiton of the pipeline starts
@@ -29,7 +31,7 @@ config:
   output_path: output
   output_prefix: seville_1pct_
   seville.population_shp: shapefiles/census_district_shapefiles/SECC_CE_20220101.shp
-  seville.buildings_path: /buildings/buildings_seville.shp
+  seville.buildings_path: catastre_buildings/all_buildings.gpkg
   osm_path_seville: osm/andalucia-latest.osm.pbf
   check_spatial_codes: True
   analysis_path: output/analysis
@@ -53,13 +55,11 @@ config:
   osmosis_binary: osmosis/bin
 
   # only use locations within Seville municipality
-  seville_city_locations_only: True
   # ['province', 'agglomeration', 'municipality']
-  # seville_locations_area_selection: 'province'
+  seville_locations_area_selection: 'agglomeration'
   # only use persons/households within Seville municipality
-  # seville_city_census_only:
   # ['province', 'agglomeration', 'municipality']
-  seville_census_area_selection: 'municipality' 
+  seville_census_area_selection: 'agglomeration' 
 
   # IPU aggregation levels:
   # - commune_id
@@ -85,10 +85,10 @@ aliases:
   synthesis.population.income.selected: seville.income
   synthesis.population.spatial.home.zones: seville.homes
   synthesis.locations.home.locations: seville.locations.home
-  synthesis.locations.education: seville.locations.education
+  #synthesis.locations.education: seville.locations.education # this was OSM solution, we use different
   synthesis.locations.secondary: seville.locations.secondary
   synthesis.locations.work: seville.locations.work
-  data.od.weighted: seville.gravity.model
+  data.od.weighted: seville.gravity.model_new
 
   data.spatial.iris: seville.data.spatial.iris
   data.spatial.codes: seville.entd_codes
@@ -128,12 +128,12 @@ aliases:
   
   synthesis.population.spatial.primary.locations: seville.gravity.primary_locations
 
-  # CDF - we no longer want to use it
+  # CDF - we no longer use it with gravity model
   #synthesis.population.spatial.primary.distance_distributions: seville.synthesis.population.spatial.primary.distance_distributions
   #synthesis.population.spatial.primary.work: seville.synthesis.population.spatial.primary.work
   #synthesis.population.spatial.primary.education: seville.synthesis.population.spatial.primary.education
   
   
-  
-
+  synthesis.population.spatial.primary.candidates: seville.gravity.primary_candidates
+  synthesis.locations.education: seville.data.education  
 

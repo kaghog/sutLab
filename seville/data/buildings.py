@@ -11,7 +11,7 @@ This stage loads the raw data from the Seville building registry.
 
 def configure(context):
     context.config("data_path")
-    context.config("seville.buildings_path", "buildings/buildings_seville.shp")
+    context.config("seville.buildings_path", "catastre_buildings/all_buildings.gpkg")
     
     context.stage("seville.data.spatial.iris")
 
@@ -21,22 +21,20 @@ def execute(context):
     
     start_index = 0
     df_buildings = gpd.read_file("{}/{}".format(context.config("data_path"), context.config("seville.buildings_path")))
+    df_zones = df_zones.to_crs(crs="EPSG:25830")
     df_buildings = df_buildings.to_crs(crs="EPSG:25830")
-
-    # Weighting by area
-    df_buildings["weight"] = df_buildings.area
+    df_buildings = df_buildings.rename(columns={"currentUse": "type"})
+    # value is grossFloorArea in m^2
+    df_buildings = df_buildings.rename(columns={"value": "weight"})
+    df_buildings["weight"] = df_buildings["weight"].astype("float64")
 
     # Attributes
     df_buildings["building_id"] = np.arange(len(df_buildings)) + start_index
     start_index += len(df_buildings) + 1
 
-    df_buildings["geometry"] = df_buildings.centroid
+    df_buildings["geometry"] = df_buildings.centroid    
 
-    # Filter
-    df_buildings = df_buildings[
-        (df_buildings["weight"] >= 40) & (df_buildings["weight"] < 400)
-    ].copy()
-    
+
 
     # Impute spatial identifiers
     df_buildings = gpd.sjoin(df_buildings, df_zones[["geometry", "commune_id", "iris_id"]], 
@@ -45,7 +43,7 @@ def execute(context):
     df_buildings = df_buildings.dropna(subset=["commune_id", "iris_id"])
     
     df_combined.append(df_buildings[[
-        "building_id", "weight", "commune_id", "iris_id", "geometry"
+        "building_id", "weight", "commune_id", "iris_id", "geometry", "type"
     ]])
     
     df_combined = gpd.GeoDataFrame(pd.concat(df_combined), crs = df_combined[0].crs)
@@ -60,10 +58,11 @@ def execute(context):
         df_missing["geometry"] = df_missing["geometry"].centroid
         df_missing["building_id"] = np.arange(len(df_missing)) + start_index
         df_missing["weight"] = 1.0
+        df_missing["type"] = "1_residential"
 
         df_combined = pd.concat([df_combined, df_missing])
-    
-    return df_combined
+
+    return df_combined[["building_id", "weight", "commune_id", "iris_id", "geometry", "type"]]
 
 def validate(context):
     if not os.path.exists("{}/{}".format(context.config("data_path"), context.config("seville.buildings_path"))):

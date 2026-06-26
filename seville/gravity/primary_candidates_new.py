@@ -1,5 +1,6 @@
 import pandas as pd
 import numpy as np
+import geopandas as gpd
 
 def configure(context):
     context.stage("data.od.weighted")
@@ -108,6 +109,28 @@ def process(context, purpose, random, df_persons, df_od, df_locations,step_name)
 
     return df_result[["origin_id", "destination_id", "location_id"]]
 
+
+# Transform commune_id into macrozone_id
+# This is necessary for compatibility reasons with gravity model, because census uses census sections but
+# gravity model uses macrozones which include municipalities and Seville's districts
+
+def fix_commune(df_persons):
+
+    df_persons['commune_id_new'] = df_persons['commune_id']
+
+    # We use municipality id, not census section id PPMMMDDCCC... => PPMMM
+    df_persons['commune_id_new'] = df_persons['commune_id'].str[:5]
+
+    # For Seville we use districts - PPMMMDD
+    SEVILLE_MUN_CODE = "41091"
+    mask = df_persons['commune_id'].str[:5] == SEVILLE_MUN_CODE 
+    df_persons.loc[mask, 'commune_id_new'] = df_persons.loc[mask, 'commune_id'].str[:7]
+
+    df_persons['commune_id'] = df_persons['commune_id_new']
+
+    return df_persons
+
+
 def execute(context):
     # Prepare population data
     df_persons = context.stage("synthesis.population.enriched")[["person_id", "household_id", "age_range"]].copy()
@@ -127,18 +150,26 @@ def execute(context):
     # Prepare spatial data
     df_work_od, df_education_od = context.stage("data.od.weighted")
 
+    # Align commune_id with zones used for OD matrix
+    df_persons = fix_commune(df_persons)
+
+    df_work_locations = context.stage("synthesis.locations.work")
+    df_work_locations = fix_commune(df_work_locations)
+
+    df_edu_locations = context.stage("synthesis.locations.education")
+    df_edu_locations = fix_commune(df_edu_locations)
+
+
     # Sampling
     random = np.random.RandomState(context.config("random_seed"))
 
     # Work Sampling
-    df_work_locations = context.stage("synthesis.locations.work")
     df_work_locations["weight"] = df_work_locations["employees"]
     df_work = process(context, "work", random, df_persons,
         df_work_od, df_work_locations, "work"
     )
 
     # Education Sampling
-    df_edu_locations = context.stage("synthesis.locations.education")
     if context.config("education_location_source") == 'bpe':
         df_education = process(context, "education", random, df_persons, df_education_od, df_edu_locations,"education")
     else :

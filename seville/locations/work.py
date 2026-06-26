@@ -6,15 +6,15 @@ Yield work location candidates for Germany.
 """
 
 def configure(context):
-    context.stage("seville.data.osm.locations")
+    context.stage("seville.data.buildings")
     context.stage("data.spatial.municipalities")
 
 def execute(context):
     # Load data
-    df = context.stage("seville.data.osm.locations")    
-    df = df[df["location_type"] == "work"].copy()
+    df = context.stage("seville.data.buildings").copy()
+    df = df[(df["type"] != "1_residential")]
 
-    df["employees"] = df["area"] * df["floors"]
+    df["employees"] = df["weight"] # weight = area
     df["fake"] = False
 
     # Fill missing municipalities
@@ -28,7 +28,7 @@ def execute(context):
 
     df_fake["employees"] = 1
     df_fake["fake"] = True
-
+    
     # Merge
     df = pd.concat([
         df[["employees", "fake", "commune_id", "iris_id", "geometry"]], 

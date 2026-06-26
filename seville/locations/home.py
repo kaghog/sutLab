@@ -10,7 +10,8 @@ def configure(context):
 
 def execute(context):
     # Load data
-    df = context.stage("seville.data.buildings")
+    df = context.stage("seville.data.buildings").copy()
+    df = df[df['type']=='1_residential']
     df = df.rename(columns = { "building_id": "home_location_id" })
 
     return df[[

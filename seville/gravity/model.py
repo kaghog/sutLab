@@ -13,7 +13,7 @@ DEFAULT_DIAGONAL = 1.0
 
 def configure(context):
     context.stage("seville.gravity.distance_matrix")
-    context.stage("seville.ipf.attributed")
+    context.stage("seville.ipu.attributed")
     context.stage("seville.data.census.employees")
     context.config("gravity_slope", DEFAULT_SLOPE)
     context.config("gravity_constant", DEFAULT_CONSTANT)
@@ -74,7 +74,7 @@ def evaluate_gravity(population, employees, friction):
 def execute(context):
     # Load data
     df_distances = context.stage("seville.gravity.distance_matrix")
-    df_population = context.stage("seville.ipf.attributed")
+    df_population = context.stage("seville.ipu.attributed")
     df_employees = context.stage("seville.data.census.employees")
 
     # Manage identifiers
