@@ -99,7 +99,9 @@ def execute(context):
     campus_gdf = gpd.read_file(FILE_URL)
     
     campus_buildings = gpd.sjoin(buildings, campus_gdf[["geometry"]], predicate="intersects", how="inner")
-    campus_buildings = campus_buildings.explode(index_parts=False)
+    campus_buildings = campus_buildings[campus_buildings["type"]!="1_residential"] # exclude home locations
+    campus_buildings['geometry'] = campus_buildings['shape_geometry']
+    campus_buildings = campus_buildings.explode(index_parts=True).reset_index(drop=True)
     campus_buildings['education_type'] = 'university'
     campus_buildings = campus_buildings[['education_type', 'geometry']]
 
@@ -131,7 +133,7 @@ def execute(context):
     start_index = 0
     education_df["building_id"] = np.arange(len(education_df)) + start_index
     start_index += len(education_df) + 1
-    education_df["weight"] = 1.0
+    education_df["weight"] = 1.0 # weight is same for all locations, because most of the locations have no area to use as weight
     education_df["geometry"] = education_df['geometry'].centroid
 
 
