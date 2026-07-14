@@ -12,7 +12,15 @@ def configure(context):
 def execute(context):
     # Load data
     df = context.stage("seville.data.buildings").copy()
-    df = df[(df["type"] != "1_residential")]
+    non_residential = (df["type"] != "1_residential")
+    residential_with_extra_space = (df["type"] == "1_residential") & (df["units"] > df["dwellings"])
+    df = df[non_residential | residential_with_extra_space]
+
+    # Decrease weight for work locations that are partially resident buildings (residential_with_extra_space)
+    df['work_units'] = (df["units"] - df["dwellings"])
+    df['work_ratio'] = df['work_units'] / df['units']
+    df['weight'] = df['weight'] * df['work_ratio']
+
 
     df["employees"] = df["weight"] # weight = area
     df["fake"] = False

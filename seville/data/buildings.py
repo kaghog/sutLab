@@ -26,7 +26,13 @@ def execute(context):
     df_buildings = df_buildings.rename(columns={"currentUse": "type"})
     # value is grossFloorArea in m^2
     df_buildings = df_buildings.rename(columns={"value": "weight"})
+    df_buildings = df_buildings.rename(columns={"numberOfBuildingUnits": "units"})
+    df_buildings = df_buildings.rename(columns={"numberOfDwellings": "dwellings"})
+
     df_buildings["weight"] = df_buildings["weight"].astype("float64")
+
+    # some building have broken records, where all important records are 0 (type, weight, units, dwellings)
+    df_buildings = df_buildings[df_buildings["weight"]!=0]
 
     # Attributes
     df_buildings["building_id"] = np.arange(len(df_buildings)) + start_index
@@ -44,7 +50,7 @@ def execute(context):
     df_buildings = df_buildings.dropna(subset=["commune_id", "iris_id"])
     
     df_combined.append(df_buildings[[
-        "building_id", "weight", "commune_id", "iris_id", "geometry", "type", "shape_geometry"
+        "building_id", "weight", "commune_id", "iris_id", "geometry", "type", "shape_geometry", "units", "dwellings"
     ]])
     
     df_combined = gpd.GeoDataFrame(pd.concat(df_combined), crs = df_combined[0].crs)
@@ -61,10 +67,12 @@ def execute(context):
         df_missing["building_id"] = np.arange(len(df_missing)) + start_index
         df_missing["weight"] = 1.0
         df_missing["type"] = "1_residential"
+        df_missing["units"] = 1
+        df_missing["dwellings"] = 1
 
         df_combined = pd.concat([df_combined, df_missing])
 
-    return df_combined[["building_id", "weight", "commune_id", "iris_id", "geometry", "type", "shape_geometry"]]
+    return df_combined[["building_id", "weight", "commune_id", "iris_id", "geometry", "type", "shape_geometry", "units", "dwellings"]]
 
 def validate(context):
     if not os.path.exists("{}/{}".format(context.config("data_path"), context.config("seville.buildings_path"))):

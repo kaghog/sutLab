@@ -12,6 +12,12 @@ def execute(context):
     # Load data
     df = context.stage("seville.data.buildings").copy()
     df = df[df['type']=='1_residential']
+    
+    
+    # dwellings is number of households that can live in the building
+    df['weight'] = df['dwellings'].astype("float64")
+
+
     df = df.rename(columns = { "building_id": "home_location_id" })
 
     return df[[

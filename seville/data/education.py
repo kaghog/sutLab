@@ -9,7 +9,7 @@ This stage loads education locations of Seville.
 
 def configure(context):
     context.config("data_path")
-    context.config("seville.edu_school", "education_locations/centroducativo.gpkg")
+    context.config("seville.edu_school", "education_locations/centroeducativo.gpkg")
     context.config("seville.edu_faculty", "education_locations/facultad.gpkg")
     context.config("seville.edu_campus", "education_locations/campus.gpkg")
     context.config("seville.edu_uni", "education_locations/universidad.gpkg")
