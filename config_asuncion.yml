@@ -1,0 +1,67 @@
+## Synthetic population pipeline for asuncion
+## based on the synpp package
+
+# This is the path to a directory where the pipeline can store temporary data
+working_directory: cache
+
+# This section defines which parts of the pipeline should be run
+run:
+  - asuncion.ipu.attributed
+  - analysis.asuncion.ivt_style.compare_ipu
+config:
+  # Some general configuration
+  processes: 8
+
+  # Define whether to use ENTD or EGT as the household travel survey (HTS)
+  hts: entd
+
+  # Define sampling rate and random seed for the output population
+  sampling_rate: 0.01
+  acquisition_sample_size: 1
+  random_seed: 1234
+
+  # Paths to the input data and where the output should be stored
+  data_path: ../raw_data/Asuncion
+  output_path: output
+  output_prefix: asuncion_1pct_
+  asuncon.population_shp: shapefiles/census_district_shapefiles/SECC_CE_20220101.shp
+  asuncion.buildings_path: catastre_buildings/all_buildings.gpkg
+  osm_path_asuncion: 
+  check_spatial_codes: True
+  analysis_path: output/analysis
+  osmconvert_binary: "/cluster/scratch/snekula/sutlab/sutLab/osmconvert"
+  #osmconvert_binary: "/home/xnekul/windir/ETH_SUTlab/sutLab/osmconvert"
+
+  simulation_output_dir: output/simulation
+  # Only interesting if you run the simulation
+  java_memory: 6G
+
+  # Defaults for asuncion
+  
+
+  home_location_sampling: weighted
+  mode_choice: True
+  matching_attributes: ["sex", "age_class", "has_license"]
+  IPU_aggregation_level: "departement_id"
+
+
+  osm_path: osm
+  osmosis_binary: osmosis/bin
+
+  eqasim_commit: f375a37
+  eqasim_version: "2.0.0"
+  eqasim_branch: "sutlab" 
+
+
+aliases:
+  data.hts.entd.raw: asuncion.data.hts.entd.raw
+  data.hts.entd.filtered: asuncion.data.hts.entd.filtered
+  data.hts.entd.cleaned: asuncion.data.hts.entd.cleaned
+  data.hts.entd.reweighted: asuncion.data.hts.entd.reweighted
+
+  synthesis.population.sampled: asuncion.ipu.attributed
+  data.census.filtered: asuncion.ipu.attributed
+  data.spatial.iris: asuncion.data.spatial.iris
+  data.spatial.codes: asuncion.entd_codes
+
+  synthesis.population.enriched: asuncion.synthesis.population.enriched
