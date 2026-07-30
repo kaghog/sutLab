@@ -5,6 +5,7 @@ fake IRIS for each corresponding administrative to commune in Paraguay. See the 
 
 def configure(context):
     context.stage("asuncion.data.spatial.raw")
+    context.config("commune_equivalent")
 
 def execute(context):
 
@@ -17,6 +18,13 @@ def execute(context):
     df_codes["departement_id"] = df_codes["departement_id"].astype("category")
     # borough -> commune
     df_codes["commune_id"] = df_codes["borough"].astype("category")
+
+
+
+    if context.config("commune_equivalent") == "district":
+        df_codes["commune_id"] = df_codes["district"].astype("category")
+    else:
+        df_codes["commune_id"] = df_codes["borough"].astype("category")
 
     # Fake IRIS
     df_codes["iris_id"] = df_codes["commune_id"].astype(str) + "0000"

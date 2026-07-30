@@ -10,6 +10,7 @@ def configure(context):
     context.config("asuncion.population-ad-sex-bario", "census/population/Cuadro 1.1 Asunción. Población por sexo y edad mediana, según barrio, 2022.xlsx")
     context.config("asuncion.population-ad-sex-age", "census/population/Cuadro 3. Asunción. Población total por área urbana-rural y sexo, según grupos de edad, 2022..xlsx")
     context.config("asuncion.population-cd-sex-age-district", "census/population/Cuadro 14. Departamento Central. Población total por área urbana-rural y sexo, según distrito y grupos de edad, 2022..xlsx")
+    context.config("commune_equivalent")
 
 def execute(context):
 
@@ -152,7 +153,13 @@ def execute(context):
 
 
     # ======== rename for export ==========
-    df = df.rename(columns={"borough":"commune_id"})
+
+    if context.config("commune_equivalent") == "district":
+        df["commune_id"] = df["district"]
+    else:
+        df["commune_id"] = df["borough"]
+
+
 
     return df[["sex", "age_class","weight", "departement_id", "district", "commune_id"]]
 

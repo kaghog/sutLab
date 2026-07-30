@@ -9,6 +9,7 @@ def configure(context):
     context.config("data_path")
     context.config("asuncion.households-auncion", "census/households/Cuadro 2.3 Asunción. Jefatura de hogar según sexo, 2022.xlsx")
     context.config("asuncion.households-central", "census/households/Cuadro 13.3 Dpto. Central.Jefatura de hogar por sexo, según distrito, 2022..xlsx")
+    context.config("commune_equivalent")
 
 def execute(context):
 
@@ -45,8 +46,11 @@ def execute(context):
 
     assert not df.isna().any().any()
 
+    if context.config("commune_equivalent") == "district":
+        df = df.rename(columns={"district":"commune_id"})
 
-    return df[["departement_id", "district", "weight"]]
+
+    return df[["departement_id", "commune_id", "weight"]]
 
 def validate(context):
     filenames = [

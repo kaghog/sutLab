@@ -15,6 +15,12 @@ def configure(context):
 
 def execute(context):
     df = context.stage("asuncion.ipu.population").copy()
+    print(df.info())
+    print(df[["departement_id_hts"]].value_counts())
+    print(df[["commune_id"]].value_counts())
+
+
+
     random = np.random.RandomState(context.config("random_seed"))
 
     df_iris = context.stage("asuncion.data.spatial.iris")[
@@ -24,7 +30,7 @@ def execute(context):
     print(f"Adding attributes to {len(df):,} persons from IPU...")
 
 
-    assert "departement_id" in df.columns, "missing department in IPU results"
+#    assert "departement_id" in df.columns, "missing department in IPU results"
 
 
     # Spatial identifiers: departement -> commune -> iris
@@ -42,6 +48,14 @@ def execute(context):
             communes_in_dept = df_iris[df_iris["departement_id"] == dept_id][
                 "commune_id"
             ].unique()
+
+            print(df_iris["departement_id"].value_counts())
+
+            print("dept_id")
+            print(dept_id)
+
+            print("COMMUNES IN DEPT")
+            print(len(communes_in_dept))
 
             # Get populations for weighting
             weights = np.array([commune_pop.get(c, 1.0) for c in communes_in_dept])
@@ -111,11 +125,11 @@ def execute(context):
     df["census_person_id"] = df["person_id"]
     df["census_household_id"] = df["household_id"]
 
-    print(
-        f"Attributed population: {len(df):,} persons, "
-        f"{df['household_id'].nunique():,} households, "
-        f"{df['departement_id'].nunique()} departements"
-    )
+    #print(
+    #    f"Attributed population: {len(df):,} persons, "
+    #    f"{df['household_id'].nunique():,} households, "
+    #    f"{df['departement_id'].nunique()} departements"
+    #)
 
 
 

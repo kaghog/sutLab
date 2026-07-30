@@ -39,6 +39,7 @@ def execute(context):
         on="household_id",
         how="left",
     )
+    hts_df = hts_df.rename(columns={"departement_id":"departement_id_hts"})
 
     if hts_df["household_category"].isna().any():
         raise ValueError("Some HTS households have no household_category.")
@@ -205,8 +206,6 @@ def process_ipu_batch(context, arguments):
                 print(
                     f"  HH with weight < 0.1: {(hh_weights < 0.1).sum()} ({(hh_weights < 0.1).sum() / len(hh_weights) * 100:.1f}%)"
                 )
-
-            print(weighted_df.info())
 
 
             # Integerize (Create Synthetic Population)

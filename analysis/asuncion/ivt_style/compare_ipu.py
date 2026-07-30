@@ -106,24 +106,6 @@ def plot_household(context):
     df_ipu = context.stage("asuncion.ipu.attributed").copy()
     df_hts, _, _ = context.stage("asuncion.data.hts.entd.filtered")
 
-    # --------------------------------------------------
-    # Census: already aggregated
-    # --------------------------------------------------
-    census_map = {
-        1: "households_1_person",
-        2: "households_2_persons",
-        3: "households_3_persons",
-        4: "households_4_persons",
-        5: "households_5plus_persons",
-    }
-
-    census_dist = (
-        df_census[list(census_map.values())]
-        .sum()
-        .rename({v: k for k, v in census_map.items()})
-    )
-
-    census_dist = census_dist / census_dist.sum() * 100
 
     # --------------------------------------------------
     # IPU: derive household size from persons
@@ -150,8 +132,6 @@ def plot_household(context):
     print("="*10)
     print("hts_dist", hts_dist)
     print("="*10)
-    print("census_dist", census_dist)
-    print("="*10)
     print("ipu_dist", ipu_dist)
     print("="*10)
 
@@ -160,7 +140,6 @@ def plot_household(context):
     # --------------------------------------------------
     bins = [1, 2, 3, 4, 5]
 
-    census_w = census_dist.reindex(bins, fill_value=0)
     ipu_w = ipu_dist.reindex(bins, fill_value=0)
     hts_w = hts_dist.reindex(bins, fill_value=0)
 
@@ -174,7 +153,6 @@ def plot_household(context):
 
     plt.figure(figsize=(11, 6))
 
-    plt.bar(x - w, census_w, width=w, label="Census")
     plt.bar(x,     ipu_w,    width=w, label="IPU synthetic")
     plt.bar(x + w, hts_w,    width=w, label="HTS")
 
@@ -190,8 +168,9 @@ def plot_household(context):
         f"{context.config('analysis_path')}/census_vs_synthesis_households.png"
     )
     plt.close()
-
+#
 
 def execute(context):
+    print("asdasdasd")
     plot_population(context)
-    #plot_household(context)
+    plot_household(context)

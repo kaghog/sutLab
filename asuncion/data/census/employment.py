@@ -12,6 +12,10 @@ def configure(context):
     context.config("asuncion.employment-age", "census/employment/2_Empleo_ocupación informal según grupos de edad_py_EPHC_2022-2025.xls")
     context.config("asuncion.employment-departements", "census/employment/11_Empleo_ocupación informal según departamento_dpto_EPHC 2022-2025.xls")
 
+    context.stage("asuncion.data.census.population")
+
+    context.config("commune_equivalent")
+
 def execute(context):
 
 
@@ -87,6 +91,7 @@ def execute(context):
     df_departements = df_departements[df_departements["departement_id"].isin(('Asunción', 'Central'))] 
 
 
+    # datasets contains columns for 1) formal employment 2) informal employment 
     formal = []
 
     for is_formal in [True, False]:
@@ -139,8 +144,38 @@ def execute(context):
     assert not df.isna().any().any()
 
 
+    # ============= Recalculate employment to district level ==============
 
-    return df[["departement_id", "sex", "age_class", "weight"]]
+
+
+    pop = context.stage("asuncion.data.census.population").copy()
+    pop = pop.groupby(["departement_id", "district", "sex", "age_class"])["weight"].sum().reset_index()
+
+    pop["pop_share"] = (
+        pop["weight"]
+            / pop.groupby(["departement_id", "sex", "age_class"])["weight"]
+            .transform("sum")
+    )
+
+    # Allocate employment to districts
+    df_district = (
+        df.merge(
+            pop[["departement_id", "district", "sex", "age_class", "pop_share"]],
+            on=["departement_id", "sex", "age_class"],
+            how="left",
+        )
+    )
+
+    df_district["weight"] *= df_district["pop_share"]
+
+    df_district = df_district[
+        ["departement_id", "district", "sex", "age_class", "weight"]
+    ]
+
+    if context.config("commune_equivalent") == "district":
+        df_district = df_district.rename(columns={"district":"commune_id"})
+
+    return df_district[["departement_id", "commune_id", "sex", "age_class", "weight"]]
 
 def validate(context):
     filenames = [

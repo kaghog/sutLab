@@ -42,8 +42,8 @@ config:
   home_location_sampling: weighted
   mode_choice: True
   matching_attributes: ["sex", "age_class", "has_license"]
-  IPU_aggregation_level: "departement_id"
-
+  IPU_aggregation_level: "commune_id"
+  commune_equivalent: "district" # or borrough
 
   osm_path: osm
   osmosis_binary: osmosis/bin
