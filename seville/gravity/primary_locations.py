@@ -1,7 +1,14 @@
 import numpy as np
 import pandas as pd
 import geopandas as gpd
-from .primary_candidates import EDUCATION_MAPPING
+from .work_candidates import EDUCATION_MAPPING
+from scipy.spatial import cKDTree
+
+"""
+DESCRIPTION:
+
+"""
+
 
 def configure(context):
     context.stage("synthesis.population.spatial.primary.candidates")
@@ -9,9 +16,9 @@ def configure(context):
     context.stage("synthesis.population.spatial.home.locations")
     context.stage("synthesis.locations.work")
     context.stage("synthesis.locations.education")
-
-    context.config("education_location_source", "bpe")
-
+    context.stage("seville.data.education.merged")
+    context.stage("synthesis.population.trips")
+    context.stage("synthesis.population.enriched")
 
 def define_distance_ordering(df_persons, df_candidates, progress):
     indices = []
@@ -79,13 +86,11 @@ def process(context, purpose, df_persons, df_candidates):
 
     return pd.concat(df_result).sort_index()
 
-def execute(context):
-    data = context.stage("synthesis.population.spatial.primary.candidates")
-    df_persons = data["persons"]
 
-    # Separate data set
-    df_work = df_persons[df_persons["has_work_trip"]]
-    df_education = df_persons[df_persons["has_education_trip"]]
+
+def process_work_locations(context):
+
+    df_work_candidates, df_work = context.stage("synthesis.population.spatial.primary.candidates")
 
     # Attach home locations
     df_home = context.stage("synthesis.population.spatial.home.locations")
@@ -94,34 +99,128 @@ def execute(context):
         "geometry": "home_location"
     }), how = "left", on = "household_id")
 
-    df_education = pd.merge(df_education, df_home[["household_id", "geometry"]].rename(columns = {
-        "geometry": "home_location"
-    }), how = "left", on = "household_id")
-
     # Attach commute distances
     df_commute_distance = context.stage("synthesis.population.spatial.commute_distance")
 
     df_work = pd.merge(df_work, df_commute_distance["work"], how = "left", on = "person_id")
-    df_education = pd.merge(df_education, df_commute_distance["education"], how = "left", on = "person_id")
 
     # Attach geometry
     df_locations = context.stage("synthesis.locations.work")[["location_id", "geometry"]]
-    df_work_candidates = data["work_candidates"]
     df_work_candidates = pd.merge(df_work_candidates, df_locations, how = "left", on = "location_id")
     df_work_candidates = gpd.GeoDataFrame(df_work_candidates)
 
-    df_locations = context.stage("synthesis.locations.education")[["education_type", "location_id", "geometry"]]
-    df_education_candidates = data["education_candidates"]
-    df_education_candidates = pd.merge(df_education_candidates, df_locations, how = "left", on = "location_id")
-    df_education_candidates = gpd.GeoDataFrame(df_education_candidates)
-
     # Assign destinations
     df_work = process(context, "work", df_work, df_work_candidates)
-    if context.config("education_location_source") == 'bpe':
-        df_education = process(context, "education", df_education, df_education_candidates)
-    else :
-        education = []
-        for prefix, education_type in EDUCATION_MAPPING.items():
-            education.append(process(context, prefix,df_education[df_education["age_range"]==prefix],df_education_candidates[df_education_candidates["education_type"].isin(education_type)]))
-        df_education = pd.concat(education).sort_index()
+    
+    return df_work
+
+
+def process_edu_locations(context):
+    random = np.random.RandomState(context.config("random_seed"))
+    gdf_education = context.stage("seville.data.education.merged")
+
+    school_weights = gdf_education[gdf_education["education_type"]!="university"].copy()
+    university_weights = gdf_education[gdf_education["education_type"]=="university"].copy()
+
+    # get people with education trips
+    df_trips = context.stage("synthesis.population.trips")
+    df_persons = context.stage("synthesis.population.enriched")[["person_id", "household_id", "age"]].copy()
+    df_persons["has_education_trip"] = df_persons["person_id"].isin(df_trips[
+        (df_trips["following_purpose"] == "education") | (df_trips["preceding_purpose"] == "education")
+    ]["person_id"])
+    df_persons = df_persons[df_persons["has_education_trip"] == True]
+
+
+    # Attach home locations
+    df_home = context.stage("synthesis.population.spatial.home.locations")
+
+    df_persons = pd.merge(df_persons, df_home[["household_id", "geometry"]].rename(columns = {
+        "geometry": "home_location"
+    }), how = "left", on = "household_id")
+
+
+    # ====================== SCHOOLS =========================
+    # School type from age
+    def get_school_type(age):
+        if age <= 5:
+            return "kindergarten"
+        elif age <= 11:
+            return "elementary"
+        elif age <= 17:
+            return "highschool"
+        else:
+            return None
+
+    # Only school trips
+    df_school = df_persons[df_persons["age"] < 18].copy()
+    df_school["school_type"] = df_school["age"].apply(get_school_type)
+
+    assignments = []
+
+    for school_type in ["kindergarten", "elementary", "highschool"]:
+
+        people = df_school[df_school["school_type"] == school_type].copy()
+        schools = school_weights[school_weights["education_type"] == school_type].copy()
+
+        if len(people) == 0 or len(schools) == 0:
+            continue
+
+        # Build KD-tree of school locations
+        school_xy = np.column_stack([
+            schools.geometry.x.values,
+            schools.geometry.y.values
+        ])
+        tree = cKDTree(school_xy)
+
+        # Query nearest school for every person
+        person_xy = np.array([
+            (p.x, p.y) for p in people["home_location"]
+        ])
+
+        _, idx = tree.query(person_xy, k=1)
+
+        people["commune_id"] = schools.iloc[idx]["commune_id"].values
+        people["location_id"] = schools.iloc[idx]["location_id"].values
+        people["geometry"] = schools.iloc[idx]["geometry"].values
+
+        assignments.append(
+            people[["person_id", "commune_id", "location_id", "geometry"]]
+        )
+
+    df_school_locations = pd.concat(assignments, ignore_index=True)
+
+    # ======================= UNIVERSITIES ===================
+    # university using university_od stuff
+    university_weights["weight"] = university_weights["weight"] / university_weights["weight"].sum()
+    df_university_people = df_persons[df_persons["age"] >= 18].copy()
+
+    df_university_people["location_id"] = np.random.choice(
+        university_weights["location_id"],
+        size=len(df_university_people),
+        p=university_weights["weight"]
+    )
+
+    df_university_people = df_university_people.merge(
+        university_weights[
+            ["location_id", "commune_id", "geometry"]
+        ],
+        on="location_id",
+        how="left"
+    )
+    df_university_people = df_university_people[["person_id", "commune_id", "location_id", "geometry"]]
+
+    # ========================== MERGE =========================
+
+    df_education = pd.concat(
+        [df_school_locations, df_university_people],
+        ignore_index=True
+    )
+
+    return df_education
+
+def execute(context):
+
+    df_work = process_work_locations(context)
+    df_education = process_edu_locations(context)
+
     return df_work, df_education

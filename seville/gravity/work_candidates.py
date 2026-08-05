@@ -2,6 +2,11 @@ import pandas as pd
 import numpy as np
 import geopandas as gpd
 
+"""
+DESCRIPTION:
+
+"""
+
 def configure(context):
     context.stage("data.od.weighted")
 
@@ -139,26 +144,19 @@ def execute(context):
     df_persons["has_work_trip"] = df_persons["person_id"].isin(df_trips[
         (df_trips["following_purpose"] == "work") | (df_trips["preceding_purpose"] == "work")
     ]["person_id"])
+    df_persons = df_persons[df_persons["has_work_trip"] == True]
     
-    df_persons["has_education_trip"] = df_persons["person_id"].isin(df_trips[
-        (df_trips["following_purpose"] == "education") | (df_trips["preceding_purpose"] == "education")
-    ]["person_id"])
-
     df_homes = context.stage("synthesis.population.spatial.home.zones")
     df_persons = pd.merge(df_persons, df_homes, on = "household_id")
 
     # Prepare spatial data
-    df_work_od, df_education_od = context.stage("data.od.weighted")
+    df_work_od = context.stage("data.od.weighted")
 
     # Align commune_id with zones used for OD matrix
     df_persons = fix_commune(df_persons)
 
     df_work_locations = context.stage("synthesis.locations.work")
     df_work_locations = fix_commune(df_work_locations)
-
-    df_edu_locations = context.stage("synthesis.locations.education")
-    df_edu_locations = fix_commune(df_edu_locations)
-
 
     # Sampling
     random = np.random.RandomState(context.config("random_seed"))
@@ -169,23 +167,6 @@ def execute(context):
         df_work_od, df_work_locations, "work"
     )
 
-    # Education Sampling
-    if context.config("education_location_source") == 'bpe':
-        df_education = process(context, "education", random, df_persons, df_education_od, df_edu_locations,"education")
-    else :
-        df_education = []
-        for prefix, education_type in EDUCATION_MAPPING.items():
-            df_education.append(
-                process(context, "education", random,
-                    df_persons[df_persons["age_range"]==prefix],
-                    df_education_od[df_education_od["age_range"]==prefix],df_edu_locations[df_edu_locations["education_type"].isin(education_type)],prefix)
-            )
-        df_education = pd.concat(df_education)
 
-    return dict(
-        work_candidates = df_work,
-        education_candidates = df_education,
-        persons = df_persons[df_persons["has_work_trip"] | df_persons["has_education_trip"]][[
-            "person_id", "household_id", "age_range", "commune_id", "has_work_trip", "has_education_trip"
-        ]]
-    )
+    print(df_persons.info())
+    return df_work, df_persons[["person_id", "household_id", "age_range", "commune_id", "has_work_trip"]]
