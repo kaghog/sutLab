@@ -108,9 +108,6 @@ def execute(context):
     #export_csvs(context, syn_persons, syn_persons, "_synthetic")
     export_csvs(context, hts_persons, hts_trips, "_hts")
     
-    if False:
-        print("EXITED AFTER EXPORTING CSV FILES")
-        exit(0)
 
         # ----- IPU synthetic -----
     syn_trips["weight"] = 1.0
