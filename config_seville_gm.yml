@@ -8,6 +8,7 @@ working_directory: cache
 run:
 #  - seville.gravity.primary_locations
   - analysis.seville.ivt_style.analysis
+  - analysis.seville.ivt_style.analysis_education
 
 config:
   # Some general configuration
