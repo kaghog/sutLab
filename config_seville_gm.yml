@@ -37,12 +37,19 @@ config:
   # Only interesting if you run the simulation
   java_memory: 6G
 
+  debug: False
+
   # Defaults for seville
   
 
   home_location_sampling: weighted
   mode_choice: True
   matching_attributes: ["sex", "age_class", "has_license"]
+  education_graduation_age: 
+    kindergarten: 5
+    elementary: 11
+    highschool: 15
+     # university all above highschool
 
   gtfs_path: gtfs/Line1
   

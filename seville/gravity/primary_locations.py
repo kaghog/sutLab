@@ -20,6 +20,8 @@ def configure(context):
     context.stage("synthesis.population.trips")
     context.stage("synthesis.population.enriched")
 
+    context.config("education_graduation_age")
+
 def define_distance_ordering(df_persons, df_candidates, progress):
     indices = []
 
@@ -140,20 +142,13 @@ def process_edu_locations(context):
 
 
     # ====================== SCHOOLS =========================
-    # School type from age
-    def get_school_type(age):
-        if age <= 5:
-            return "kindergarten"
-        elif age <= 11:
-            return "elementary"
-        elif age <= 17:
-            return "highschool"
-        else:
-            return None
+    graduation_age = context.config("education_graduation_age")
 
     # Only school trips
-    df_school = df_persons[df_persons["age"] < 18].copy()
-    df_school["school_type"] = df_school["age"].apply(get_school_type)
+    df_school = df_persons[df_persons["age"] <= graduation_age["highschool"]].copy()
+    df_school["school_type"] = "highschool"
+    df_school.loc[df_school["age"] <= graduation_age["elementary"], "school_type"] = "elementary"
+    df_school.loc[df_school["age"] <= graduation_age["kindergarten"], "school_type"] = "kindergarten"
 
     assignments = []
 
@@ -192,7 +187,7 @@ def process_edu_locations(context):
     # ======================= UNIVERSITIES ===================
     # university using university_od stuff
     university_weights["weight"] = university_weights["weight"] / university_weights["weight"].sum()
-    df_university_people = df_persons[df_persons["age"] >= 18].copy()
+    df_university_people = df_persons[df_persons["age"] > graduation_age["highschool"]].copy()
 
     df_university_people["location_id"] = np.random.choice(
         university_weights["location_id"],
@@ -215,6 +210,7 @@ def process_edu_locations(context):
         [df_school_locations, df_university_people],
         ignore_index=True
     )
+
 
     return df_education
 
