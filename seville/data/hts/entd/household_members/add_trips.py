@@ -24,7 +24,19 @@ and this stage generates education trips to and from to closest kindergarten/sch
 
 def configure(context):
     context.stage("seville.data.hts.entd.household_members.set_attributes")
-    context.stage("seville.locations.education")
+    context.stage("seville.data.education.merged")
+    context.config("education_graduation_age")
+
+# School type from age
+def get_school_type(age):
+    if age <= 5:
+        return "kindergarten"
+    elif age <= 11:
+        return "elementary"
+    elif age <= 17:
+        return "highschool"
+    else:
+        return None
 
 
 def get_home_locations(df_persons, df_trips):
@@ -42,7 +54,7 @@ def get_home_locations(df_persons, df_trips):
 
 
 
-def impute_education_trips(df_young_persons, df_home_locations ,df_edu_locations, random):
+def impute_education_trips(context, df_young_persons, df_home_locations ,df_edu_locations, random):
 
 
     df = df_young_persons.copy()
@@ -69,8 +81,14 @@ def impute_education_trips(df_young_persons, df_home_locations ,df_edu_locations
     df["edu_geometry"] = None
     df["euclidean_distance"] = np.nan
 
-    age_bounds = [(-np.inf, 5), (6, 16),]
-    education_types = [["kindergarten"], ["school"],]
+
+    graduation_age = context.config("education_graduation_age")
+
+    age_bounds = [(-np.inf, graduation_age["kindergarten"]),
+                  (graduation_age["kindergarten"]+1, graduation_age["elementary"]), 
+                  (graduation_age["elementary"]+1, graduation_age["highschool"]),
+                  ]
+    education_types = [["kindergarten"], ["elementary"],["highschool"]]
 
     geod = Geod(ellps="WGS84")
 
@@ -165,7 +183,7 @@ def impute_education_trips(df_young_persons, df_home_locations ,df_edu_locations
 
 def execute(context):
     df_households, df_persons, df_trips = context.stage("seville.data.hts.entd.household_members.set_attributes")
-    df_edu_locations = context.stage("seville.locations.education")
+    df_edu_locations = context.stage("seville.data.education.merged")
 
     random = np.random.RandomState(context.config("random_seed"))
     
@@ -173,8 +191,8 @@ def execute(context):
     df_homes = get_home_locations(df_persons, df_trips) 
 
     
-    filter_age_5_15 = (df_persons['age'] >= 5) & (df_persons['age'] <= 15)
-    df_young_trips = impute_education_trips(df_persons[filter_age_5_15], df_homes, df_edu_locations, random)
+    filter_age_4_15 = (df_persons['age'] >= 4) & (df_persons['age'] <= 15)
+    df_young_trips = impute_education_trips(context, df_persons[filter_age_4_15], df_homes, df_edu_locations, random)
     df_trips = pd.concat([df_trips, df_young_trips])    
     
     df_persons.loc[df_persons['age'] < 5, 'number_of_trips'] = 0    
