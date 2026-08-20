@@ -17,7 +17,7 @@ def configure(context):
     context.config("asuncion.central_shp", "spatial/11 CENTRAL/Distritos_Central.shp")
 
 
-# EPSG: 4674
+# EPSG:4674
 
 def execute(context):
     # Load Asuncion departement
@@ -51,6 +51,8 @@ def execute(context):
     assert gdf_asuncion.crs == gdf_central.crs
 
     gdf_spatial = pd.concat([gdf_asuncion, gdf_central])
+
+    gdf_spatial = gdf_spatial.to_crs("EPSG:4674")
     # Return
     return gdf_spatial[["departement_id", "district", "borough", "geometry"]]
 
