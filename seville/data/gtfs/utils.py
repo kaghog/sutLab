@@ -191,7 +191,7 @@ def cut_feed(feed, df_area, crs = None):
 
     # 2) Remove stop times
     df_times = feed["stop_times"]
-    df_times = df_times[df_times["stop_id"].astype(str).isin(remaining_stops.astype(str))]
+    df_times = df_times[df_times["stop_id"].astype(str).isin(remaining_stops.astype(str))].copy()
     df_times = interpolate_stop_times(df_times)
     feed["stop_times"] = df_times.copy()
 
@@ -353,6 +353,7 @@ def despace_stop_ids(feed, replacement = ":::"):
 
 
 def interpolate_stop_times(df_times):
+    df_times = df_times.copy()
     def time_to_seconds(t):
         if pd.isna(t) or t.strip() == "":
             return np.nan

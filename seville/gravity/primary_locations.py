@@ -16,7 +16,6 @@ def configure(context):
     context.stage("synthesis.population.spatial.home.locations")
     context.stage("synthesis.locations.work")
     context.stage("synthesis.locations.education")
-    context.stage("seville.data.education.merged")
     context.stage("synthesis.population.trips")
     context.stage("synthesis.population.enriched")
 
@@ -119,7 +118,7 @@ def process_work_locations(context):
 
 def process_edu_locations(context):
     random = np.random.RandomState(context.config("random_seed"))
-    gdf_education = context.stage("seville.data.education.merged")
+    gdf_education = context.stage("synthesis.locations.education")
 
     school_weights = gdf_education[gdf_education["education_type"]!="university"].copy()
     university_weights = gdf_education[gdf_education["education_type"]=="university"].copy()

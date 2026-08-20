@@ -24,7 +24,7 @@ and this stage generates education trips to and from to closest kindergarten/sch
 
 def configure(context):
     context.stage("seville.data.hts.entd.household_members.set_attributes")
-    context.stage("seville.data.education.merged")
+    context.stage("synthesis.locations.education")
     context.config("education_graduation_age")
 
 # School type from age
@@ -183,7 +183,7 @@ def impute_education_trips(context, df_young_persons, df_home_locations ,df_edu_
 
 def execute(context):
     df_households, df_persons, df_trips = context.stage("seville.data.hts.entd.household_members.set_attributes")
-    df_edu_locations = context.stage("seville.data.education.merged")
+    df_edu_locations = context.stage("synthesis.locations.education")
 
     random = np.random.RandomState(context.config("random_seed"))
     

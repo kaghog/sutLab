@@ -168,5 +168,4 @@ def execute(context):
     )
 
 
-    print(df_persons.info())
     return df_work, df_persons[["person_id", "household_id", "age_range", "commune_id", "has_work_trip"]]

@@ -12,43 +12,6 @@ def configure(context):
     context.stage("data.spatial.iris")
 
 
-def patch_missing_primary_locations(
-    df_locations,
-    df_primary,
-    purpose,
-    context,
-    mock_location_id
-):
-    """
-    Patch missing primary locations (work / education) by falling back to first non-missing location.
-    """
-
-    df_result = df_locations[df_locations["purpose"] == purpose].copy()
-
-    # LEFT merge so missing locations are preserved
-    df_result = pd.merge(
-        df_result,
-        df_primary[["person_id", "location_id", "geometry"]],
-        on="person_id",
-        how="left"
-    )
-
-    missing = df_result["geometry"].isna()
-    n_missing = missing.sum()
-
-    if n_missing > 0:
-        print(f"INFO: Mocking {n_missing} missing {purpose} locations")
-
-
-        fallback_geometry = df_result[~missing]['geometry'][0]
-        fallback_location_id = df_result[~missing]['location_id'][0]
-
-        df_result.loc[missing, "geometry"] = fallback_geometry
-        df_result.loc[missing, "location_id"] = fallback_location_id
-
-    return df_result[["person_id", "activity_index", "location_id", "geometry"]]
-
-
 
 def execute(context):
     df_home = context.stage("synthesis.population.spatial.home.locations")
@@ -95,28 +58,6 @@ def execute(context):
     print(f"df_education_locations {len(df_locations[df_locations['purpose'] == 'education'])} - {len(df_education_locations)}")
     print(f"df_secondary_locations {len(df_locations[~df_locations['purpose'].isin(('home', 'work', 'education'))])} - {len(df_secondary_locations)}")
 
-    # ========================================
-    # TODO: temporary fix
-    # MOCK MISSING LOCATIONS USING HOME LOCATION
-
-    # Work locations
-    df_work_locations = patch_missing_primary_locations(
-        df_locations=df_locations,
-        df_primary=df_work,
-        purpose="work",
-        context=context,
-        mock_location_id=-9999
-    )
-
-    # Education locations
-    df_education_locations = patch_missing_primary_locations(
-        df_locations=df_locations,
-        df_primary=df_education,
-        purpose="education",
-        context=context,
-        mock_location_id=-9998
-    )
-    # ========================================
 
 
     df_locations = pd.concat([df_home_locations, df_work_locations, df_education_locations, df_secondary_locations])

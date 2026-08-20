@@ -8,7 +8,7 @@ working_directory: cache
 run:
 #  - seville.gravity.primary_locations
   - analysis.seville.ivt_style.analysis
-  - analysis.seville.ivt_style.analysis_education
+#  - analysis.seville.ivt_style.analysis_education
 
 config:
   # Some general configuration
@@ -99,7 +99,6 @@ aliases:
   matsim.scenario.prepare: matsim.simulation.prepare # matsim.scenario.prepare stage is not used in simulation at all
   matsim.scenario.population: seville.matsim.scenario.population
   data.gtfs.cleaned: seville.data.gtfs.cleaned
-  synthesis.output: seville.output
 
   synthesis.population.trips: seville.synthesis.population.trips
 

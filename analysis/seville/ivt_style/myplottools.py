@@ -213,7 +213,8 @@ def compute_counts(series, weights=None, categories=None, normalize=True, to_per
     else:
         # weighted counts per category
         df = pd.DataFrame({"cat": cat, "w": weights})
-        counts = df.groupby("cat")["w"].sum()
+        # TODO: if causing errors, change to observed=True. Currently, not sure what is intended behaviour of this code.
+        counts = df.groupby("cat", observed=False)["w"].sum()
     if normalize:
         total = counts.sum()
         counts = (counts / total) if total != 0 else counts * 0.0

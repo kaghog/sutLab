@@ -150,8 +150,7 @@ def clean_distrits(gdf_districts, gdf_iris):
     joined = joined[['district_name', 'commune_id']]
     joined = joined[joined['district_name'].notna()]
     joined = joined.drop_duplicates(subset='district_name')
-    print(joined)
-    print(gdf_districts)
+
     assert len(joined) == len(gdf_districts), f"{len(joined)} is not equal {len(gdf_districts)}"
 
     # keep only PROVINCE+MUNICIPALITY+DISTRICT part of the code identifier

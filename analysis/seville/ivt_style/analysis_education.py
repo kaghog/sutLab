@@ -18,9 +18,7 @@ def configure(context):
     context.stage("synthesis.output")
     context.stage("seville.gravity.od_zones")
     context.config("education_graduation_age")
-    context.stage("seville.data.education.merged")
-
-    context.stage("seville.data.education.universities")
+    context.stage("synthesis.locations.education")
 
 def execute(context):
 
