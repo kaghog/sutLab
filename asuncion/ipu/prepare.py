@@ -158,6 +158,4 @@ def execute(context):
 
     print(f"✓ Prepared targets for {len(targets_by_aggregation_area)} {aggregation_level[:-3]}s")
 
-    print(targets_by_aggregation_area)
-
     return targets_by_aggregation_area

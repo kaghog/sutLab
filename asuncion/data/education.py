@@ -7,7 +7,7 @@ Yield home zones for Spain based on synthetic population data.
 """
 
 def configure(context):
-    context.config("asuncion.edu_locations_data", "locales_educativos.geojson")
+    context.config("asuncion.edu_locations_data", "locations/locales_educativos.geojson")
     context.config("data_path")
 
     context.stage("asuncion.data.spatial.iris")
@@ -37,9 +37,8 @@ def execute(context):
 
     # add spatial identifiers
     gdf_spatial = context.stage("asuncion.data.spatial.iris")
-    edu_locations = gpd.sjoin(edu_locations, gdf_spatial, op="within", how="left")
+    edu_locations = gpd.sjoin(edu_locations, gdf_spatial, predicate="within", how="inner")
 
-    assert len(edu_locations[edu_locations["commune_id"].isna()]) == 0
-
+    assert len(edu_locations) != 0
 
     return edu_locations[["students", "fake", "commune_id", "iris_id", "geometry"]]

@@ -24,26 +24,24 @@ def execute(context):
     FILE_URL = f"{context.config('data_path')}/{context.config('asuncion.asuncion_shp')}"
     gdf_asuncion = gpd.read_file(FILE_URL, dtype=str)
     ASUNCION_COLUMNS = {
-        "DPTO_DESC": "departement_id",
+        "DPTO_DESC": "departement",
         "DIST_DESC_": "district",
         "BARLO_DESC": "borough"
     }
     gdf_asuncion = gdf_asuncion[list(ASUNCION_COLUMNS.keys()) + ["geometry"]]
     gdf_asuncion = gdf_asuncion.rename(columns=ASUNCION_COLUMNS)
-    gdf_asuncion["departement_id"] = gdf_asuncion["departement_id"].str[0]
 
 
     # Load Central departement
     FILE_URL = f"{context.config('data_path')}/{context.config('asuncion.central_shp')}"
     gdf_central = gpd.read_file(FILE_URL, dtype=str)
     CENTRAL_COLUMNS = {
-        "DPTO_DESC": "departement_id",
+        "DPTO_DESC": "departement",
         "DIST_DESC_": "district",
     }
     gdf_central = gdf_central[list(CENTRAL_COLUMNS.keys()) + ["geometry"]]
     gdf_central = gdf_central.rename(columns=CENTRAL_COLUMNS)
 
-    gdf_central["departement_id"] = gdf_central["departement_id"].str[0]
     gdf_central["borough"] = gdf_central["district"]
 
 
@@ -53,8 +51,14 @@ def execute(context):
     gdf_spatial = pd.concat([gdf_asuncion, gdf_central])
 
     gdf_spatial = gdf_spatial.to_crs("EPSG:4674")
+
+    # make all upper_case
+    gdf_spatial["departement"] = gdf_spatial["departement"].str.upper()
+    gdf_spatial["district"] = gdf_spatial["district"].str.upper()
+    gdf_spatial["borough"] = gdf_spatial["borough"].str.upper()
+
     # Return
-    return gdf_spatial[["departement_id", "district", "borough", "geometry"]]
+    return gdf_spatial[["departement", "district", "borough", "geometry"]]
 
 
 def validate(context):

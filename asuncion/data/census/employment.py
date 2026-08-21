@@ -15,7 +15,7 @@ def configure(context):
     context.stage("asuncion.data.census.population")
 
     context.config("commune_equivalent")
-
+    context.stage("asuncion.data.codes")
 def execute(context):
 
 
@@ -72,7 +72,7 @@ def execute(context):
     SKIP_FOOTER = 2
     COLUMNS = [1, 11, 12]
     COLUMN_NAMES = [
-        "departement_id", "weight_total", "weight_informal"
+        "departement", "weight_total", "weight_informal"
     ]
     
     print(f"Loading population data from {EXCEL_PATH}")
@@ -88,7 +88,7 @@ def execute(context):
     # ========== Merge ==========
 
     # we choose only Asuncion and Central departements
-    df_departements = df_departements[df_departements["departement_id"].isin(('Asunción', 'Central'))] 
+    df_departements = df_departements[df_departements["departement"].isin(('Asunción', 'Central'))] 
 
 
     # datasets contains columns for 1) formal employment 2) informal employment 
@@ -113,7 +113,7 @@ def execute(context):
         dept = (
             df_departements
             .assign(weight=lambda x: x["weight_formal"] if is_formal else x["weight_informal"])
-            [["departement_id", "weight"]]
+            [["departement", "weight"]]
         )
         dept["p"] = dept.weight / dept.weight.sum()
 
@@ -130,18 +130,21 @@ def execute(context):
 
         tmp["is_formal"] = is_formal
 
-        formal.append(tmp[["departement_id","sex","age_class","is_formal","weight"]])
+        formal.append(tmp[["departement","sex","age_class","is_formal","weight"]])
 
     df = pd.concat(formal, ignore_index=True)
 
 
 
 
-    df = df.groupby(["departement_id","sex","age_class"])["weight"].sum().reset_index()
+    df = df.groupby(["departement","sex","age_class"])["weight"].sum().reset_index()
     df["age_class"] = df["age_class"].astype(int)
-    df["departement_id"] = df["departement_id"].str[0]
 
     assert not df.isna().any().any()
+
+    df["departement"] = df["departement"].str.upper()
+    from asuncion.data.codes import normalize_codes
+    df = normalize_codes(df,context.stage("asuncion.data.codes"))
 
 
     # ============= Recalculate employment to district level ==============
@@ -149,7 +152,7 @@ def execute(context):
 
 
     pop = context.stage("asuncion.data.census.population").copy()
-    pop = pop.groupby(["departement_id", "district", "sex", "age_class"])["weight"].sum().reset_index()
+    pop = pop.groupby(["departement_id", "district_id", "sex", "age_class"])["weight"].sum().reset_index()
 
     pop["pop_share"] = (
         pop["weight"]
@@ -160,7 +163,7 @@ def execute(context):
     # Allocate employment to districts
     df_district = (
         df.merge(
-            pop[["departement_id", "district", "sex", "age_class", "pop_share"]],
+            pop[["departement_id", "district_id", "sex", "age_class", "pop_share"]],
             on=["departement_id", "sex", "age_class"],
             how="left",
         )
@@ -169,11 +172,14 @@ def execute(context):
     df_district["weight"] *= df_district["pop_share"]
 
     df_district = df_district[
-        ["departement_id", "district", "sex", "age_class", "weight"]
+        ["departement_id", "district_id", "sex", "age_class", "weight"]
     ]
 
     if context.config("commune_equivalent") == "district":
-        df_district = df_district.rename(columns={"district":"commune_id"})
+        df_district = df_district.rename(columns={"district_id":"commune_id"})
+
+
+
 
     return df_district[["departement_id", "commune_id", "sex", "age_class", "weight"]]
 

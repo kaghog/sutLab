@@ -6,8 +6,8 @@ working_directory: cache
 
 # This section defines which parts of the pipeline should be run
 run:
-  - asuncion.ipu.attributed
-  - analysis.asuncion.ivt_style.compare_ipu
+  - asuncion.gravity.primary_locations
+#  - analysis.asuncion.ivt_style.compare_ipu
 config:
   # Some general configuration
   processes: 8
@@ -26,7 +26,7 @@ config:
   output_prefix: asuncion_1pct_
   asuncon.population_shp: shapefiles/census_district_shapefiles/SECC_CE_20220101.shp
   asuncion.buildings_path: catastre_buildings/all_buildings.gpkg
-  osm_path_asuncion: 
+  osm_path_asuncion: osm/paraguay-260810.osm.pbf
   check_spatial_codes: True
   analysis_path: output/analysis
   osmconvert_binary: "/cluster/scratch/snekula/sutlab/sutLab/osmconvert"
@@ -45,8 +45,14 @@ config:
   IPU_aggregation_level: "commune_id"
   commune_equivalent: "district" # or borrough
 
+  education_graduation_age: 
+    school: 15
+     # university all above highschool
+
+
   osm_path: osm
   osmosis_binary: osmosis/bin
+  gtfs_path: gtfs/Line1
 
   eqasim_commit: f375a37
   eqasim_version: "2.0.0"
@@ -65,3 +71,29 @@ aliases:
   data.spatial.codes: asuncion.entd_codes
 
   synthesis.population.enriched: asuncion.synthesis.population.enriched
+
+  synthesis.population.income.selected: asuncion.income
+  synthesis.population.spatial.home.zones: asuncion.homes
+
+  synthesis.locations.home.locations: asuncion.locations.home
+  synthesis.locations.secondary: asuncion.locations.secondary
+  synthesis.locations.work: asuncion.locations.work
+  synthesis.locations.education: asuncion.data.education
+  
+  
+  data.od.weighted: asuncion.gravity.model_new
+  synthesis.population.spatial.primary.locations: asuncion.gravity.primary_locations 
+  synthesis.population.spatial.primary.candidates: asuncion.gravity.work_candidates
+
+
+  synthesis.population.trips: asuncion.synthesis.population.trips
+  synthesis.population.spatial.locations: asuncion.synthesis.population.spatial.locations
+  synthesis.population.spatial.secondary.locations: asuncion.synthesis.population.spatial.secondary.locations
+
+  matsim.simulation.prepare: asuncion.matsim.simulation.prepare
+  matsim.simulation.run: asuncion.matsim.simulation.run
+  matsim.scenario.prepare: matsim.simulation.prepare # matsim.scenario.prepare stage is not used in simulation at all
+  matsim.scenario.population: asuncion.matsim.scenario.population
+
+
+  

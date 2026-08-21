@@ -11,5 +11,4 @@ def configure(context):
 
 def execute(context):
     # TODO: filter out industry and agriculture locations
-    raise NotImplementedError
     return context.stage("asuncion.data.work")

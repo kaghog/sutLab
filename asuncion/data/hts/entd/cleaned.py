@@ -22,7 +22,7 @@ PURPOSE_MAP = {
     4: "other", # 'Dejar - Recoger - Acompañar a Alguién
     5: "shop", # Compras
     6: "other", # 'Asistencia Médica o Dental - Trámites Personales
-    7: "study", # Estudios
+    7: "education", # Estudios
     8: "other", # 'Visitar a Alguién
     9: "other", # 'Actividad Política -Sindical - Comunitaria - Religiosa - Otro
     10: "work", # 'Trámites de Trabajo

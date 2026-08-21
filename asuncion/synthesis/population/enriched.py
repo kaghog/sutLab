@@ -7,18 +7,18 @@ import numpy as np
 def configure(context):
     # Base enriched stage (matched + income, etc.)
     delegate.configure(context)
-    # seville-specific constraints for PT and license
-    context.stage("seville.data.pt.constraints")
-    context.stage("seville.data.license.constraints")
+    # asuncion-specific constraints for PT and license
+    context.stage("asuncion.data.pt.constraints")
+    context.stage("asuncion.data.license.constraints")
     context.config("random_seed")
 
 
 """
-seville enriched stage
+asuncion enriched stage
 - Starts from the generic enriched population
-- Calibrates PT subscription against seville HTS-derived constraints
+- Calibrates PT subscription against asuncion HTS-derived constraints
 - Enforces PT subscription = 0 for ages <6
-- Calibrates driving license against seville HTS-derived constraints
+- Calibrates driving license against asuncion HTS-derived constraints
 All calibrations use simple proportional fitting and deterministic micro-adjustments
 for sensitive bins to keep results stable across runs.
 """
@@ -56,9 +56,9 @@ def execute(context):
     # Start from base enriched population (donor copy)
     df_persons = delegate.execute(context).copy()
 
-    # Load seville-specific constraints
-    constraints_pt = context.stage("seville.data.pt.constraints")["pt_subscription_constraints"]
-    constraints_lic = context.stage("seville.data.license.constraints")["license_constraints"]
+    # Load asuncion-specific constraints
+    constraints_pt = context.stage("asuncion.data.pt.constraints")["pt_subscription_constraints"]
+    constraints_lic = context.stage("asuncion.data.license.constraints")["license_constraints"]
 
     # Prepare arrays
     n = len(df_persons)

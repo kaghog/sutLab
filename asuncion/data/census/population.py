@@ -11,10 +11,10 @@ def configure(context):
     context.config("asuncion.population-ad-sex-age", "census/population/Cuadro 3. Asunción. Población total por área urbana-rural y sexo, según grupos de edad, 2022..xlsx")
     context.config("asuncion.population-cd-sex-age-district", "census/population/Cuadro 14. Departamento Central. Población total por área urbana-rural y sexo, según distrito y grupos de edad, 2022..xlsx")
     context.config("commune_equivalent")
-
+    context.stage("asuncion.data.codes")
 def execute(context):
 
-    # ========== Load Asuncion population data (by sex, borough) ==========
+    # ========== Load ASUNCIÓN population data (by sex, borough) ==========
 
     EXCEL_PATH = "{}/{}".format(context.config("data_path"),context.config("asuncion.population-ad-sex-bario"))
     SHEET_NAME = "C1.1_ASUNCIÓN"
@@ -39,12 +39,12 @@ def execute(context):
         var_name="sex",
         value_name="weight"
     )
-    df_asuncion_barrios_sex["departement_id"] = 'Asuncion'
-    df_asuncion_barrios_sex['district'] = 'Asuncion'
+    df_asuncion_barrios_sex["departement"] = 'ASUNCIÓN'
+    df_asuncion_barrios_sex['district'] = 'ASUNCIÓN'
 
     df_asuncion_barrios_sex['weight'] = df_asuncion_barrios_sex['weight'].astype(int)
 
-    # ========== Load Asuncion population data (by sex, age) ==========
+    # ========== Load ASUNCIÓN population data (by sex, age) ==========
 
     EXCEL_PATH = "{}/{}".format(context.config("data_path"),context.config("asuncion.population-ad-sex-age"))
     SHEET_NAME = "Asunción"
@@ -68,8 +68,8 @@ def execute(context):
         var_name="sex",
         value_name="weight"
     )
-    df_asuncion_age_sex["departement_id"] = 'Asuncion'
-    df_asuncion_age_sex['district'] = 'Asuncion'
+    df_asuncion_age_sex["departement"] = 'ASUNCIÓN'
+    df_asuncion_age_sex['district'] = 'ASUNCIÓN'
 
     df_asuncion_age_sex['age_class'] = (
         df_asuncion_age_sex['age_class']
@@ -128,7 +128,7 @@ def execute(context):
     df_central['weight'] = df_central['weight'].astype(int)
 
 
-    df_central["departement_id"] = 'Central'
+    df_central["departement"] = 'Central'
 
     # ========== Merge all together ========== 
 
@@ -140,13 +140,13 @@ def execute(context):
     df["weight"] = (
         df["share"] * df["weight"]
     )
-    df = df[["sex", "age_class","weight", "departement_id", "district", "borough"]]
+    df = df[["sex", "age_class","weight", "departement", "district", "borough"]]
 
 
     df_central['borough'] = df_central['district']
     df = pd.concat([df, df_central])
 
-    df["departement_id"] = df["departement_id"].str[0]
+    df["departement"] = df["departement"]
 
     assert not df.isna().any().any()
 
@@ -154,14 +154,21 @@ def execute(context):
 
     # ======== rename for export ==========
 
+    df["departement"] = df["departement"].str.upper()
+    df["district"] = df["district"].str.upper()
+    from asuncion.data.codes import normalize_codes
+    df = normalize_codes(df,context.stage("asuncion.data.codes"))
+
     if context.config("commune_equivalent") == "district":
-        df["commune_id"] = df["district"]
+        df["commune_id"] = df["district_id"]
     else:
+        raise NotImplementedError
         df["commune_id"] = df["borough"]
 
 
 
-    return df[["sex", "age_class","weight", "departement_id", "district", "commune_id"]]
+
+    return df[["sex", "age_class","weight", "departement_id", "district_id", "commune_id"]]
 
 def validate(context):
     filenames = [

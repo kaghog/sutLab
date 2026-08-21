@@ -10,12 +10,13 @@ def configure(context):
     context.config("asuncion.households-auncion", "census/households/Cuadro 2.3 Asunción. Jefatura de hogar según sexo, 2022.xlsx")
     context.config("asuncion.households-central", "census/households/Cuadro 13.3 Dpto. Central.Jefatura de hogar por sexo, según distrito, 2022..xlsx")
     context.config("commune_equivalent")
+    context.stage("asuncion.data.codes")
 
 def execute(context):
 
     # ========== Load Asuncion population data (by sex, borough) ==========
     # see "asuncion.households-auncion"
-    df_households_asuncion = pd.DataFrame(data={"departement_id":["A"], "district":["Asuncion"], "weight":[133_620]})
+    df_households_asuncion = pd.DataFrame(data={"departement":["ASUNCIÓN"], "district":["ASUNCIÓN"], "weight":[133_620]})
 
     # ========== Load Asuncion population data (by sex, borough) ==========
 
@@ -36,21 +37,31 @@ def execute(context):
 
     df_households_central = df_households_central[df_households_central['district']!='Total']
 
-    df_households_central["departement_id"] = 'C'
+    df_households_central["departement"] = 'CENTRAL'
 
     df_households_central['weight'] = df_households_central['weight'].astype(int)
 
     # ========== Merge ==========
 
-    df = pd.concat([df_households_asuncion, df_households_central[["departement_id", "district", "weight"]]])
+    df = pd.concat([df_households_asuncion, df_households_central[["departement", "district", "weight"]]])
 
     assert not df.isna().any().any()
+
+    df["departement"] = df["departement"].str.upper()
+    df["district"] = df["district"].str.upper()
+    from asuncion.data.codes import normalize_codes
+    df = normalize_codes(df,context.stage("asuncion.data.codes"))
+
 
     if context.config("commune_equivalent") == "district":
         df = df.rename(columns={"district":"commune_id"})
 
 
-    return df[["departement_id", "commune_id", "weight"]]
+
+
+
+
+    return df[["departement", "commune_id", "weight"]]
 
 def validate(context):
     filenames = [

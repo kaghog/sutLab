@@ -12,6 +12,7 @@ def configure(context):
     context.config("data_path")
 
     context.config("asuncion.employees_data", "census/employees/49d4bCEN2011_DIST_CUADRO_1.xlsx")
+    context.stage("asuncion.data.codes")
 
 def execute(context):
     EXCEL_PATH = "{}/{}".format(context.config("data_path"),context.config("asuncion.employees_data"))
@@ -51,7 +52,7 @@ def execute(context):
             if name == "ASUNCIÓN":
                 records.append([
                     current_dept,
-                    "Asunción",
+                    "ASUNCIÓN",
                     row[3]
                 ])
 
@@ -82,6 +83,17 @@ def execute(context):
           .astype("Int64")
     )
 
+
+    employees["departement"] = employees["departement"].str.upper()
+    employees["district"] = employees["district"].str.upper()
+
+    employees = employees[(employees["departement"] == "ASUNCIÓN") | (employees["departement"] == "CENTRAL")]
+
+
+    from asuncion.data.codes import normalize_codes
+    employees = normalize_codes(employees,context.stage("asuncion.data.codes"))
+
+    assert len(employees) != 0
     return employees
 
 def validate(context):
