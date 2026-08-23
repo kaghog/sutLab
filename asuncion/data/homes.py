@@ -24,13 +24,13 @@ def execute(context):
     homes_central = gpd.read_file(FILE_URL, dtype=str)
 
     homes = pd.concat([homes_asuncion, homes_central])
-    homes = homes.to_crs("EPSG:4674")
     homes = homes[["geometry"]].copy()
     homes["home_location_id"] = np.arange(len(homes))
-    homes["weight"] = 1
+    homes["weight"] = 1.0
 
     # add spatial identifiers
     gdf_spatial = context.stage("asuncion.data.spatial.iris")
+    homes = homes.to_crs(gdf_spatial.crs)
     homes = gpd.sjoin(homes, gdf_spatial, predicate="within", how="inner")
 
     assert len(homes) != 0

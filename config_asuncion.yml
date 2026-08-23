@@ -39,6 +39,7 @@ config:
   # Defaults for asuncion
   
 
+  pipeline_crs: "EPSG:32721"
   home_location_sampling: weighted
   mode_choice: True
   matching_attributes: ["sex", "age_class", "has_license"]

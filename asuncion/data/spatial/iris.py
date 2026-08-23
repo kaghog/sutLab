@@ -7,10 +7,13 @@ def configure(context):
     context.stage("asuncion.data.spatial.raw")
     context.config("commune_equivalent")
     context.stage("asuncion.data.codes")
+    context.config("pipeline_crs")
 def execute(context):
 
      # Load codes
     df_codes = context.stage("asuncion.data.spatial.raw")
+
+    df_codes = df_codes.to_crs(context.config("pipeline_crs"))
 
     # no region id
     df_codes["region_id"] = "Paraguay"

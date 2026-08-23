@@ -54,14 +54,14 @@ def execute(context):
 
 
     if context.config("commune_equivalent") == "district":
-        df = df.rename(columns={"district":"commune_id"})
+        df = df.rename(columns={"district_id":"commune_id"})
 
 
 
 
 
 
-    return df[["departement", "commune_id", "weight"]]
+    return df[["departement_id", "commune_id", "weight"]]
 
 def validate(context):
     filenames = [

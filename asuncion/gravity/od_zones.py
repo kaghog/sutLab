@@ -18,6 +18,7 @@ def configure(context):
     context.stage("asuncion.data.homes")
     context.stage("asuncion.data.work")
     context.stage("asuncion.data.codes")
+    context.config("pipeline_crs")
 
 
 
@@ -50,7 +51,7 @@ def calculate_weighted_centroids(
         spatial_gdf,
         value_column,
         spatial_id_column,
-        target_crs=25830,
+        target_crs,
         missing_value=-1,
         missing_replacement=1
 ):
@@ -119,12 +120,7 @@ def execute(context):
 
 
     # Load data
-    print()
     df_population = context.stage("asuncion.data.census.population")
-    print(commune2macrozone_map.info())
-    print(df_population.info())
-    print(commune2macrozone_map)
-    print(df_population)
     df_population = df_population.merge(commune2macrozone_map)
 
     assert len(df_population) != 0
@@ -143,6 +139,7 @@ def execute(context):
     population_centroids = calculate_weighted_centroids(
         locations_gdf=df_homes,
         spatial_gdf=od_zones,
+        target_crs=context.config("pipeline_crs"),
         value_column="population",
         spatial_id_column="macrozone_id"
     )
@@ -150,22 +147,20 @@ def execute(context):
     employment_centroids = calculate_weighted_centroids(
         locations_gdf=df_work,
         spatial_gdf=od_zones,
+        target_crs=context.config("pipeline_crs"),
         value_column="employees",
         spatial_id_column="macrozone_id"
     )
 
 
-    print(df_population.info())
-    print(df_employees.info())
 
     df_population["population"] = df_population["weight"]
     df_employees["employees"] = df_employees["weight"]
-    print(df_employees)
-    print(employment_centroids)
+
     population_centroids = population_centroids[["macrozone_id", "geometry"]].merge(df_population[["macrozone_id", "population"]])
     employment_centroids = employment_centroids[["macrozone_id", "geometry"]].merge(df_employees[["macrozone_id", "employees"]])
-    print(employment_centroids)
-    exit(0)
+
+    assert len(od_zones) != 0 and len(population_centroids) != 0 and len(employment_centroids) != 0 and len(commune2macrozone_map) != 0
     return od_zones[['macrozone_id', 'geometry']], population_centroids, employment_centroids, commune2macrozone_map
 
 

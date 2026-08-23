@@ -30,13 +30,14 @@ def execute(context):
     edu_locations = edu_locations[["geometry", "education_type"]].copy()
 
 
-    edu_locations["students"] = 1
+    edu_locations["students"] = 1.0
     edu_locations["fake"] = False
     edu_locations["location_id"] = np.arange(len(edu_locations))
     edu_locations["location_id"] = "edu_" + edu_locations["location_id"].astype(str)
 
     # add spatial identifiers
     gdf_spatial = context.stage("asuncion.data.spatial.iris")
+    edu_locations = edu_locations.to_crs(gdf_spatial.crs)
     edu_locations = gpd.sjoin(edu_locations, gdf_spatial, predicate="within", how="inner")
 
     assert len(edu_locations) != 0
