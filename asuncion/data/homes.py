@@ -28,6 +28,9 @@ def execute(context):
     homes["home_location_id"] = np.arange(len(homes))
     homes["weight"] = 1.0
 
+    homes = homes.to_crs(context.config("pipeline_crs"))
+    homes["geometry"] = homes.geometry.centroid
+
     # add spatial identifiers
     gdf_spatial = context.stage("asuncion.data.spatial.iris")
     homes = homes.to_crs(gdf_spatial.crs)

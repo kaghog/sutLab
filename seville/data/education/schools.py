@@ -82,6 +82,7 @@ def execute(context):
             })
 
     gdf_schools = gpd.GeoDataFrame(records, geometry="geometry", crs="EPSG:4326")
+    gdf_schools["weight"] = gdf_schools["students"]
 
     return gdf_schools
 

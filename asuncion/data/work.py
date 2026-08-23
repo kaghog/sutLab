@@ -11,6 +11,7 @@ def configure(context):
     context.config("data_path")
 
     context.stage("asuncion.data.spatial.iris")
+    context.config("pipeline_crs")
 
 
 def execute(context):
@@ -25,6 +26,9 @@ def execute(context):
     work_locations["fake"] = False
     work_locations["location_id"] = np.arange(len(work_locations))
     work_locations["location_id"] = "work_" + work_locations["location_id"].astype(str)
+    
+    work_locations = work_locations.to_crs(context.config("pipeline_crs"))
+    work_locations["geometry"] = work_locations.geometry.centroid
 
     # add spatial identifiers
     gdf_spatial = context.stage("asuncion.data.spatial.iris")
@@ -34,4 +38,4 @@ def execute(context):
 
     assert len(work_locations) != 0
 
-    return work_locations[["employees", "fake", "commune_id", "iris_id", "geometry", "type"]]
+    return work_locations[["location_id", "employees", "fake", "commune_id", "iris_id", "geometry", "type"]]

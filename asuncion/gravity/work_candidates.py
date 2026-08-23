@@ -12,6 +12,7 @@ def configure(context):
 
     context.stage("synthesis.locations.education")
     context.stage("synthesis.locations.work")
+    context.stage("asuncion.gravity.od_zones")
 
     context.stage("synthesis.population.spatial.home.zones")
     context.stage("synthesis.population.enriched")
@@ -121,15 +122,16 @@ def process(context, purpose, random, df_persons, df_od, df_locations,step_name)
 
 def fix_commune(df_persons, commune2macrozone_map):
 
-    before = len(df_persons)
+    df_fixed = df_persons.merge(commune2macrozone_map[["commune_id", "macrozone_id"]])
 
-    df_persons = df_persons.merge(commune2macrozone_map[["commune_id", "macrozone_id"]])
+    print(df_persons["commune_id"].value_counts())
+    print(df_fixed["commune_id"].value_counts())
+    assert len(df_persons) == len(df_fixed), f"{len(df_persons)} == {len(df_fixed)}"
 
-    assert len(df_persons) == before
 
-    df_persons['commune_id'] = df_persons['macrozone_id']
+    df_fixed['commune_id'] = df_fixed['macrozone_id']
 
-    return df_persons
+    return df_fixed
 
 
 def execute(context):

@@ -37,6 +37,7 @@ def clean_distrits(gdf_districts, gdf_iris):
     joined = joined[joined['district_id'].notna()]
     joined['macrozone_id'] = joined['district_id']
     commune2macrozone_map = joined.copy()
+    commune2macrozone_map = commune2macrozone_map.drop_duplicates(subset='commune_id')
     joined = joined.drop_duplicates(subset='district_id')
     assert len(joined) != 0
 

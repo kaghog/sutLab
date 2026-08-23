@@ -37,5 +37,5 @@ def execute(context):
 
 
 
-    return gdf_education
+    return gdf_education[["location_id", "weight", "education_type", "commune_id", "iris_id", "departement_id", ]]
 

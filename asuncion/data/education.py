@@ -34,12 +34,16 @@ def execute(context):
     edu_locations["fake"] = False
     edu_locations["location_id"] = np.arange(len(edu_locations))
     edu_locations["location_id"] = "edu_" + edu_locations["location_id"].astype(str)
+    edu_locations = edu_locations.to_crs(context.config("pipeline_crs"))
+    edu_locations["geometry"] = edu_locations.geometry.centroid
 
     # add spatial identifiers
     gdf_spatial = context.stage("asuncion.data.spatial.iris")
     edu_locations = edu_locations.to_crs(gdf_spatial.crs)
     edu_locations = gpd.sjoin(edu_locations, gdf_spatial, predicate="within", how="inner")
 
+
+    edu_locations["weight"] = edu_locations["students"]
     assert len(edu_locations) != 0
 
-    return edu_locations[["students", "fake", "commune_id", "iris_id", "geometry"]]
+    return edu_locations[["location_id", "education_type", "weight", "fake", "commune_id", "iris_id", "geometry"]]
