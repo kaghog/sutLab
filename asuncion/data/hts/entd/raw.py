@@ -61,13 +61,10 @@ MAP_TRIPS_COLUMNS = {
     # '': 'is_last_trip', # calculated using hts.compute_first_last
     # '': 'is_first_trip', # calculated using hts.compute_first_last
 
-    # TODO: check CategoriaModoPrincipal in more detail if it matches expected values as passenger etc.
-    # because we need to get passenger values from something
     'CategoriaModoPrincipal': 'mode',
 
-    # TODO:
-    'IdDistritoOrigen':'origin_departement_id',
-    'IdDistrito':'destination_departement_id',
+    'IdDistritoOrigen':'origin_district_id', # origin departement id is extracted from this
+    'IdDistrito':'destination_district_id', # destination departement id is extracted from this
 }
 
 MAP_LEGS_COLUMNS = {

@@ -7,14 +7,17 @@ import numpy as np
 Apply gravity model to generate a distance matrix covering asuncion Metropolitan Area.
 """
 
-DEFAULT_K = 3.46163624e-07
-DEFAULT_A = 1.069159
-DEFAULT_B = 1.108626
-DEFAULT_G = -0.430266
+# old values here, these are overwritten by values from calibrate.py anyway
+DEFAULT_K = 2.91058391e-08
+DEFAULT_A = 1.239496
+DEFAULT_B = 0.615228
+DEFAULT_G = -0.605766
+
 
 def configure(context):
     context.stage("asuncion.gravity.distance_matrix")
     context.stage("asuncion.gravity.od_zones")
+    context.stage("asuncion.gravity.calibrate")
 
     context.config('analysis_path')
 
@@ -47,10 +50,12 @@ def execute(context):
     df_matrix = df_matrix.merge(df_distances, on=['origin_id', 'destination_id'])
     df_matrix['distance_km'] = df_matrix['distance_km'].replace(0, 0.1)
     
-    k = DEFAULT_K
-    a = DEFAULT_A
-    b = DEFAULT_B
-    g = DEFAULT_G
+    calibration = context.stage("asuncion.gravity.calibrate")
+
+    k = calibration["k"]
+    a = calibration["alpha"]
+    b = calibration["beta"]
+    g = calibration["gamma"]
 
     df_matrix['weight'] = k * (df_matrix['population']**a * df_matrix['employees']**b * df_matrix['distance_km']**g)
     #df_matrix['predicted_flow'] = df_matrix['predicted_flow'].round(0).astype(int)

@@ -6,7 +6,7 @@ def configure(context):
     if education_method == "gravity":
         context.stage("asuncion.gravity.education", alias = "education_stage")
     elif education_method == "distance":
-        context.stage("asuncion.distance.education", alias = "education_stage")
+        context.stage("asuncion.distance_assignment.education", alias = "education_stage")
     else:
         raise RuntimeError("Unknown stage: %s" % education_method)
 
@@ -14,7 +14,7 @@ def configure(context):
     if work_method == "gravity":
         context.stage("asuncion.gravity.work", alias = "work_stage")
     elif work_method == "distance":
-        context.stage("asuncion.distance.work", alias = "work_stage")
+        context.stage("asuncion.distance_assignment.work", alias = "work_stage")
     else:
         raise RuntimeError("Unknown stage: %s" % work_method)
 

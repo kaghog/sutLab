@@ -34,12 +34,11 @@ def execute(context):
         "BARRIOS Y LOCALIDADES": "borrough",
     })
 
-    for c in ["departement_id", "district_code", "borrough_code"]:
+    for c, max_len in zip(["departement_id", "district_code", "borrough_code"], [2, 2, 3]):
         df[c] = df[c].astype("string").str.strip()
-        max_length = df["departement_id"].str.len().max()
-        assert max_length <= 3
-        df[c] = df[c].str.rjust(3, '0')
-        print(f"{c} code has length of {max_length}")
+        max_length = df[c].str.len().max()
+        assert max_length <= max_len, c
+        df[c] = df[c].str.rjust(max_len, '0')
 
     df["district_id"] = df["departement_id"] + df["district_code"]
     df["borrough_id"] = df["district_id"] + df["borrough_code"]

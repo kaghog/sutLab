@@ -109,8 +109,6 @@ def execute(context):
         return True
     
     df_persons["employed"] = df_persons["employed"].apply(clean_employed)
-    # TODO: education ???
-    # TODO: is_passenger ??? - from trips?
 
     # 1 - has license
     # 2 - yes, but it is expired
@@ -126,8 +124,11 @@ def execute(context):
     df_trips["trip_id"] = df_trips["trip_id"].astype(int)
     df_trips["trip_weight"] = df_trips["trip_weight"].astype(float)
 
-    df_trips["origin_departement_id"] = df_trips["origin_departement_id"].str[0] # 11 is central departement
-    df_trips["destination_departement_id"] = df_trips["destination_departement_id"].str[0]
+    df_trips.loc[df_trips["origin_district_id"] == "0" ,"origin_district_id"] = "0000"
+    df_trips.loc[df_trips["destination_district_id"] == "0" ,"destination_district_id"] = "0000"
+
+    df_trips["origin_departement_id"] = df_trips["origin_district_id"].str[:2] # 11 is central departement
+    df_trips["destination_departement_id"] = df_trips["destination_district_id"].str[:2]
 
     # Trip purpose
     df_trips["following_purpose"] = df_trips["following_purpose"].astype(int).map(PURPOSE_MAP).astype("category")

@@ -6,7 +6,7 @@ working_directory: cache
 
 # This section defines which parts of the pipeline should be run
 run:
-  - asuncion.gravity.primary_locations
+  - asuncion.primary_locations_assignment
 #  - analysis.asuncion.ivt_style.compare_ipu
 config:
   # Some general configuration
