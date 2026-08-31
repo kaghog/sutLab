@@ -47,7 +47,7 @@ config:
   commune_equivalent: "district" # or borrough
 
   education_graduation_age: 
-    school: 15
+    school: 17
      # university all above last entry
   education_assignment_method: "distance"
   work_assignment_method: "gravity"
