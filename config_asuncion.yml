@@ -48,7 +48,9 @@ config:
 
   education_graduation_age: 
     school: 15
-     # university all above highschool
+     # university all above last entry
+  education_assignment_method: "distance"
+  work_assignment_method: "gravity"
 
 
   osm_path: osm
@@ -83,7 +85,7 @@ aliases:
   
   
   data.od.weighted: asuncion.gravity.model_new
-  synthesis.population.spatial.primary.locations: asuncion.gravity.primary_locations 
+  synthesis.population.spatial.primary.locations: asuncion.primary_locations_assignment 
   synthesis.population.spatial.primary.candidates: asuncion.gravity.work_candidates
 
 
