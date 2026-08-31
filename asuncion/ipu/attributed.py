@@ -30,7 +30,8 @@ def execute(context):
     print(f"Adding attributes to {len(df):,} persons from IPU...")
 
 
-#    assert "departement_id" in df.columns, "missing department in IPU results"
+    if "departement_id" not in df.columns and "commune_id" in df.columns:
+        df["departement_id"] = df["commune_id"].str[:3]
 
 
     # Spatial identifiers: departement -> commune -> iris
@@ -87,6 +88,8 @@ def execute(context):
     # Household attributes
     if "household_size_capped" in df.columns and "household_size" not in df.columns:
         df["household_size"] = df["household_size_capped"]
+    elif  ("household_size_capped" not in df.columns) and ("household_size" not in df.columns):
+        df["household_size"] = df.groupby("household_id").transform("size")
 
     if "consumption_units" not in df.columns:
         df["consumption_units"] = 1.0

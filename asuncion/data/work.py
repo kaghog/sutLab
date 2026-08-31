@@ -18,9 +18,10 @@ def execute(context):
     # Load data
     FILE_URL = f"{context.config('data_path')}/{context.config('asuncion.work_locations_data')}"
     work_locations = gpd.read_file(FILE_URL, dtype=str)
-    work_locations["type"] = work_locations["desccodref"]
+    work_locations["type_category"] = work_locations["desccodref"]
+    work_locations["type"] = work_locations["descref"]
 
-    work_locations = work_locations[["geometry", "type"]].copy()
+    work_locations = work_locations[["geometry", "type", "type_category"]].copy()
 
     work_locations["employees"] = 1.0
     work_locations["fake"] = False
@@ -38,4 +39,4 @@ def execute(context):
 
     assert len(work_locations) != 0
 
-    return work_locations[["location_id", "employees", "fake", "commune_id", "iris_id", "geometry", "type"]]
+    return work_locations[["location_id", "employees", "fake", "commune_id", "iris_id", "geometry", "type", "type_category"]]

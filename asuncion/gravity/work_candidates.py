@@ -22,11 +22,6 @@ def configure(context):
     context.config("random_seed")
     context.config("education_location_source", "bpe")
 
-EDUCATION_MAPPING = {
-    "primary_school": ["C1"],
-    "middle_school": ["C2"],
-    "high_school": ["C3"],
-    "higher_education": ["C4", "C5", "C6"]}
 
 def sample_destination_municipalities(context, arguments):
     # Load data

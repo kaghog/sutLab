@@ -101,7 +101,8 @@ def execute(context):
         "bike": 0,      
         "pt": 0,          
         "car": 0,          
-        "car_passenger": 0 
+        "car_passenger": 0,
+        "drt": 0
     }
     
     resample_distributions(distance_distributions, mode_corrections)
@@ -197,7 +198,7 @@ def process_hoerl(context, arguments):
   # Set up assignment solver
   thresholds = dict(
     car = 200.0, car_passenger = 200.0, pt = 200.0,
-    bike = 100.0, walk = 100.0
+    bike = 100.0, walk = 100.0, drt = 100.0
   )
 
   assignment_objective = DiscretizationErrorObjective(thresholds = thresholds)
