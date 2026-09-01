@@ -9,6 +9,8 @@ run:
 #  - seville.gravity.primary_locations
   - analysis.seville.ivt_style.analysis
 #  - analysis.seville.ivt_style.analysis_education
+  - analysis.seville.ivt_style.analysis_education_2
+
 
 config:
   # Some general configuration
