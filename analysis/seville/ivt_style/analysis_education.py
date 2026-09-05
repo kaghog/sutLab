@@ -5,6 +5,8 @@ import matplotlib.pyplot as plt
 import pickle
 import sys
 from shapely.geometry import Point
+from adjustText import adjust_text
+from matplotlib.lines import Line2D
 
 
 
@@ -18,12 +20,13 @@ def configure(context):
     context.stage("synthesis.output")
     context.stage("seville.gravity.od_zones")
     context.config("education_graduation_age")
-    context.stage("synthesis.locations.education")
+    context.stage("seville.data.education.merged")
+    context.stage("seville.data.education.universities")
 
 def execute(context):
 
 
-    if context.config("debug") == False:
+    if context.config("debug") == True:
         from debug import snapshot
         snapshot(context,
             configs=["output_path", "data_path", "analysis_path", "output_prefix", "education_graduation_age"],
@@ -611,6 +614,21 @@ def execute(context):
         )
         .copy()
     )
+    uni_loc_crs = uni_locations.crs
+
+    uni_locations["location_name"] = uni_locations["location_name"].str.replace("Universidad de Sevilla", "US")
+    uni_locations["location_name"] = uni_locations["location_name"].str.replace("Facultad", "F.")
+    uni_locations["location_name"] = uni_locations["location_name"].str.replace("Escuela", "E.")
+
+    # Merge locations with identical geometry
+    uni_locations['geom_key'] = uni_locations.geometry.astype(str)
+    uni_locations = uni_locations.groupby('geom_key', as_index=False).agg({
+        'location_name': lambda x: " + ".join(x.unique()),
+        'students': 'sum',
+        'geometry': 'first'
+    })
+    uni_locations = gpd.GeoDataFrame(uni_locations, geometry='geometry', crs=uni_loc_crs)
+    uni_locations = uni_locations.drop(columns=['geom_key'])
 
     uni_locations = uni_locations.to_crs(
         gdf_universities.crs
@@ -778,14 +796,45 @@ def execute(context):
     # GRAPH 4 — UNIVERSITY LOCATIONS
     # ==============================================================================
 
+    
     gdf_universities_plot = (
-        gdf_universities.to_crs(
-            df_zones.crs
-        )
+        gdf_universities.to_crs(df_zones.crs)
+        .copy()
     )
 
+    # Create color groups
+    gdf_universities_plot["group"] = gdf_universities_plot[
+        "university_id"
+    ].apply(
+        lambda x: "University of Seville" if "US" in str(x) else str(x)
+    )
+
+    # Colors
+    colors = {}
+
+    # University of Seville
+    colors["University of Seville"] = "#E41A1C"
+
+    # Other universities
+    other_groups = sorted(
+        gdf_universities_plot.loc[
+            gdf_universities_plot["group"] != "University of Seville",
+            "group"
+        ].unique()
+    )
+
+    # Generate distinct colors for the other universities
+    other_colors = plt.cm.tab10(
+        range(len(other_groups))
+    )
+
+    for group, color in zip(other_groups, other_colors):
+        colors[group] = color
+
+
+    # Plot
     fig, ax = plt.subplots(
-        figsize=(12, 10)
+        figsize=(14, 10)
     )
 
     # Background
@@ -796,33 +845,48 @@ def execute(context):
         linewidth=0.7
     )
 
-    # University locations
-    gdf_universities_plot.plot(
-        ax=ax,
-        color="red",
-        edgecolor="black",
-        markersize=100,
-        zorder=5
-    )
+    # Plot each group
+    for group, color in colors.items():
 
-    # University labels
-    for _, university in (
-        gdf_universities_plot.iterrows()
-    ):
+        subset = gdf_universities_plot[
+            gdf_universities_plot["group"] == group
+        ]
 
-        x = university.geometry.x
-        y = university.geometry.y
+        if len(subset) == 0:
+            continue
 
-        ax.text(
-            x,
-            y,
-            f"{university['university_id']}",
-            fontsize=10,
-            fontweight="bold",
-            ha="left",
-            va="bottom",
-            zorder=6
+        subset.plot(
+            ax=ax,
+            color=color,
+            edgecolor="white",
+            linewidth=0.7,
+            markersize=35,
+            zorder=5
         )
+
+
+    # Legend
+    legend_handles = [
+        Line2D(
+            [0],
+            [0],
+            marker="o",
+            color="w",
+            label=group,
+            markerfacecolor=color,
+            markeredgecolor="white",
+            markersize=8
+        )
+        for group, color in colors.items()
+    ]
+
+    ax.legend(
+        handles=legend_handles,
+        title="University",
+        loc="center left",
+        bbox_to_anchor=(1.02, 0.5),
+        frameon=True
+    )
 
     ax.set_title(
         "University Locations"

@@ -16,7 +16,7 @@ def configure(context):
 
     context.config("analysis_path")
 
-    context.stage("seville.gravity.distance_matrix_new")
+    context.stage("seville.gravity.distance_matrix")
     context.stage("seville.ipu.attributed")
     context.stage("seville.data.census.employees")
 
@@ -25,7 +25,7 @@ def configure(context):
 
 
 def execute(context):
-    gravity_od, _ = context.stage("seville.gravity.model_new")
+    gravity_od = context.stage("seville.gravity.model_new")
     spatial_df = context.stage("seville.data.spatial.iris")
     _, _, df_trips, _ = context.stage("seville.data.hts.entd.trip_distance")
     employees_df = context.stage("seville.data.census.employees")
@@ -38,7 +38,7 @@ def execute(context):
     employees_df.to_pickle(f"{context.config('analysis_path')}/employees.pkl")
 
 
-    df_distances = context.stage("seville.gravity.distance_matrix_new")
+    df_distances = context.stage("seville.gravity.distance_matrix")
     df_population = context.stage("seville.ipu.attributed")
     df_employees = context.stage("seville.data.census.employees")
 

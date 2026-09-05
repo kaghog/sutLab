@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+import geopandas as gpd
 
 def configure(context):
     context.stage("seville.data.hts.entd.filtered")
@@ -35,4 +36,17 @@ def execute(context):
     invalid_trips = ~df_trips["person_id"].isin(df_persons["person_id"])
     assert invalid_trips.sum() == 0, invalid_trips.sum()
 
+
+    for column in ["origin_location", "destination_location"]:
+        geometry = gpd.GeoSeries(
+            df_trips[column].values,
+            index=df_trips.index
+        )
+    
+        geometry = geometry.set_crs("EPSG:4326")
+    
+        print(column, geometry.crs)
+    
+        df_trips[column] = geometry.to_crs("EPSG:25830")
+        
     return df_households, df_persons, df_trips

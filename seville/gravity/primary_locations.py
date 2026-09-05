@@ -293,11 +293,11 @@ def process_edu_locations(context):
     
     if len(df_university_people) > 0:
         # Ensure unique location_ids and valid weights
-        university_weights = university_weights[["location_id", "commune_id", "geometry", "weight"]].copy()
+        university_weights = university_weights[["location_name", "location_id", "commune_id", "geometry", "weight"]].copy()
         university_weights = university_weights.drop_duplicates(subset=["location_id"], keep="first")
         
         # Remove rows with NaN or invalid weights
-        university_weights = university_weights.dropna(subset=["weight", "location_id", "commune_id"])
+        assert len(university_weights.dropna(subset=["weight", "location_id", "commune_id"])) == len(university_weights)
         
         # Validate that we have universities to assign
         if len(university_weights) == 0:
