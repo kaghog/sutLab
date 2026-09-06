@@ -30,7 +30,7 @@ def execute(context):
     # keep only education locations inside area of interest
     df_zones = context.stage("seville.data.spatial.iris")
 
-    gdf_education = gpd.sjoin(gdf_education, df_zones[["geometry", "commune_id", "iris_id"]], 
+    gdf_education = gpd.sjoin(gdf_education, df_zones[["geometry", "departement_id", "commune_id", "iris_id"]], 
         how = "left", predicate = "within").reset_index(drop = True).drop(columns = ["index_right"])
     gdf_education = gdf_education.dropna(subset=["commune_id", "iris_id"])
 

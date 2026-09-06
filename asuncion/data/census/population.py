@@ -12,6 +12,7 @@ def configure(context):
     context.config("asuncion.population-cd-sex-age-district", "census/population/Cuadro 14. Departamento Central. Población total por área urbana-rural y sexo, según distrito y grupos de edad, 2022..xlsx")
     context.config("commune_equivalent")
     context.stage("asuncion.data.codes")
+    context.stage("asuncion.data.select_agglomeration")
 def execute(context):
 
     # ========== Load ASUNCIÓN population data (by sex, borough) ==========
@@ -158,6 +159,10 @@ def execute(context):
     df["district"] = df["district"].str.upper()
     from asuncion.data.codes import normalize_codes
     df = normalize_codes(df,context.stage("asuncion.data.codes"))
+
+    agglomeration_mun = context.stage("asuncion.data.select_agglomeration")
+    df = df[df["district_id"].isin(agglomeration_mun['id'])]
+
 
     if context.config("commune_equivalent") == "district":
         df["commune_id"] = df["district_id"]

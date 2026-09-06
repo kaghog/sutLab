@@ -11,6 +11,7 @@ def configure(context):
     context.config("asuncion.households-central", "census/households/Cuadro 13.3 Dpto. Central.Jefatura de hogar por sexo, según distrito, 2022..xlsx")
     context.config("commune_equivalent")
     context.stage("asuncion.data.codes")
+    context.stage("asuncion.data.select_agglomeration")
 
 def execute(context):
 
@@ -53,13 +54,17 @@ def execute(context):
     df = normalize_codes(df,context.stage("asuncion.data.codes"))
 
 
+    agglomeration_mun = context.stage("asuncion.data.select_agglomeration")
+    df = df[df["district_id"].isin(agglomeration_mun['id'])]
+
+
     if context.config("commune_equivalent") == "district":
         df = df.rename(columns={"district_id":"commune_id"})
 
 
 
 
-
+    assert len(df) != 0
 
     return df[["departement_id", "commune_id", "weight"]]
 

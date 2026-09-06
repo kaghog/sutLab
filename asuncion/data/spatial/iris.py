@@ -8,6 +8,7 @@ def configure(context):
     context.config("commune_equivalent")
     context.stage("asuncion.data.codes")
     context.config("pipeline_crs")
+    context.stage("asuncion.data.select_agglomeration")
 def execute(context):
 
      # Load codes
@@ -26,6 +27,8 @@ def execute(context):
     from asuncion.data.codes import normalize_codes
     df_codes = normalize_codes(df_codes, context.stage("asuncion.data.codes"))
 
+    agglomeration_mun = context.stage("asuncion.data.select_agglomeration")
+    df_codes = df_codes[df_codes["district_id"].isin(agglomeration_mun['id'])]
 
     if context.config("commune_equivalent") == "district":
         df_codes["commune_id"] = df_codes["district_id"].astype("category")

@@ -16,6 +16,7 @@ def configure(context):
 
     context.config("commune_equivalent")
     context.stage("asuncion.data.codes")
+    context.stage("asuncion.data.select_agglomeration")
 def execute(context):
 
 
@@ -25,7 +26,8 @@ def execute(context):
     SHEET_NAME = "Área de residencia y sexo"
     SKIP_ROWS = 6
     SKIP_FOOTER = 8
-    COLUMNS = [1, 11, 12]
+    #COLUMNS = [1, 11, 12] # year 2025
+    COLUMNS = [1, 2, 3] # year 2022, same as newest data for population
     COLUMN_NAMES = [
         "sex", "weight_total", "weight_informal"
     ]
@@ -48,7 +50,8 @@ def execute(context):
     SHEET_NAME = "Grupos de edad"    
     SKIP_ROWS = 6
     SKIP_FOOTER = 2
-    COLUMNS = [1, 11, 12]
+    #COLUMNS = [1, 11, 12] # for year 2025
+    COLUMNS = [1, 2, 3] # for year 2022
     COLUMN_NAMES = [
         "age_class", "weight_total", "weight_informal"
     ]
@@ -70,7 +73,8 @@ def execute(context):
     SHEET_NAME = "Ocupados informales"    
     SKIP_ROWS = 6
     SKIP_FOOTER = 2
-    COLUMNS = [1, 11, 12]
+    # COLUMNS = [1, 11, 12] # year 2025
+    COLUMNS = [1, 2, 3] # year 2022
     COLUMN_NAMES = [
         "departement", "weight_total", "weight_informal"
     ]
@@ -174,6 +178,10 @@ def execute(context):
     df_district = df_district[
         ["departement_id", "district_id", "sex", "age_class", "weight"]
     ]
+
+    agglomeration_mun = context.stage("asuncion.data.select_agglomeration")
+    df_district = df_district[df_district["district_id"].isin(agglomeration_mun['id'])]
+
 
     if context.config("commune_equivalent") == "district":
         df_district = df_district.rename(columns={"district_id":"commune_id"})

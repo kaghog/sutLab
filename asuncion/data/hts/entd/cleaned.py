@@ -58,7 +58,7 @@ def execute(context):
     # Set type as int for all numerical columns
     df_households["household_id"] = df_households["household_id"].astype(int)
     df_households["household_size"] = df_households["household_size"].astype(int)
-    df_households["departement_id"] = df_households["departement_id"].astype(int)
+    df_households["departement_id"] = df_households["departement_id"].astype(str)
     df_households["income_class"] = df_households["income_class"].astype(int)
     df_households["number_of_bikes"] = df_households["number_of_bikes"].astype(int)
 
@@ -85,7 +85,7 @@ def execute(context):
     # Transform original IDs to integer
     df_persons["person_id"] = df_persons["person_id"].astype(int)
     df_persons["household_id"] = df_persons["household_id"].astype(int)
-    df_persons["departement_id"] = df_persons["departement_id"].astype(int)
+    df_persons["departement_id"] = df_persons["departement_id"].astype(str)
 
     df_persons["person_weight"] = df_persons["person_weight"].astype(float)
     df_persons["trip_weight"] = df_persons["trip_weight"].astype(float)

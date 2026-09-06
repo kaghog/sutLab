@@ -9,168 +9,146 @@ def configure(context):
     context.config("analysis_path")
     context.stage("asuncion.data.hts.entd.filtered")
     context.stage("asuncion.data.census.households")
+    context.stage("asuncion.data.census.employment")
+
+
+def plot_distribution(context, df1, df2, column, weight1, label1, label2, title, filename):
+    d1 = df1.groupby(column)[weight1].sum() if weight1 else df1[column].value_counts()
+    d2 = df2[column].value_counts()
+
+    d1 = d1 / d1.sum() * 100
+    d2 = d2 / d2.sum() * 100
+
+    cats = sorted(set(d1.index) | set(d2.index), key=str)
+    d1 = d1.reindex(cats, fill_value=0)
+    d2 = d2.reindex(cats, fill_value=0)
+
+    x = np.arange(len(cats))
+    w = 0.35
+
+    plt.figure(figsize=(9, 6))
+    plt.bar(x - w / 2, d1, width=w, label=label1)
+    plt.bar(x + w / 2, d2, width=w, label=label2)
+    plt.xticks(x, cats, rotation=45, ha="right")
+    plt.xlabel(column)
+    plt.ylabel("Population share (%)")
+    plt.title(title)
+    plt.legend()
+    plt.grid(axis="y", linestyle="--", linewidth=0.5)
+    plt.tight_layout()
+    plt.savefig(f"{context.config('analysis_path')}/{filename}")
+    plt.close()
 
 
 def plot_population(context):
-    df_census = context.stage("asuncion.data.census.population").copy()
-    df_ipu = context.stage("asuncion.ipu.attributed").copy()
-    _, df_hts, _ = context.stage("asuncion.data.hts.entd.filtered")
+    census_population = context.stage("asuncion.data.census.population").copy()
+    census_employment = context.stage("asuncion.data.census.employment").copy()
 
-    # Attach matching information
-    assert df_ipu['person_id'].is_unique
+    ipu = context.stage("asuncion.ipu.attributed").copy()
+    _, hts, _ = context.stage("asuncion.data.hts.entd.filtered")
 
-    print("len(df_ipu)", len(df_ipu))
+    assert ipu["person_id"].is_unique
 
+    # Age
+    census_population_age = census_population.groupby("age_class", as_index=False)["weight"].sum()
+    census_population_age["weight"] = census_population_age["weight"] / census_population_age["weight"].sum() * 100
 
-    # ----- Define 5-year bins -----
-    def to_5y(age):
-        return (age // 5) * 5
+    ipu["age_class"] = (ipu["age"] // 5) * 5
+    hts["age_class"] = (hts["age"] // 5) * 5
 
-    # ----- Census -----
-    df_census = (
-        df_census.groupby("age_class", as_index=False)["weight"]
-        .sum()
-    )
-    df_census["weight"] = df_census["weight"] / df_census["weight"].sum() * 100
+    ipu_age = ipu.groupby("age_class").size()
+    ipu_age = ipu_age / ipu_age.sum() * 100
 
-    df_ipu["age_class"] = to_5y(df_ipu["age"])
-    df_hts["age_class"] = to_5y(df_hts["age"])
+    hts_age = hts.groupby("age_class")["person_weight"].sum()
+    hts_age = hts_age / hts_age.sum() * 100
 
-    print("IPU class", df_ipu.groupby("age_class").size())
-    print("IPU age", df_ipu.groupby("age").size())
-
-    print("MATCHED", df_hts.groupby("age_class").size())
-
-
-    # ----- IPU synthetic -----
-    df_ipu["weight"] = 1.0
-    df_ipu = (
-        df_ipu.groupby("age_class", as_index=False)["weight"]
-        .sum()
-    )
-    df_ipu["weight"] = df_ipu["weight"] / df_ipu["weight"].sum() * 100
-
-    # ----- HTS output -----
-
-    df_hts["weight"] = df_hts["person_weight"]
-    df_hts = (
-        df_hts.groupby("age_class", as_index=False)["weight"]
-        .sum()
-    )
-    df_hts["weight"] = df_hts["weight"] / df_hts["weight"].sum() * 100
-
-
-
-
-
-
-    # ----- Align bins -----
-    bins = sorted(
-        set(df_census["age_class"])
-        | set(df_ipu["age_class"])
-        | set(df_hts["age_class"])
-    )
-
-    def align(df):
-        return df.set_index("age_class").reindex(bins, fill_value=0)["weight"]
-
-    census_w = align(df_census)
-    ipu_w = align(df_ipu)
-    output_w = align(df_hts)
-
-    # ----- Plot (side-by-side bars, no transparency) -----
+    bins = sorted(set(census_population_age["age_class"]) | set(ipu_age.index) | set(hts_age.index))
     x = np.arange(len(bins))
     w = 0.25
 
     plt.figure(figsize=(11, 6))
-    plt.bar(x - w, census_w, width=w, label="Census")
-    plt.bar(x,     ipu_w,    width=w, label="IPU synthetic")
-    plt.bar(x + w, output_w, width=w, label="HTS output")
-
+    plt.bar(x - w, census_population_age.set_index("age_class")["weight"].reindex(bins, fill_value=0), width=w, label="Census")
+    plt.bar(x, ipu_age.reindex(bins, fill_value=0), width=w, label="IPU synthetic")
+    plt.bar(x + w, hts_age.reindex(bins, fill_value=0), width=w, label="HTS output")
     plt.xticks(x, bins, rotation=45)
     plt.xlabel("Age class (5-year bins)")
     plt.ylabel("Population share (%)")
     plt.title("Age distribution comparison")
     plt.legend()
     plt.grid(axis="y", linestyle="--", linewidth=0.5)
-
     plt.tight_layout()
-    plt.savefig(
-        f"{context.config('analysis_path')}/census_vs_synthesis_ages.png"
-    )
+    plt.savefig(f"{context.config('analysis_path')}/census_vs_synthesis_ages.png")
     plt.close()
+
+    # Employment: Census vs IPU
+    census_employment["employed"] = True
+    census_unemployment = pd.DataFrame({"employed": [False], "weight": [census_population["weight"].sum() - census_employment["weight"].sum()]})
+    census_employment = pd.concat([census_employment, census_unemployment])
+
+    plot_distribution(
+        context, census_employment, ipu, "employed", "weight",
+        "Census", "IPU synthetic",
+        "Employment comparison",
+        "census_vs_synthesis_employment.png",
+    )
+    plot_distribution(
+        context, census_employment, hts, "employed", "weight",
+        "Census", "HTS",
+        "Employment comparison",
+        "census_vs_hts_employment.png",
+    )
+
+
+    # Sex: Census vs IPU
+    plot_distribution(
+        context, census_population, ipu, "sex", "weight",
+        "Census", "IPU synthetic",
+        "Sex distribution comparison",
+        "census_vs_synthesis_sex.png",
+    )
+
+    # Driving license: HTS vs IPU
+    plot_distribution(
+        context, hts, ipu, "has_license", "person_weight",
+        "HTS", "IPU synthetic",
+        "Driving license comparison",
+        "hts_vs_synthesis_driving_license.png",
+    )
 
 
 def plot_household(context):
-    df_census = context.stage("asuncion.data.census.households").copy()
-    df_ipu = context.stage("asuncion.ipu.attributed").copy()
-    df_hts, _, _ = context.stage("asuncion.data.hts.entd.filtered")
+    census = context.stage("asuncion.data.census.households").copy()
+    ipu = context.stage("asuncion.ipu.attributed").copy()
+    hts, _, _ = context.stage("asuncion.data.hts.entd.filtered")
 
-
-    # --------------------------------------------------
-    # IPU: derive household size from persons
-    # --------------------------------------------------
-    ipu_sizes = df_ipu.groupby("household_id").size()
-
-    # cap at 5
-    ipu_sizes = ipu_sizes.clip(upper=5)
-
-    ipu_dist = ipu_sizes.value_counts().sort_index()
+    ipu_size = ipu.groupby("household_id").size().clip(upper=5)
+    ipu_dist = ipu_size.value_counts().sort_index()
     ipu_dist = ipu_dist / ipu_dist.sum() * 100
 
-
-    # --------------------------------------------------
-    # HTS: household_size column already exists
-    # --------------------------------------------------
-    # cap at 5 instead of dropping
-    df_hts['household_size'] = df_hts['household_size'].clip(upper=5)
-
-    hts_dist = df_hts.groupby("household_size")['household_weight'].sum().sort_index()
+    hts["household_size"] = hts["household_size"].clip(upper=5)
+    hts_dist = hts.groupby("household_size")["household_weight"].sum().sort_index()
     hts_dist = hts_dist / hts_dist.sum() * 100
 
-    # PRINT ALL
-    print("="*10)
-    print("hts_dist", hts_dist)
-    print("="*10)
-    print("ipu_dist", ipu_dist)
-    print("="*10)
-
-    # --------------------------------------------------
-    # Align bins
-    # --------------------------------------------------
     bins = [1, 2, 3, 4, 5]
-
-    ipu_w = ipu_dist.reindex(bins, fill_value=0)
-    hts_w = hts_dist.reindex(bins, fill_value=0)
-
     labels = ["1", "2", "3", "4", "5+"]
 
-    # --------------------------------------------------
-    # Plot
-    # --------------------------------------------------
     x = np.arange(len(bins))
     w = 0.25
 
     plt.figure(figsize=(11, 6))
-
-    plt.bar(x,     ipu_w,    width=w, label="IPU synthetic")
-    plt.bar(x + w, hts_w,    width=w, label="HTS")
-
+    plt.bar(x, ipu_dist.reindex(bins, fill_value=0), width=w, label="IPU synthetic")
+    plt.bar(x + w, hts_dist.reindex(bins, fill_value=0), width=w, label="HTS")
     plt.xticks(x, labels)
     plt.xlabel("Household size (persons)")
     plt.ylabel("Household share (%)")
     plt.title("Household size distribution comparison")
     plt.legend()
     plt.grid(axis="y", linestyle="--", linewidth=0.5)
-
     plt.tight_layout()
-    plt.savefig(
-        f"{context.config('analysis_path')}/census_vs_synthesis_households.png"
-    )
+    plt.savefig(f"{context.config('analysis_path')}/census_vs_synthesis_households.png")
     plt.close()
-#
+
 
 def execute(context):
-    print("asdasdasd")
     plot_population(context)
     plot_household(context)

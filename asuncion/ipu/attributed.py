@@ -15,9 +15,6 @@ def configure(context):
 
 def execute(context):
     df = context.stage("asuncion.ipu.population").copy()
-    print(df.info())
-    print(df[["departement_id_hts"]].value_counts())
-    print(df[["commune_id"]].value_counts())
 
 
 

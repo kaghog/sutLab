@@ -13,6 +13,7 @@ def configure(context):
 
     context.config("asuncion.employees_data", "census/employees/49d4bCEN2011_DIST_CUADRO_1.xlsx")
     context.stage("asuncion.data.codes")
+    context.stage("asuncion.data.select_agglomeration")
 
 def execute(context):
     EXCEL_PATH = "{}/{}".format(context.config("data_path"),context.config("asuncion.employees_data"))
@@ -93,7 +94,14 @@ def execute(context):
     from asuncion.data.codes import normalize_codes
     employees = normalize_codes(employees,context.stage("asuncion.data.codes"))
 
+    agglomeration_mun = context.stage("asuncion.data.select_agglomeration")
+    employees = employees[employees["district_id"].isin(agglomeration_mun['id'])]
+
+
     assert len(employees) != 0
+
+
+
     return employees
 
 def validate(context):
