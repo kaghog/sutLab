@@ -16,12 +16,12 @@ MAP_HOUSEHOLDS_COLUMNS = {
     #'': 'household_weight', - missing
     'Personas': 'household_size',
     #'number_of_vehicles is made of following columns
-    'AutoCamionetaCamionPropio': 'number_of_vehicles1',
-    'AutoCamionetaCamionNoPropio': 'number_of_vehicles2',
-    'MotoMotoCarroPropio': 'number_of_vehicles3',
-    'MotoMotocarroNoPropio': 'number_of_vehicles4',
-    'AutooEquivalente': 'number_of_vehicles5',
-    'Moto': 'number_of_vehicles6',
+    'AutoCamionetaCamionPropio': 'number_of_vehicles_car_1',
+    'AutoCamionetaCamionNoPropio': 'number_of_vehicles_car_2',
+    'MotoMotoCarroPropio': 'number_of_vehicles_motorbike_1',
+    'MotoMotocarroNoPropio': 'number_of_vehicles_motorbike_2',
+    'AutooEquivalente': 'number_of_vehicles_car_3',
+    'Moto': 'number_of_vehicles_motorbike_3',
 
     'NBicicletas': 'number_of_bikes', 
     "IdDepartamento": 'departement_id',

@@ -102,6 +102,8 @@ def execute(context):
         "pt": 0,          
         "car": 0,          
         "car_passenger": 0,
+        "motorbike": 0,
+        "motorbike_passenger": 0,
         "drt": 0
     }
     
@@ -197,8 +199,10 @@ def process_hoerl(context, arguments):
 
   # Set up assignment solver
   thresholds = dict(
-    car = 200.0, car_passenger = 200.0, pt = 200.0,
-    bike = 100.0, walk = 100.0, drt = 100.0
+    car = 200.0, car_passenger = 200.0, 
+    motorbike = 200.0, motorbike_passenger = 200.0,
+    pt = 200.0, drt = 200.0,
+    bike = 100.0, walk = 100.0,
   )
 
   assignment_objective = DiscretizationErrorObjective(thresholds = thresholds)

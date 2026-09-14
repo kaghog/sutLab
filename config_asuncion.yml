@@ -6,9 +6,7 @@ working_directory: cache
 
 # This section defines which parts of the pipeline should be run
 run:
-  - analysis.asuncion.ivt_style.analysis_distance_distribution
-#  - asuncion.primary_locations_assignment
-  - analysis.asuncion.ivt_style.compare_ipu
+  - synthesis.output
 config:
   # Some general configuration
   processes: 8
@@ -42,7 +40,7 @@ config:
 
   pipeline_crs: "EPSG:32721"
   home_location_sampling: weighted
-  mode_choice: True
+  mode_choice: False
   matching_attributes: ["sex", "age_class", "has_license"]
   IPU_aggregation_level: "commune_id"
   commune_equivalent: "district" # or borrough, borrough not working right now
@@ -100,7 +98,7 @@ aliases:
   matsim.scenario.prepare: seville.matsim.scenario.prepare # matsim.scenario.prepare stage is not used in simulation at all
   matsim.scenario.population: seville.matsim.scenario.population
 
-
+  synthesis.output: asuncion.output
 
   
   data.gtfs.cleaned: seville.data.gtfs.cleaned

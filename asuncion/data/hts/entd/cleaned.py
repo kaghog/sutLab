@@ -32,7 +32,7 @@ PURPOSE_MAP = {
 MODES_MAP = {
     "Bus":"pt", #1
     "Auto":"car", #2
-    "Moto":"car", #3
+    "Moto":"motorbike", #3
     "A Pie":"walk", #4
     "Bicicleta":"bike", #5
     "Taxi/Remis/Uber/MUV/BOLT":"drt", #6
@@ -65,14 +65,23 @@ def execute(context):
     df_households["household_weight"] = df_households["household_weight"].astype(float)
     
     df_households["number_of_vehicles"] = (
-        df_households["number_of_vehicles1"].astype(int)
-        + df_households["number_of_vehicles2"].astype(int)
-        + df_households["number_of_vehicles3"].astype(int)
-        + df_households["number_of_vehicles4"].astype(int)
-        + df_households["number_of_vehicles5"].astype(int)
-        + df_households["number_of_vehicles6"].astype(int)
+        df_households["number_of_vehicles_car_1"].astype(int)
+        + df_households["number_of_vehicles_car_2"].astype(int)
+        + df_households["number_of_vehicles_car_3"].astype(int)
+        + df_households["number_of_vehicles_motorbike_1"].astype(int)
+        + df_households["number_of_vehicles_motorbike_2"].astype(int)
+        + df_households["number_of_vehicles_motorbike_3"].astype(int)
     )
-
+    df_households["number_of_cars"] = (
+        df_households["number_of_vehicles_car_1"].astype(int)
+        + df_households["number_of_vehicles_car_2"].astype(int)
+        + df_households["number_of_vehicles_car_3"].astype(int)
+    )
+    df_households["number_of_motorbikes"] = (
+        df_households["number_of_vehicles_motorbike_1"].astype(int)
+        + df_households["number_of_vehicles_motorbike_2"].astype(int)
+        + df_households["number_of_vehicles_motorbike_3"].astype(int)
+    )
 
     # Clean urban type
     df_households['urban_type'] = "urban"
@@ -143,16 +152,29 @@ def execute(context):
     df_trips = calculate_distance(df_trips, df_legs)
 
     # Fix passenger
-    passenger_trip_ids = (
+    # first motorbike passenger
+    motorbike_passenger_trip_ids = (
         df_legs[
-            df_legs["mode"].str.contains("passenger", case=False, na=False)
+            df_legs["mode"].str.contains("Moto pasajero", case=False, na=False)
         ]["trip_id"]
         .unique()
     )
-    mask = (df_trips["mode"].eq("car") & df_trips["trip_id"].isin(passenger_trip_ids))
+    mask = (df_trips["mode"].eq("motorbike") & df_trips["trip_id"].isin(motorbike_passenger_trip_ids))
+
+    df_trips.loc[mask, "mode"] = "motorbike_passenger"
+
+    # second car passenger
+    car_passenger_trip_ids = (
+        df_legs[
+            df_legs["mode"].str.contains("Automovil pasajero", case=False, na=False)
+        ]["trip_id"]
+        .unique()
+    )
+    mask = (df_trips["mode"].eq("car") & df_trips["trip_id"].isin(car_passenger_trip_ids))
 
     df_trips.loc[mask, "mode"] = "car_passenger"
-    print(df_trips['euclidean_distance'])
+
+
 
 
     # Trip flags
@@ -185,7 +207,8 @@ def execute(context):
       
     # Passenger attribute
     df_persons["is_passenger"] = df_persons["person_id"].isin(
-        df_trips[df_trips["mode"] == "car_passenger"]["person_id"].unique()
+        (df_trips[(df_trips["mode"] == "car_passenger") | (df_trips["mode"] == "motorbike_passenger")]
+        )["person_id"].unique()
     )
     
     # Fix activity types (because of 1 inconsistent ENTD data)

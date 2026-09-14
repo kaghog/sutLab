@@ -1,132 +1,116 @@
-import synthesis.population.enriched as delegate
-
-import pandas as pd
+from tqdm import tqdm
+import itertools
 import numpy as np
+import pandas as pd
+import numba
 
+import data.hts.egt.cleaned
+import data.hts.entd.cleaned
+
+import multiprocessing as mp
+
+"""
+This stage fuses census data with HTS data.
+"""
 
 def configure(context):
-    # Base enriched stage (matched + income, etc.)
-    delegate.configure(context)
-    # asuncion-specific constraints for PT and license
-    context.stage("asuncion.data.pt.constraints")
-    context.stage("asuncion.data.license.constraints")
-    context.config("random_seed")
+    context.stage("synthesis.population.matched")
+    context.stage("synthesis.population.sampled")
+    context.stage("synthesis.population.income.selected")
 
-
-"""
-asuncion enriched stage
-- Starts from the generic enriched population
-- Calibrates PT subscription against asuncion HTS-derived constraints
-- Enforces PT subscription = 0 for ages <6
-- Calibrates driving license against asuncion HTS-derived constraints
-All calibrations use simple proportional fitting and deterministic micro-adjustments
-for sensitive bins to keep results stable across runs.
-"""
-
-
-def _fit_probabilities(n, groups, targets):
-    # groups: list of integer index arrays; targets: desired sums over those indices
-    prob = np.ones(n, dtype=float)
-    for _ in range(500):
-        for idx, target in zip(groups, targets):
-            current = float(prob[idx].sum())
-            factor = 0.0 if (current == 0 or target == 0) else (target / current)
-            prob[idx] = prob[idx] * float(factor)
-    return np.clip(prob, 0.0, 1.0)
-
-
-def _build_groups(df, constraints, sex_arr, age_arr):
-    groups = []
-    targets = []
-    n = len(df)
-    for c in constraints:
-        f = np.ones(n, dtype=bool)
-        if "sex" in c:
-            f &= (sex_arr == c["sex"])  # category-safe
-        if "age" in c:
-            low, high = c["age"]
-            f &= (age_arr >= low) & (age_arr <= high)
-        idx = np.flatnonzero(f)
-        groups.append(idx)
-        targets.append(float(c["target"]) * int(idx.size))
-    return groups, targets
-
+    hts = context.config("hts")
+    context.stage("data.hts.selected", alias = "hts")
 
 def execute(context):
-    # Start from base enriched population (donor copy)
-    df_persons = delegate.execute(context).copy()
+    # Select population columns
+    df_population = context.stage("synthesis.population.sampled")[[
+        "person_id", "household_id",
+        "census_person_id", "census_household_id",
+        "age", "sex", "employed", "studies",
+        "household_size", "consumption_units",
+        "socioprofessional_class"
+    ]]
 
-    # Load asuncion-specific constraints
-    constraints_pt = context.stage("asuncion.data.pt.constraints")["pt_subscription_constraints"]
-    constraints_lic = context.stage("asuncion.data.license.constraints")["license_constraints"]
+    # Attach matching information
+    df_matching = context.stage("synthesis.population.matched")
+    df_population = pd.merge(df_population, df_matching, on = "person_id")
 
-    # Prepare arrays
-    n = len(df_persons)
-    sex_arr = df_persons["sex"].astype(str).to_numpy()
-    age_arr = df_persons["age"].to_numpy()
+    initial_size = len(df_population)
+    initial_person_ids = len(df_population["person_id"].unique())
+    initial_household_ids = len(df_population["household_id"].unique())
 
-    # --- PT subscription calibration ---
-    pt_groups, pt_targets = _build_groups(df_persons, constraints_pt, sex_arr, age_arr)
-    pt_prob = _fit_probabilities(n, pt_groups, pt_targets)
+    # Attach person and household attributes from HTS
+    df_hts_households, df_hts_persons, _ = context.stage("hts")
+    df_hts_persons = df_hts_persons.rename(columns = { "person_id": "hts_id", "household_id": "hts_household_id" })
+    df_hts_households = df_hts_households.rename(columns = { "household_id": "hts_household_id" })
 
-    rng_pt = np.random.RandomState(context.config("random_seed") + 92341)
-    sel_pt = rng_pt.random_sample(n) < pt_prob
-    # Enforce 0% PT subscription for children <6
-    sel_pt[age_arr < 6] = False
-    df_persons["has_pt_subscription"] = sel_pt
+    attributes = [
+        "hts_id", "hts_household_id", "has_license", "has_pt_subscription"
+    ]
 
-    # Optional deterministic micro-adjustment for 15–17 age×sex
-    teen_targets_pt = {c["sex"]: float(c["target"]) for c in constraints_pt if c.get("age") == (15, 17) and "sex" in c}
-    for sex in teen_targets_pt:
-        mask = (age_arr >= 15) & (age_arr <= 17) & (sex_arr == sex)
-        pos = np.flatnonzero(mask)
-        if pos.size == 0:
-            continue
-        desired = int(round(teen_targets_pt[sex] * int(pos.size)))
-        current = int(df_persons.loc[df_persons.index[pos], "has_pt_subscription"].sum())
-        delta = desired - current
-        if delta != 0:
-            rngx = np.random.RandomState(context.config("random_seed") + (1123 if sex == "male" else 2246))
-            perm = pos.copy()
-            rngx.shuffle(perm)
-            idx = df_persons.index.to_numpy()
-            if delta > 0:
-                to_flip = [idx[i] for i in perm if not df_persons.at[idx[i], "has_pt_subscription"]][:delta]
-                df_persons.loc[to_flip, "has_pt_subscription"] = True
-            else:
-                to_flip = [idx[i] for i in perm if df_persons.at[idx[i], "has_pt_subscription"]][:-delta]
-                df_persons.loc[to_flip, "has_pt_subscription"] = False
+    if "has_license" in df_population.columns:
+        attributes.remove("has_license")
 
-    # --- Driving license calibration ---
-    lic_groups, lic_targets = _build_groups(df_persons, constraints_lic, sex_arr, age_arr)
-    lic_prob = _fit_probabilities(n, lic_groups, lic_targets)
+    if "has_pt_subscription" in df_population.columns:
+        attributes.remove("has_pt_subscription")
 
-    rng_lic = np.random.RandomState(context.config("random_seed") + 45421)
-    has_license = rng_lic.random_sample(n) < lic_prob
+    df_population = pd.merge(df_population, df_hts_persons[attributes], on = "hts_id")
 
-    # Deterministic micro-adjustment for 15–17 by sex
-    teen_targets_lic = {c["sex"]: float(c["target"]) for c in constraints_lic if c.get("age") == (15, 17) and "sex" in c}
-    for sex in teen_targets_lic:
-        mask = (age_arr >= 15) & (age_arr <= 17) & (sex_arr == sex)
-        pos = np.flatnonzero(mask)
-        if pos.size == 0:
-            continue
-        desired = int(round(teen_targets_lic[sex] * int(pos.size)))
-        current = int(has_license[pos].sum())
-        delta = desired - current
-        if delta != 0:
-            rngx = np.random.RandomState(context.config("random_seed") + (6611 if sex == "male" else 7722))
-            perm = pos.copy()
-            rngx.shuffle(perm)
-            if delta > 0:
-                to_flip = [i for i in perm if not has_license[i]][:delta]
-                if to_flip:
-                    has_license[np.array(to_flip, dtype=int)] = True
-            else:
-                to_flip = [i for i in perm if has_license[i]][:-delta]
-                if to_flip:
-                    has_license[np.array(to_flip, dtype=int)] = False
+    attributes = [
+        "hts_household_id", "number_of_bikes", "number_of_cars", "number_of_motorbikes",
+    ]
 
-    df_persons["has_license"] = has_license
+    if "number_of_bikes" in df_population.columns:
+        attributes.remove("number_of_bikes")
 
-    return df_persons
+    df_population = pd.merge(df_population, df_hts_households[attributes], on = "hts_household_id")
+
+    # Attach income
+    df_income = context.stage("synthesis.population.income.selected")
+    df_population = pd.merge(df_population, df_income[[
+        "household_id", "household_income"
+    ]], on = "household_id")
+
+    # Check consistency
+    final_size = len(df_population)
+    final_person_ids = len(df_population["person_id"].unique())
+    final_household_ids = len(df_population["household_id"].unique())
+
+    assert initial_size == final_size
+    assert initial_person_ids == final_person_ids
+    assert initial_household_ids == final_household_ids
+
+    # Add car availability
+    df_number_of_cars = df_population[["household_id", "number_of_cars"]].drop_duplicates("household_id")
+    df_number_of_licenses = df_population[["household_id", "has_license"]].groupby("household_id").sum().reset_index().rename(columns = { "has_license": "number_of_licenses" })
+    df_car_availability = pd.merge(df_number_of_cars, df_number_of_licenses)
+
+    df_car_availability["car_availability"] = "all"
+    df_car_availability.loc[df_car_availability["number_of_cars"] < df_car_availability["number_of_licenses"], "car_availability"] = "some"
+    df_car_availability.loc[df_car_availability["number_of_cars"] == 0, "car_availability"] = "none"
+    df_car_availability["car_availability"] = df_car_availability["car_availability"].astype("category")
+
+    df_population = pd.merge(df_population, df_car_availability[["household_id", "car_availability"]])
+
+    # Add Motorbike availability
+    df_number_of_motorbikes = df_population[["household_id", "number_of_motorbikes"]].drop_duplicates("household_id")
+    df_motorbike_availability = df_number_of_motorbikes.copy()
+    df_motorbike_availability["motorbike_availability"] = "all"
+    df_motorbike_availability.loc[df_motorbike_availability["number_of_motorbikes"] == 0, "motorbike_availability"] = "none"
+    df_motorbike_availability["motorbike_availability"] = df_motorbike_availability["motorbike_availability"].astype("category")
+    df_population = pd.merge(df_population, df_motorbike_availability[["household_id", "motorbike_availability"]])
+
+    # Add bicycle availability
+    df_population["bicycle_availability"] = "all"
+    df_population.loc[df_population["number_of_bikes"] < df_population["household_size"], "bicycle_availability"] = "some"
+    df_population.loc[df_population["number_of_bikes"] == 0, "bicycle_availability"] = "none"
+    df_population["bicycle_availability"] = df_population["bicycle_availability"].astype("category")
+    
+    # Add age range for education
+    df_population["age_range"] = "higher_education"
+    df_population.loc[df_population["age"]<=10,"age_range"] = "primary_school"
+    df_population.loc[df_population["age"].between(11,14),"age_range"] = "middle_school"
+    df_population.loc[df_population["age"].between(15,17),"age_range"] = "high_school"
+    df_population["age_range"] = df_population["age_range"].astype("category")
+    
+    return df_population
