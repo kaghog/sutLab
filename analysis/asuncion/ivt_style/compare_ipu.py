@@ -10,6 +10,7 @@ def configure(context):
     context.stage("asuncion.data.hts.entd.filtered")
     context.stage("asuncion.data.census.households")
     context.stage("asuncion.data.census.employment")
+    context.stage("asuncion.data.census.income")
 
 
 def plot_distribution(context, df1, df2, column, weight1, label1, label2, title, filename):
@@ -120,6 +121,7 @@ def plot_household(context):
     census = context.stage("asuncion.data.census.households").copy()
     ipu = context.stage("asuncion.ipu.attributed").copy()
     hts, _, _ = context.stage("asuncion.data.hts.entd.filtered")
+    hts = hts.copy()
 
     ipu_size = ipu.groupby("household_id").size().clip(upper=5)
     ipu_dist = ipu_size.value_counts().sort_index()
@@ -147,6 +149,21 @@ def plot_household(context):
     plt.tight_layout()
     plt.savefig(f"{context.config('analysis_path')}/census_vs_synthesis_households.png")
     plt.close()
+
+
+    census_income = context.stage("asuncion.data.census.income").copy()
+    plot_distribution(context, census_income, ipu, "income_class",
+                       "weight", "Census", "IPU synthetic",
+                        "Household income comparison",
+                        "census_vs_synthesis_income.png")
+
+
+    hts["weight"] = 1
+    plot_distribution(context, hts, ipu, "income_class",
+                       "weight", "HTS", "IPU synthetic",
+                        "Household income comparison",
+                        "ipu_vs_hts_income.png")
+
 
 
 def execute(context):

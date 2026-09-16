@@ -7,6 +7,7 @@ def configure(context):
     context.stage("asuncion.data.census.population")
     context.stage("asuncion.data.census.households")
     context.stage("asuncion.data.census.employment")
+    context.stage("asuncion.data.census.income")
     context.config("sampling_rate", 1.0)
     context.config("IPU_aggregation_level")
 
@@ -19,6 +20,7 @@ def execute(context):
     df_population = context.stage("asuncion.data.census.population")
     df_households = context.stage("asuncion.data.census.households")
     df_employment = context.stage("asuncion.data.census.employment")
+    df_income = context.stage("asuncion.data.census.income")
 
     sampling_rate = context.config("sampling_rate")
 
@@ -67,6 +69,7 @@ def execute(context):
         df_pop = df_population[df_population[aggregation_level] == aggregation_area_id]
         df_hh = df_households[df_households[aggregation_level] == aggregation_area_id]
         df_emp = df_employment[df_employment[aggregation_level] == aggregation_area_id]
+        df_inc = df_income[df_income[aggregation_level] == aggregation_area_id]
 
         # --------------------------------------------------------------
         # Person targets: age × sex
@@ -92,6 +95,19 @@ def execute(context):
         }
 
         targets_by_aggregation_area[aggregation_area_id]["household_category"] = household_category_targets
+
+        # --------------------------------------------------------------
+        # Income class targets
+        # --------------------------------------------------------------
+        income_class_targets = (
+            df_inc.groupby("income_class")["weight"]
+            .sum()
+            .mul(sampling_rate)
+            .to_dict()
+        )
+        print(f"Income class targets for {aggregation_area_id}: {income_class_targets}")
+
+        targets_by_aggregation_area[aggregation_area_id]["income_class"] = income_class_targets
 
         # --------------------------------------------------------------
         # Employment targets

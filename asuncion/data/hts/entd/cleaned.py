@@ -3,6 +3,8 @@ import pandas as pd
 import numpy as np
 import data.hts.hts as hts
 from geopy.distance import geodesic
+from asuncion.data.census.income import ASUNCION_INCOME_CLASS_BINS, ASUNCION_INCOME_CLASS_LABELS
+
 
 """
 This stage cleans the national HTS.
@@ -10,9 +12,8 @@ This stage cleans the national HTS.
 
 def configure(context):
     context.stage("data.hts.entd.raw")
+    context.stage("asuncion.data.census.income")
 
-
-INCOME_CLASS_BOUNDS_SEVILLE = [1000, 1500, 2000, 3000, 4000, 5000, 1e6]
 
 
 PURPOSE_MAP = {
@@ -59,7 +60,6 @@ def execute(context):
     df_households["household_id"] = df_households["household_id"].astype(int)
     df_households["household_size"] = df_households["household_size"].astype(int)
     df_households["departement_id"] = df_households["departement_id"].astype(str)
-    df_households["income_class"] = df_households["income_class"].astype(int)
     df_households["number_of_bikes"] = df_households["number_of_bikes"].astype(int)
 
     df_households["household_weight"] = df_households["household_weight"].astype(float)
@@ -108,6 +108,9 @@ def execute(context):
     }
     df_persons["sex"] = df_persons["sex"].map(PERSONS_SEX_MAP).astype("category")
 
+
+
+
     def clean_employed(x):
         if x == "":
             return False
@@ -116,8 +119,46 @@ def execute(context):
         if x == "99999999999":
             return False
         return True
+    df_persons["employed"] = df_persons["primary_job_income"].apply(clean_employed).astype(bool)
+
+    def clean_income(x):
+        if x == "":
+            return "0"
+        if x == "0":
+            return "0"
+        if x == "99999999999":
+            return "0"
+        # if x is na then return 0
+        if x is np.nan:
+            return "0"
+        return x
+
+
+
+
+    df_persons["primary_job_income"] = df_persons["primary_job_income"].apply(clean_income).astype(float)
+    df_persons["secondary_job_income"] = df_persons["secondary_job_income"].apply(clean_income).astype(float)
     
-    df_persons["employed"] = df_persons["employed"].apply(clean_employed)
+    df_persons.loc[df_persons["primary_job_income"].isna(), "primary_job_income"] = 0.0
+    df_persons.loc[df_persons["secondary_job_income"].isna(), "secondary_job_income"] = 0.0 
+
+    
+
+    df_persons["job_income"] = (df_persons["primary_job_income"] + df_persons["secondary_job_income"])
+    df_persons["job_income"] = df_persons["job_income"] / 1000
+  
+    df_income = df_persons.groupby("household_id", as_index=False).agg({"job_income":"sum"})
+    df_households = df_households.merge(df_income, on="household_id", how="left")
+      # Clean income class
+
+
+    df_households["income_class"] = pd.cut(
+        df_households["job_income"],
+        bins=ASUNCION_INCOME_CLASS_BINS,
+        labels=ASUNCION_INCOME_CLASS_LABELS,
+        right=False
+    )
+
 
     # 1 - has license
     # 2 - yes, but it is expired

@@ -36,7 +36,9 @@ MAP_PERSONS_COLUMNS = {
     #'': 'person_weight', - missing
     'Edad': 'age',
     'sexo': 'sex',
-    "IngresoTrabPrincipal": 'employed', # can be deduced from a) worked last week b) if the person has income from primary work
+    # :employed: # can be deduced from a) worked last week b) if the person has income from primary work
+    "IngresoTrabPrincipal": 'primary_job_income', 
+    "IngresoTrabSecundarios": 'secondary_job_income',
     #'???': 'studies',  # is mapped from 'IdNoTrabajo' == 1 ???, alternatively can be deduced from trips whether person traveled to school
     #                   However, I dont think the "studies" parameter is actually used?? so depends how we want to approach this
     'LicenciaConducir': 'has_license',

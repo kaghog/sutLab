@@ -15,8 +15,8 @@ def configure(context):
     context.stage("asuncion.data.hts.entd.filtered")
 
     context.config("random_seed", 42)
-    context.config("ipu_max_iterations", 300)
-    context.config("ipu_tolerance", 1e-3)
+    context.config("ipu_max_iterations", 1000)
+    context.config("ipu_tolerance", 1e-5)
     context.config("ipu_apply_trs", True)
     context.config("processes")
 
@@ -35,7 +35,7 @@ def execute(context):
 
     # Prepare HTS seed data
     hts_df = df_persons_hts.merge(
-        df_households_hts[["household_id", "household_category", "household_weight"]],
+        df_households_hts[["household_id", "household_category", "income_class", "household_weight"]],
         on="household_id",
         how="left",
     )
@@ -43,6 +43,8 @@ def execute(context):
 
     if hts_df["household_category"].isna().any():
         raise ValueError("Some HTS households have no household_category.")
+    if hts_df["income_class"].isna().any():
+        raise ValueError("Some HTS households have no income_class.")
 
     # Map HTS ages to Asuncion census population age bins
     hts_df["age_class"] = pd.cut(
@@ -139,7 +141,7 @@ def process_ipu_batch(context, arguments):
 
     # Initialize synthesis engine
     # Define which variables are Household level vs Person level
-    household_vars = ["household_category"]
+    household_vars = ["household_category", "income_class"]
 
     synthesizer = PopulationSynthesis(
         max_iterations=max_iterations,
@@ -173,6 +175,7 @@ def process_ipu_batch(context, arguments):
 
         # 2. Household category constraints (household-level)
         census_targets["household_category"] = dept_targets["household_category"]
+        census_targets["income_class"] = dept_targets["income_class"]
 
         # Include total constraints if present
         if "total_households" in dept_targets:
