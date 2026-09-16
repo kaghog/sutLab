@@ -15,8 +15,8 @@ def configure(context):
     context.stage("asuncion.data.hts.entd.filtered")
 
     context.config("random_seed", 42)
-    context.config("ipu_max_iterations", 1000)
-    context.config("ipu_tolerance", 1e-5)
+    context.config("ipu_max_iterations", 300)
+    context.config("ipu_tolerance", 1e-3)
     context.config("ipu_apply_trs", True)
     context.config("processes")
 
