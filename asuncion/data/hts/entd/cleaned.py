@@ -112,25 +112,26 @@ def execute(context):
 
 
     def clean_employed(x):
-        if x == "":
+
+        if pd.isna(x):
             return False
-        if x == "0":
-            return False
-        if x == "99999999999":
+        x = int(x)
+        if x == 0:
+            return False        
+        if x == 99999999999:
             return False
         return True
     df_persons["employed"] = df_persons["primary_job_income"].apply(clean_employed).astype(bool)
 
     def clean_income(x):
-        if x == "":
-            return "0"
-        if x == "0":
-            return "0"
-        if x == "99999999999":
-            return "0"
+        if pd.isna(x):
+            return 0
+        x = int(x)
+        if x == 0:
+            return 0
+        if x == 99999999999:
+            return 0
         # if x is na then return 0
-        if x is np.nan:
-            return "0"
         return x
 
 
