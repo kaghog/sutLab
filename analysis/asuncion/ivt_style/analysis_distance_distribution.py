@@ -3,6 +3,14 @@ import geopandas as gpd
 import numpy as np
 import matplotlib.pyplot as plt
 
+
+"""
+This stage serves to validate the distance distribution of the synthetic population 
+against the HTS data. This can be run directly after resolving spatial locations
+of the synthetic population, without having to run the whole pipeline.
+"""
+
+
 def configure(context):
     context.stage("synthesis.population.spatial.locations")
     context.stage("data.hts.entd.reweighted")

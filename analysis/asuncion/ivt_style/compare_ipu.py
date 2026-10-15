@@ -3,6 +3,17 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 
+"""
+
+This stage compares three datasets with each other: IPU, HTS and census.
+The biggest difference from analysis.py is that this stage can already be run
+directly after the IPU stage, without having to run th whole pipeline. 
+It is meant to be used for quick checks of the IPU output.
+
+
+"""
+
+
 def configure(context):
     context.stage("asuncion.data.census.population")
     context.stage("asuncion.ipu.attributed")
