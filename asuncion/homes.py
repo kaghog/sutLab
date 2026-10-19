@@ -15,4 +15,4 @@ def execute(context):
     # Format data
     df = df.drop_duplicates("household_id")
 
-    return df[["household_id", "departement_id", "commune_id", "iris_id"]]
+    return df[["household_id", "household_size", "departement_id", "commune_id", "iris_id"]]

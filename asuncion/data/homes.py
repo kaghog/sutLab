@@ -38,4 +38,4 @@ def execute(context):
 
     assert len(homes) != 0
 
-    return homes[["home_location_id", "weight", "commune_id", "iris_id", "geometry",]]
+    return homes[["home_location_id", "weight", "commune_id", "iris_id", "borough_id", "geometry",]]

@@ -24,6 +24,8 @@ def execute(context):
 
     df_codes["departement"] = df_codes["departement"].str.upper()
     df_codes["district"] = df_codes["district"].str.upper()
+    df_codes["borough"] = df_codes["borough"].str.upper()
+
     from asuncion.data.codes import normalize_codes
     df_codes = normalize_codes(df_codes, context.stage("asuncion.data.codes"))
 
@@ -40,4 +42,4 @@ def execute(context):
     df_codes["iris_id"] = df_codes["iris_id"].astype("category")
 
 
-    return df_codes[["region_id", "departement_id", "commune_id", "iris_id", "geometry"]]
+    return df_codes[["region_id", "departement_id", "commune_id", "iris_id", "geometry", "borough_id"]]

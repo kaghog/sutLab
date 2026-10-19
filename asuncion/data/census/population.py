@@ -157,6 +157,7 @@ def execute(context):
 
     df["departement"] = df["departement"].str.upper()
     df["district"] = df["district"].str.upper()
+    df["borough"] = df["borough"].str.upper()
     from asuncion.data.codes import normalize_codes
     df = normalize_codes(df,context.stage("asuncion.data.codes"))
 
@@ -167,13 +168,12 @@ def execute(context):
     if context.config("commune_equivalent") == "district":
         df["commune_id"] = df["district_id"]
     else:
-        raise NotImplementedError
-        df["commune_id"] = df["borough"]
+        df["commune_id"] = df["borough_id"]
 
 
 
 
-    return df[["sex", "age_class","weight", "departement_id", "district_id", "commune_id"]]
+    return df[["sex", "age_class","weight", "departement_id", "district_id", "commune_id", "borough_id"]]
 
 def validate(context):
     filenames = [
