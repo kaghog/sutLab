@@ -7,6 +7,8 @@ from typing import Dict, List, Optional, Tuple
 import numpy as np
 import pandas as pd
 
+from .household_raking import fit_household_weights
+
 
 class PopulationSynthesis:
     """
@@ -133,122 +135,22 @@ class PopulationSynthesis:
         census_targets: Dict[str, Dict[str, int]],
         initial_weight_col: str = "household_weight",
     ) -> pd.DataFrame:
-        """
-        Iterative Proportional Updating (IPU)
+        """Calibrate ONE weight per household using household member-count margins.
+
+        Unlike the old implementation this cannot assign different IPU weights
+        to different people in the same household, so whole-household TRS
+        preserves the fitted marginals in expectation.
         """
         self._validate_inputs(df, census_targets)
-
-        df_work = df.copy()
-
-        if initial_weight_col in df_work.columns:
-            total_target_hh = 0
-            for var in self.household_vars:
-                if var in census_targets:
-                    total_target_hh = sum(census_targets[var].values())
-                    break
-
-            hh_weights = df_work.groupby(self.household_id_col)[
-                initial_weight_col
-            ].first()
-            current_total_hh = hh_weights.sum()
-
-            scale_factor = (
-                (total_target_hh / current_total_hh)
-                if (total_target_hh > 0 and current_total_hh > 0)
-                else 1.0
-            )
-
-            df_work["weight"] = (
-                df_work[self.household_id_col].map(hh_weights) * scale_factor
-            )
-        else:
-            df_work["weight"] = 1.0
-
-        masks = self._create_category_masks(df_work, census_targets)
-        weights = df_work["weight"].values
-
-        if self.verbose:
-            print(
-                f"Starting IPU. Max Iter: {self.max_iterations}. Household Vars: {self.household_vars}"
-            )
-
-        current_lr = 0.2
-
-        for iteration in range(1, self.max_iterations + 1):
-            max_adjustment = 0.0
-
-            if iteration > 1 and iteration % 25 == 0:
-                current_lr = min(1.0, current_lr + 0.1)
-
-            for var_name, target_categories in census_targets.items():
-                if var_name not in masks and var_name not in [
-                    "total_households",
-                    "total_population",
-                ]:
-                    continue
-
-                is_household_var = var_name in self.household_vars
-
-                for category, target_count in target_categories.items():
-                    # Handle special total constraints
-                    if var_name == "total_households":
-                        # Use sum of household weights, not count of households
-                        # Fast approach: get first occurrence of each household
-                        df_work["_temp_weight"] = weights
-                        hh_first = df_work.drop_duplicates(
-                            subset=self.household_id_col, keep="first"
-                        )
-                        current_sum = hh_first["_temp_weight"].sum()
-                        mask = None
-                    elif var_name == "total_population":
-                        current_sum = weights.sum()
-                        mask = None
-                    else:
-                        if category not in masks[var_name]:
-                            continue
-                        mask = masks[var_name][category]
-
-                        if is_household_var:
-                            subset_ids = df_work.loc[mask, self.household_id_col]
-                            unique_mask = ~subset_ids.duplicated()
-                            current_sum = weights[mask][unique_mask].sum()
-                        else:
-                            current_sum = weights[mask].sum()
-
-                    if current_sum == 0:
-                        continue
-
-                    adjustment_factor = (target_count / current_sum) ** current_lr
-
-                    if abs(adjustment_factor - 1.0) > 1e-7:
-                        # Total constraints: adjust all weights uniformly
-                        if var_name in ["total_households", "total_population"]:
-                            weights[:] *= adjustment_factor
-                        elif is_household_var:
-                            affected_hh_ids = df_work.loc[
-                                mask, self.household_id_col
-                            ].unique()
-                            affected_rows_mask = df_work[self.household_id_col].isin(
-                                affected_hh_ids
-                            )
-                            weights[affected_rows_mask] *= adjustment_factor
-                        else:
-                            weights[mask] *= adjustment_factor
-
-                        max_adjustment = max(
-                            max_adjustment, abs(adjustment_factor - 1.0)
-                        )
-
-            if self.verbose and iteration % 100 == 0:
-                print(f"Iteration {iteration}: max adj {max_adjustment:.6f}")
-
-            if max_adjustment < self.tolerance:
-                if self.verbose:
-                    print(f"Converged at iteration {iteration}")
-                break
-
-        df_work["weight"] = weights
-        return df_work
+        return fit_household_weights(
+            df, census_targets,
+            household_id_col=self.household_id_col,
+            household_vars=self.household_vars,
+            initial_weight_col=initial_weight_col,
+            max_iterations=self.max_iterations,
+            tolerance=self.tolerance,
+            verbose=self.verbose,
+        )
 
     def generalized_raking(
         self,
@@ -386,6 +288,11 @@ class PopulationSynthesis:
 
         # Get household category
         df_work = weighted_df.copy()
+        # Integerization requires one weight per complete household. Do not
+        # silently discard person-level raking adjustments.
+        weight_range = df_work.groupby(self.household_id_col)["weight"].agg(["min", "max"])
+        if (weight_range["max"] - weight_range["min"] > 1e-7).any():
+            raise ValueError("TRS received inconsistent person weights within households")
         hh_data = (
             df_work.groupby(self.household_id_col, as_index=False)
                    .first()[[self.household_id_col, "weight", "household_category"]]

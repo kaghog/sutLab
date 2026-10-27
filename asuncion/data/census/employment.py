@@ -185,7 +185,8 @@ def execute(context):
 
     if context.config("commune_equivalent") == "district":
         df_district = df_district.rename(columns={"district_id":"commune_id"})
-
+    elif context.config("commune_equivalent") == "borough":
+        raise NotImplemented("borough equivalent not implemented yet")
 
 
 

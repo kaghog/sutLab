@@ -48,6 +48,8 @@ def execute(context):
     df_persons, df_households, df_trips, df_legs = context.stage("data.hts.entd.raw")
 
 
+
+
     # Make copies
     df_persons = df_persons.copy()
     df_households = df_households.copy()
@@ -119,9 +121,9 @@ def execute(context):
         if x == 0:
             return False        
         if x == 99999999999:
-            return False
+            return True
         return True
-    df_persons["employed"] = df_persons["primary_job_income"].apply(clean_employed).astype(bool)
+    df_persons["employed"] = df_persons["employed"] == "1"
 
     def clean_income(x):
         if pd.isna(x):
@@ -152,7 +154,7 @@ def execute(context):
     df_households = df_households.merge(df_income, on="household_id", how="left")
       # Clean income class
 
-
+    df_households["household_income"] = df_households["job_income"]
     df_households["income_class"] = pd.cut(
         df_households["job_income"],
         bins=ASUNCION_INCOME_CLASS_BINS,

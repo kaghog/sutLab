@@ -13,7 +13,7 @@ and converts it to the format used by the HTS.
 
 MAP_HOUSEHOLDS_COLUMNS = {
     'Id': 'household_id', 
-    #'': 'household_weight', - missing
+    'Fex': 'household_weight',
     'Personas': 'household_size',
     #'number_of_vehicles is made of following columns
     'AutoCamionetaCamionPropio': 'number_of_vehicles_car_1',
@@ -33,10 +33,10 @@ MAP_HOUSEHOLDS_COLUMNS = {
 MAP_PERSONS_COLUMNS = {
     'Id': 'person_id',
     "IdViviendaHogar": 'household_id',
-    #'': 'person_weight', - missing
+    'Fex': 'person_weight',
     'Edad': 'age',
     'sexo': 'sex',
-    # :employed: # can be deduced from a) worked last week b) if the person has income from primary work
+    'ActLaboralReciente' :'employed', # can be deduced from a) worked last week b) if the person has income from primary work
     "IngresoTrabPrincipal": 'primary_job_income', 
     "IngresoTrabSecundarios": 'secondary_job_income',
     #'???': 'studies',  # is mapped from 'IdNoTrabajo' == 1 ???, alternatively can be deduced from trips whether person traveled to school
@@ -45,7 +45,7 @@ MAP_PERSONS_COLUMNS = {
     # '': 'has_pt_subscription', # no data - we idicate as NaN
     "Viajes": 'number_of_trips',
     "IdDepartamento": 'departement_id',
-    # '': 'trip_weight', - missing
+    #'': 'trip_weight', - same as person_weight
     # '': 'is_passenger', # we calculate from trips
     # '': 'socioprofessional_class' # we use nan
 }
@@ -53,7 +53,7 @@ MAP_PERSONS_COLUMNS = {
 MAP_TRIPS_COLUMNS = {
     'Id': 'trip_id', 
     "IdPersona": 'person_id',
-    #'': 'trip_weight', - missing
+    'Fex': 'trip_weight',
     'HoraMinutoInicio': 'departure_time',
     'HoraMinutoFin': 'arrival_time',
     'TiempoMinuto': 'trip_duration',
@@ -116,12 +116,8 @@ def execute(context):
 
 # --------------------------------------------------------------------------
     # Set missing columns
-
-    # weights
-    df_households['household_weight'] = 1
-    df_persons['person_weight'] = 1
     df_persons['trip_weight'] = df_persons['person_weight']
-    df_trips['trip_weight'] = 1
+
 
     # TODO: remove this
     df_persons['studies'] = False

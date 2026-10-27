@@ -162,11 +162,14 @@ def execute(context):
                 emp_total = emp_coarse[(sex, emp_age_bin)]
                 employed = emp_total * proportion
 
-                employment_targets[(sex, age_class, True)] = int(round(employed))
+                employment_targets[(sex, age_class, True)] = float(employed)
 
-        # Unemployed as residual
+        # Non-employed as residual. Keep exactly the same population totals as
+        # the age×sex census targets, including 0–4, 5–9 and 10–14.
         for (sex, age_class), pop_total in age_sex_targets.items():
-            employed = employment_targets.get((sex, age_class, True), 0)
+            # max employment = population
+            # min unemployment = 0 (cannot go negative)
+            employed = min(pop_total, employment_targets.get((sex, age_class, True), 0))
             unemployed = pop_total - employed
             employment_targets[(sex, age_class, False)] = max(0, unemployed)
 
