@@ -14,6 +14,7 @@ def configure(context):
     context.config("asuncion.employees_data", "census/employees/49d4bCEN2011_DIST_CUADRO_1.xlsx")
     context.stage("asuncion.data.codes")
     context.stage("asuncion.data.select_agglomeration")
+    context.stage("asuncion.data.census.employment")
 
 def execute(context):
     EXCEL_PATH = "{}/{}".format(context.config("data_path"),context.config("asuncion.employees_data"))
@@ -100,6 +101,10 @@ def execute(context):
 
     assert len(employees) != 0
 
+
+    total_employment = context.stage("asuncion.data.census.employment")["weight"].sum()
+    total_employees = employees["weight"].sum()
+    employees["weight"] = employees["weight"] * (total_employment / total_employees)
 
 
     return employees

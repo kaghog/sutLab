@@ -14,6 +14,7 @@ def configure(context):
     context.config("asuncion.districts_shp", "spatial/distritos.geojson")
     context.stage("asuncion.data.spatial.iris")
     context.stage("asuncion.data.census.population")
+    context.stage("asuncion.data.census.employment")
     context.stage("asuncion.data.census.employees")
     context.stage("asuncion.data.homes")
     context.stage("asuncion.data.work")
@@ -127,10 +128,14 @@ def execute(context):
     assert len(df_population) != 0
     df_population = df_population.groupby("macrozone_id")["weight"].sum().reset_index()
 
+    df_employed_population = context.stage("asuncion.data.census.employment")
+    df_employed_population = df_employed_population.merge(commune2macrozone_map)
+    assert len(df_employed_population) != 0
+    df_employed_population = df_employed_population.groupby("macrozone_id")["weight"].sum().reset_index()
+
     df_employees = context.stage("asuncion.data.census.employees")
     df_employees = df_employees.groupby("district_id")["weight"].sum().reset_index()
 
-    print(df_employees.info())
     df_employees = df_employees.rename(columns={"district_id":"macrozone_id"})
 
     df_homes = context.stage("asuncion.data.homes").copy()
@@ -156,9 +161,12 @@ def execute(context):
 
 
     df_population["population"] = df_population["weight"]
+    df_employed_population["employed_population"] = df_employed_population["weight"]
     df_employees["employees"] = df_employees["weight"]
 
-    population_centroids = population_centroids[["macrozone_id", "geometry"]].merge(df_population[["macrozone_id", "population"]])
+    population_centroids = population_centroids[["macrozone_id", "geometry"]].copy()
+    population_centroids = population_centroids.merge(df_population[["macrozone_id", "population"]])
+    population_centroids = population_centroids.merge(df_employed_population[["macrozone_id", "employed_population"]])
     employment_centroids = employment_centroids[["macrozone_id", "geometry"]].merge(df_employees[["macrozone_id", "employees"]])
 
     assert len(od_zones) != 0 and len(population_centroids) != 0 and len(employment_centroids) != 0 and len(commune2macrozone_map) != 0

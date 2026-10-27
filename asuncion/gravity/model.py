@@ -28,6 +28,8 @@ def execute(context):
 
     _, df_population, df_employees, _ = context.stage("asuncion.gravity.od_zones")
 
+    df_population["population"] = df_population["employed_population"]
+
     # Manage identifiers
     df_population = df_population.rename(columns = {
         "macrozone_id": "origin_id",

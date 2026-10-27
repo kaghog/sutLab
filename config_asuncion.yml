@@ -7,7 +7,25 @@ working_directory: cache
 # This section defines which parts of the pipeline should be run
 run:
   - synthesis.output
+#  - analysis.asuncion.ivt_style.compare_ipu
+
+#  - analysis.asuncion.ivt_style.analysis_distance_distribution
+#  - analysis.asuncion.asuncion_archive
+#  - analysis.asuncion.asuncion_compare_models
 config:
+
+
+  # ======== Archive only configs =================
+  # These are not relevant for normal stage runs
+  gravity_run_name: "non_constrained_model"
+  run_description: ""
+  gravity_model_type: power_law # exponential or power_law
+  config_file: config_asuncion.yml
+  gravity_calibration_stage: asuncion.gravity.calibrate
+  gravity_od_stage: asuncion.gravity.model
+  # need to also change stage mapping in the bottom part of the config
+  # ===============================================
+
   # Some general configuration
   processes: 8
 
@@ -82,8 +100,13 @@ aliases:
   synthesis.locations.work: asuncion.locations.work
   synthesis.locations.education: asuncion.data.education
   
+  # Use one of the 3 models
+  data.od.weighted: asuncion.gravity.model
+#  data.od.weighted: asuncion.gravity.model_production_constrained
+#  data.od.weighted: asuncion.gravity.model_doubly_constrained
   
-  data.od.weighted: asuncion.gravity.model_new
+  synthesis.population.matched: asuncion.synthesis.population.matched
+
   synthesis.population.spatial.primary.locations: asuncion.primary_locations_assignment 
   synthesis.population.spatial.primary.candidates: asuncion.gravity.work_candidates
 
