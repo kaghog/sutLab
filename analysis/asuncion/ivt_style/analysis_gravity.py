@@ -1,200 +1,166 @@
+"""Compare the precomputed HTS work OD with the gravity work OD probabilities.
+
+Uses asuncion.gravity.observed directly: the HTS OD is NOT re-extracted
+from trip chains in this stage.
+"""
+
+from pathlib import Path
+
+import matplotlib
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import geopandas as gpd
-import matplotlib.pyplot as plt
-
-"""
-
-This stage serves to validate Gravity model and its OD model.
-
-"""
 
 
 def configure(context):
-    context.stage("asuncion.gravity.model_new")
-    context.stage("asuncion.data.hts.entd.reweighted")
-    context.stage("asuncion.data.spatial.iris")
+    context.stage("data.od.weighted")
+    context.stage("asuncion.gravity.observed")
     context.config("analysis_path")
-    context.stage("asuncion.gravity.od_zones")
+    context.config("gravity_run_name")
 
 
-def locations(df, purpose):
-    a = df[df.preceding_purpose == purpose][
-        ["person_id", "origin_district_id", "trip_weight"]
-    ].rename(columns={"origin_district_id": "district_id"})
+def _prepare_od(frame, name):
+    """Validate, normalize ID representation, and aggregate duplicate OD pairs."""
+    required = {"origin_id", "destination_id", "weight"}
+    missing = required - set(frame.columns)
+    if missing:
+        raise ValueError(f"{name} is missing columns: {sorted(missing)}")
 
-    b = df[df.following_purpose == purpose][
-        ["person_id", "destination_district_id", "trip_weight"]
-    ].rename(columns={"destination_district_id": "district_id"})
+    df = frame[["origin_id", "destination_id", "weight"]].copy()
+    df = df.dropna(subset=["origin_id", "destination_id"])
 
-    return pd.concat([a, b]).dropna(subset=["district_id"]).drop_duplicates()
+    for col in ("origin_id", "destination_id"):
+        df[col] = (
+            df[col].astype("string").str.strip()
+            .str.replace(r"\.0+$", "", regex=True)
+        )
 
+    df["weight"] = pd.to_numeric(df["weight"], errors="coerce")
+    if df["weight"].isna().any() or not np.isfinite(df["weight"]).all():
+        raise ValueError(f"{name} contains invalid OD weights")
+    if (df["weight"] < 0).any():
+        raise ValueError(f"{name} contains negative OD weights")
 
-def to_districts(df, districts):
-    df = gpd.GeoDataFrame(df, geometry="geometry", crs="EPSG:32721")
-    return gpd.sjoin(
-        df.to_crs(districts.crs),
-        districts[["district_id", "geometry"]],
-        how="left",
-        predicate="within",
+    return (
+        df.groupby(["origin_id", "destination_id"], as_index=False)
+        ["weight"].sum()
     )
 
 
 def execute(context):
-    path = context.config("analysis_path")
+    run_name = str(context.config("gravity_run_name"))
+    output_dir = Path(context.config("analysis_path"))
+    output_dir.mkdir(parents=True, exist_ok=True)
 
-    # --------------------------------------------------
-    # Data
-    # --------------------------------------------------
-    gravity = context.stage("asuncion.gravity.model_new").copy()
-    _, _, trips = context.stage("asuncion.data.hts.entd.reweighted")
-    trips = trips.copy()
-
-    districts, _, _, _ = context.stage("asuncion.gravity.od_zones")
-    districts = districts.copy()
-    districts = districts.rename(columns={"macrozone_id": "district_id"})[["district_id", "geometry"]]
-
-    # --------------------------------------------------
-    # Observed HTS OD
-    # --------------------------------------------------
-    home = locations(trips, "home")
-
-    work = locations(trips, "work")
-
-    observed = (
-        home.merge(
-            work,
-            on="person_id",
-            suffixes=("_home", "_work"),
-        )
-        .dropna(subset=["district_id_home", "district_id_work"])
-        .groupby(["district_id_home", "district_id_work"])
-        ["trip_weight_home"]
-        .sum()
-        .reset_index(name="weight")
-        .rename(columns={
-            "district_id_home": "origin_id",
-            "district_id_work": "destination_id",
-        })
+    # Load exactly the OD observations already generated for calibration.
+    observed = _prepare_od(
+        context.stage("asuncion.gravity.observed"), "Observed HTS OD"
+    )
+    gravity = _prepare_od(
+        context.stage("data.od.weighted"), "Gravity OD"
     )
 
-    # --------------------------------------------------
-    # Gravity: census sections -> districts
-    # --------------------------------------------------
-
-    gravity = (
-        gravity.dropna(
-            subset=["origin_id", "destination_id"]
-        )
-        .groupby(["origin_id", "destination_id"])["weight"]
-        .sum()
-        .reset_index()
-    )
-
-    # --------------------------------------------------
-    # Normalize each OD by origin
-    # --------------------------------------------------
-    for df in [observed, gravity]:
-        df["weight"] /= df.groupby("origin_id")["weight"].transform("sum")
-
-    # --------------------------------------------------
-    # Comparison
-    # --------------------------------------------------
-    df = gravity.merge(
-        observed,
+    # Restrict the HTS comparison to OD pairs available in the model.
+    # Do this BEFORE normalizing, to use a common destination choice set.
+    observed_total = observed["weight"].sum()
+    n_observed_pairs = len(observed)
+    observed = observed.merge(
+        gravity[["origin_id", "destination_id"]],
         on=["origin_id", "destination_id"],
-        how="left",
-        suffixes=("_gravity", "_observed"),
+        how="inner",
+        validate="one_to_one",
+    )
+    excluded_weight = observed_total - observed["weight"].sum()
+    print(
+        f"HTS: excluded {n_observed_pairs - len(observed)} OD pairs "
+        f"not supported by the model "
+        f"({excluded_weight:.3f} weighted respondents)."
+    )
+    if observed.empty or observed["weight"].sum() <= 0:
+        raise ValueError("No observed HTS work OD flows remain in the model area")
+
+    # Compare only origins with HTS observations. Keep ALL model destinations.
+    origins = sorted(observed["origin_id"].unique(), key=str)
+    destinations = sorted(gravity["destination_id"].unique(), key=str)
+    gravity = gravity[gravity["origin_id"].isin(origins)].copy()
+
+    complete_pairs = pd.MultiIndex.from_product(
+        [origins, destinations], names=["origin_id", "destination_id"]
+    )
+    obs_flow = (
+        observed.set_index(["origin_id", "destination_id"])["weight"]
+        .reindex(complete_pairs, fill_value=0.0)
+        .unstack("destination_id")
+    )
+    grav_flow = (
+        gravity.set_index(["origin_id", "destination_id"])["weight"]
+        .reindex(complete_pairs, fill_value=0.0)
+        .unstack("destination_id")
     )
 
-    df["weight_observed"] = df["weight_observed"].fillna(0)
-    df["diff"] = df.weight_gravity - df.weight_observed
+    obs_totals = obs_flow.sum(axis=1)
+    grav_totals = grav_flow.sum(axis=1)
+    if (obs_totals <= 0).any() or (grav_totals <= 0).any():
+        raise ValueError("At least one compared origin has no valid OD weight")
 
-    rmse = np.sqrt((df["diff"] ** 2).mean())
-    corr = df.weight_gravity.corr(df.weight_observed)
+    # Row-normalized destination-choice probabilities.
+    obs_prob = obs_flow.div(obs_totals, axis=0)
+    grav_prob = grav_flow.div(grav_totals, axis=0)
 
-    print(f"Gravity OD RMSE: {rmse:.6f}")
-    print(f"Gravity OD correlation: {corr:.6f}")
+    obs_array = obs_prob.to_numpy(dtype=float)
+    grav_array = grav_prob.to_numpy(dtype=float)
+    differences = grav_array - obs_array
 
-    # --------------------------------------------------
-    # Scatter
-    # --------------------------------------------------
-    plt.figure(figsize=(6, 6))
-    plt.scatter(
-        df.weight_observed,
-        df.weight_gravity,
-        alpha=0.3,
-    )
+    rmse = float(np.sqrt(np.mean(differences ** 2)))
+    mae = float(np.mean(np.abs(differences)))
+    correlation = float(np.corrcoef(obs_array.ravel(), grav_array.ravel())[0, 1])
+    origin_tv = 0.5 * np.sum(np.abs(differences), axis=1)
+    weighted_tv = float(np.average(origin_tv, weights=obs_totals.to_numpy()))
 
-    m = max(
-        df.weight_observed.max(),
-        df.weight_gravity.max(),
-    )
+    print(f"Compared HTS origins: {len(origins)}; model destinations: {len(destinations)}")
+    print(f"OD RMSE: {rmse:.6f}")
+    print(f"OD MAE: {mae:.6f}")
+    print(f"OD correlation: {correlation:.6f}")
+    print(f"Origin-weighted total variation: {weighted_tv:.6f}")
 
-    plt.plot([0, m], [0, m])
-    plt.xlabel("Observed")
-    plt.ylabel("Gravity")
-    plt.title(f"OD comparison (RMSE={rmse:.4f}, r={corr:.4f})")
-    plt.grid(linestyle="--", linewidth=0.5)
-    plt.tight_layout()
-    plt.savefig(f"{path}/gravity_od_scatter.png")
-    plt.close()
+    # Save the exact OD values underlying both plots for further analysis.
+    comparison = pd.DataFrame({
+        "origin_id": complete_pairs.get_level_values("origin_id"),
+        "destination_id": complete_pairs.get_level_values("destination_id"),
+        "weight_observed": obs_array.ravel(),
+        "weight_gravity": grav_array.ravel(),
+        "difference": differences.ravel(),
+    })
+    comparison.to_csv(output_dir / f"{run_name}_gravity_od_comparison.csv", index=False)
 
-    # --------------------------------------------------
-    # OD matrices
-    # --------------------------------------------------
-    obs = observed.pivot(
-        index="origin_id",
-        columns="destination_id",
-        values="weight",
-    ).fillna(0)
+    # Scatter plot: observed vs modeled conditional probabilities.
+    fig, ax = plt.subplots(figsize=(6, 6))
+    ax.scatter(obs_array.ravel(), grav_array.ravel(), alpha=0.35, s=20)
+    limit = float(max(obs_array.max(), grav_array.max(), 0.01))
+    ax.plot([0, limit], [0, limit], color="black", linestyle="--", linewidth=1)
+    ax.set(xlabel="Observed HTS probability", ylabel="Gravity probability",
+           title=f"OD comparison (RMSE={rmse:.4f}, r={correlation:.3f})",
+           xlim=(0, limit), ylim=(0, limit))
+    ax.grid(alpha=0.25)
+    fig.tight_layout()
+    fig.savefig(output_dir / f"{run_name}_gravity_od_scatter.png", dpi=180)
+    plt.close(fig)
 
-    grav = gravity.pivot(
-        index="origin_id",
-        columns="destination_id",
-        values="weight",
-    ).fillna(0)
+    # Identical axes and color scale for a direct heatmap comparison.
+    fig, axes = plt.subplots(1, 2, figsize=(14, 6), constrained_layout=True)
+    vmax = float(max(obs_array.max(), grav_array.max(), 0.01))
+    for ax, values, title in zip(
+        axes, (obs_array, grav_array), ("Observed HTS OD", "Gravity OD")
+    ):
+        im = ax.imshow(values, cmap="viridis", vmin=0, vmax=vmax, aspect="auto")
+        ax.set_title(title)
+        ax.set_xlabel("Destination macrozone")
+        ax.set_ylabel("Origin macrozone")
+        ax.set_xticks(range(len(destinations)), destinations, rotation=90)
+        ax.set_yticks(range(len(origins)), origins)
+    fig.colorbar(im, ax=axes, shrink=0.85, label="Probability within origin")
+    fig.savefig(output_dir / f"{run_name}_gravity_od_matrices.png", dpi=180)
+    plt.close(fig)
 
-    origins = sorted(set(obs.index) | set(grav.index), key=str)
-    destinations = sorted(set(obs.columns) | set(grav.columns), key=str)
-
-    obs = obs.reindex(
-        index=origins,
-        columns=destinations,
-        fill_value=0,
-    )
-
-    grav = grav.reindex(
-        index=origins,
-        columns=destinations,
-        fill_value=0,
-    )
-
-    gravity["weight"] = pd.to_numeric(gravity["weight"], errors="coerce")
-    observed["weight"] = pd.to_numeric(observed["weight"], errors="coerce")
-
-    vmin = min(obs.min().min(), grav.min().min())
-    vmax = max(obs.max().max(), grav.max().max())
-
-    fig, ax = plt.subplots(1, 2, figsize=(14, 6))
-
-    obs = obs.astype(float)
-    grav = grav.astype(float)
-
-    ax[0].imshow(obs, cmap="viridis", vmin=vmin, vmax=vmax)
-    ax[0].set_title("Observed OD Matrix")
-
-    im = ax[1].imshow(
-        grav,
-        cmap="viridis",
-        vmin=vmin,
-        vmax=vmax,
-    )
-    ax[1].set_title("Gravity OD Matrix")
-
-    cbar_ax = fig.add_axes([1.40, 0.15, 0.02, 0.70])
-    fig.colorbar(im, cax=cbar_ax)    
-    plt.tight_layout()
-
-    plt.savefig(f"{path}/gravity_od_matrices.png")
-    plt.close()
+    return comparison

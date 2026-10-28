@@ -7,15 +7,15 @@ working_directory: cache
 # This section defines which parts of the pipeline should be run
 run:
 #  - synthesis.output
-#  - analysis.asuncion.ivt_style.compare_ipu
-
+  - analysis.asuncion.ivt_style.compare_ipu
+  - analysis.asuncion.ivt_style.analysis_gravity
   - analysis.asuncion.ivt_style.analysis_distance_distribution
 #  - analysis.asuncion.asuncion_archive
 #  - analysis.asuncion.asuncion_compare_models
 
   - analysis.asuncion.asuncion_validate_population
 
-  - analysis.asuncion.ivt_style.final_population_plots
+#  - analysis.asuncion.ivt_style.final_population_plots
   - analysis.asuncion.ivt_style.spatial_population_analysis
   - analysis.asuncion.ivt_style.population_diagnostics
 
@@ -24,6 +24,7 @@ config:
 
   # ======== Archive only configs =================
   # These are not relevant for normal stage runs
+  # Useful only when running `analysis.asuncion.asuncion_archive` stage
   gravity_run_name: "non_constrained_model"
   run_description: ""
   gravity_model_type: power_law # exponential or power_law
