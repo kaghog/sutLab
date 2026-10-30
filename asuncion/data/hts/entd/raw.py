@@ -27,7 +27,8 @@ MAP_HOUSEHOLDS_COLUMNS = {
     "IdDepartamento": 'departement_id',
 #    '': 'consumption_units', # calculated in cleaned.py
 #    '': 'urban_type' # unknown - default set to urban_center
-    'IngresoTotal': 'income_class' # income class
+    'IngresoTotal': 'income_class', # income class
+    'IdDepartamentoDistrito': 'hts_household_district_id'
 }
 
 MAP_PERSONS_COLUMNS = {

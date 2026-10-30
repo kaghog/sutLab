@@ -7,17 +7,20 @@ working_directory: cache
 # This section defines which parts of the pipeline should be run
 run:
 #  - synthesis.output
-  - analysis.asuncion.ivt_style.compare_ipu
-  - analysis.asuncion.ivt_style.analysis_gravity
+#  - asuncion.synthesis.population.matched
+
+
+#  - analysis.asuncion.ivt_style.compare_ipu
+#  - analysis.asuncion.ivt_style.analysis_gravity
   - analysis.asuncion.ivt_style.analysis_distance_distribution
-#  - analysis.asuncion.asuncion_archive
-#  - analysis.asuncion.asuncion_compare_models
-
-  - analysis.asuncion.asuncion_validate_population
-
-#  - analysis.asuncion.ivt_style.final_population_plots
-  - analysis.asuncion.ivt_style.spatial_population_analysis
-  - analysis.asuncion.ivt_style.population_diagnostics
+##  - analysis.asuncion.asuncion_archive
+##  - analysis.asuncion.asuncion_compare_models
+#
+#  - analysis.asuncion.asuncion_validate_population
+#
+##  - analysis.asuncion.ivt_style.final_population_plots
+#  - analysis.asuncion.ivt_style.spatial_population_analysis
+#  - analysis.asuncion.ivt_style.population_diagnostics
 
 config:
 
@@ -67,7 +70,13 @@ config:
   pipeline_crs: "EPSG:32721"
   home_location_sampling: weighted
   mode_choice: False
-  matching_attributes: ["sex", "age_class", "has_license"]
+  matching_attributes: ["sex", "any_vehicles", "has_license", "age_class", "district_id"]
+  # supported matching attributes ["sex", "any_cars", "has_license", "age_class", "income_class", "district_id"]
+  age_matching_bins: [4, 14, 20, 29, 44, 59, 74, 1000]
+  matching_minimum_observations: 20
+
+
+
   IPU_aggregation_level: "commune_id"
   commune_equivalent: "district" # or borough, borough not working right now
 

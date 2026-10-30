@@ -24,11 +24,17 @@ DEFAULT_MATCHING_ATTRIBUTES = [
     "departement_id"
 ]
 
+DEFAULT_AGE_BOUNDARIES = [4, 14, 20, 29, 44, 59, 74, 1000]
+
+
 def configure(context):
     context.config("processes")
     context.config("random_seed")
     context.config("matching_minimum_observations", 20)
     context.config("matching_attributes", DEFAULT_MATCHING_ATTRIBUTES)
+    context.config("age_matching_bins", DEFAULT_AGE_BOUNDARIES)
+    context.config("IPU_aggregation_level")
+    context.config("commune_equivalent")
 
     context.stage("synthesis.population.sampled")
     context.stage("synthesis.population.income.selected")
@@ -182,22 +188,25 @@ def execute(context):
     except ValueError: pass
 
     # Define matching attributes
-    AGE_BOUNDARIES = [4, 14, 20, 29, 44, 59, 74, 1000]
+    age_boundaries = context.config("age_matching_bins")
 
     if "age_class" in columns:
-        df_target["age_class"] = np.digitize(df_target["age"], AGE_BOUNDARIES, right = True)
-        df_source["age_class"] = np.digitize(df_source["age"], AGE_BOUNDARIES, right = True)
+        df_target["age_class"] = np.digitize(df_target["age"], age_boundaries, right = True)
+        df_source["age_class"] = np.digitize(df_source["age"], age_boundaries, right = True)
 
-    if "income_class" in columns:
-        df_income = context.stage("synthesis.population.income.selected")[["household_id", "income_class"]]
-
-        df_target = pd.merge(df_target, df_income)
-        df_target["income_class"] = INCOME_CLASS[hts](df_target)
 
     if "any_cars" in columns:
         df_target["any_cars"] = df_target["number_of_cars"] > 0
         df_source["any_cars"] = df_source["number_of_cars"] > 0
 
+    if "district_id" in columns:
+        assert context.config("IPU_aggregation_level") == "commune_id"
+        assert context.config("commune_equivalent") == "district"
+        df_target["district_id"] = df_target["commune_id"]
+        df_source = df_source.rename(columns={"hts_household_district_id": "district_id"})
+
+
+    
     # Perform statistical matching
     df_source = df_source.rename(columns = { "person_id": "hts_id" })
 

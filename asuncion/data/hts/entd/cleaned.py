@@ -89,6 +89,8 @@ def execute(context):
     df_households['urban_type'] = "urban"
     df_households["urban_type"] = df_households["urban_type"].astype("category")
 
+    # Clean district_id
+    df_households.loc[df_households["hts_household_district_id"]=="0", "hts_household_district_id"] = "0000" 
 
     # ========== Clean Persons Data ==========
 
