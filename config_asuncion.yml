@@ -129,7 +129,7 @@ aliases:
   matsim.scenario.prepare: seville.matsim.scenario.prepare # matsim.scenario.prepare stage is not used in simulation at all
   matsim.scenario.population: seville.matsim.scenario.population
 
-  synthesis.output: asuncion.output
+  synthesis.output: asuncion.asuncion_output
 
   
   data.gtfs.cleaned: seville.data.gtfs.cleaned
