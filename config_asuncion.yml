@@ -71,7 +71,7 @@ config:
   home_location_sampling: weighted
   mode_choice: False
   matching_attributes: ["sex", "any_vehicles", "has_license", "age_class", "district_id"]
-  # supported matching attributes ["sex", "any_cars", "has_license", "age_class", "income_class", "district_id"]
+  # supported matching attributes ["sex", "any_vehicles", "has_license", "age_class", "income_class", "district_id"]
   age_matching_bins: [4, 14, 20, 29, 44, 59, 74, 1000]
   matching_minimum_observations: 20
 

@@ -20,7 +20,7 @@ INCOME_CLASS = {
 }
 
 DEFAULT_MATCHING_ATTRIBUTES = [
-    "sex", "any_cars", "age_class", "socioprofessional_class",
+    "sex", "any_vehicles", "age_class", "socioprofessional_class",
     "departement_id"
 ]
 
@@ -195,9 +195,9 @@ def execute(context):
         df_source["age_class"] = np.digitize(df_source["age"], age_boundaries, right = True)
 
 
-    if "any_cars" in columns:
-        df_target["any_cars"] = df_target["number_of_cars"] > 0
-        df_source["any_cars"] = df_source["number_of_cars"] > 0
+    if "any_vehicles" in columns:
+        df_target["any_vehicles"] = (df_target["number_of_cars"] > 0) | (df_target["number_of_motorbikes"] > 0) 
+        df_source["any_vehicles"] = (df_source["number_of_cars"] > 0) | (df_source["number_of_motorbikes"] > 0)
 
     if "district_id" in columns:
         assert context.config("IPU_aggregation_level") == "commune_id"
