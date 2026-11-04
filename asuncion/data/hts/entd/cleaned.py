@@ -113,18 +113,6 @@ def execute(context):
     df_persons["sex"] = df_persons["sex"].map(PERSONS_SEX_MAP).astype("category")
 
 
-
-
-    def clean_employed(x):
-
-        if pd.isna(x):
-            return False
-        x = int(x)
-        if x == 0:
-            return False        
-        if x == 99999999999:
-            return True
-        return True
     df_persons["employed"] = df_persons["employed"] == "1"
 
     def clean_income(x):

@@ -162,15 +162,17 @@ def plot_household(context):
     plt.close()
 
 
+    ipu_income = ipu.drop_duplicates(subset="household_id").copy()
     census_income = context.stage("asuncion.data.census.income").copy()
-    plot_distribution(context, census_income, ipu, "income_class",
+    plot_distribution(context, census_income, ipu_income, "income_class",
                        "weight", "Census", "IPU synthetic",
                         "Household income comparison",
                         "census_vs_synthesis_income.png")
 
 
-    hts["weight"] = 1
-    plot_distribution(context, hts, ipu, "income_class",
+    hts_income = hts.drop_duplicates(subset="household_id").copy()
+    hts_income["weight"] = hts_income["household_weight"]
+    plot_distribution(context, hts_income, ipu_income, "income_class",
                        "weight", "HTS", "IPU synthetic",
                         "Household income comparison",
                         "ipu_vs_hts_income.png")
