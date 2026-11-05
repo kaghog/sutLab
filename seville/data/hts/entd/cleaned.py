@@ -142,6 +142,14 @@ def execute(context):
     df_households['urban_type'] = "central_city"
     df_households["urban_type"] = df_households["urban_type"].astype("category")
 
+
+    # Number of cars
+    df_households["number_of_vehicles"] = df_households["number_of_vehicles"].astype(int)
+    df_households["number_of_cars"] = df_households["number_of_vehicles"].astype(int)
+    df_households["number_of_bikes"] = df_households["number_of_bikes"].astype(int)
+
+
+
     # -------------------------------------------------------------------------------------
     # Spanish SITLAB values:
         # 1 Employed

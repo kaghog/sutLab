@@ -24,7 +24,7 @@ def configure(context):
 
 POP_AGE_CLASSES = [
     0, 5, 10, 15, 20, 25, 30, 35, 40, 45,
-    50, 55, 60, 65, 70, 75, 80, 85, 90, 95, 100
+    50, 55, 60, 65, 70
 ]
 
 def execute(context):
@@ -35,7 +35,7 @@ def execute(context):
 
     # Prepare HTS seed data
     hts_df = df_persons_hts.merge(
-        df_households_hts[["household_id", "household_size", "household_weight"]],
+        df_households_hts[["household_id", "household_size", "income_class", "number_of_cars", "number_of_bikes", "income_class", "household_weight"]],
         on="household_id",
         how="left",
     )
@@ -48,17 +48,16 @@ def execute(context):
         right=False,
     ).astype(int)
 
-    print(hts_df.info())
-    print(hts_df["household_size"])
-    hts_df["household_size_capped"] = hts_df["household_size"].clip(upper=5)
-
     # Create combined employment x age x sex column for constraint
     if "employed" not in hts_df.columns:
         raise ValueError("HTS data missing 'employed' column")
 
+    # Must match prepare.py's (sex, age_class, employed) target keys.
     hts_df["employment_age_sex"] = list(
-        zip(hts_df["employed"], hts_df["sex"], hts_df["age_class"])
+        zip(hts_df["sex"], hts_df["age_class"], hts_df["employed"].astype(bool))
     )
+
+    hts_df["household_category"] = hts_df["household_size"].clip(upper=5).astype(int)
 
     print(
         f"HTS seed population: {len(hts_df):,} persons from {len(df_households_hts):,} households"
@@ -136,7 +135,7 @@ def process_ipu_batch(context, arguments):
 
     # Initialize synthesis engine
     # Define which variables are Household level vs Person level
-    household_vars = ["household_size_capped"]
+    household_vars = ["household_category"]
 
     synthesizer = PopulationSynthesis(
         max_iterations=max_iterations,
@@ -154,28 +153,17 @@ def process_ipu_batch(context, arguments):
         dept_targets = census_targets_by_dept[dept_id]
 
         # Prepare Census Targets for this Zone
-        # We need a dictionary: {'age_class': {0: 50, 6: 30...}, 'household_size_capped': {1: 20...}}
+        # We need a dictionary: {'age_class': {0: 50, 6: 30...}, 'household_category': {1: 20...}}
         census_targets = {}
 
-        # 1. Age x Sex constraints (person-level)
-        # Split combined constraint into separate dimensions
-        sex_totals = {}
-        age_totals = {}
-        for (sex, age_class), count in dept_targets["age_sex"].items():
-            sex_totals[sex] = sex_totals.get(sex, 0) + count
-            age_totals[age_class] = age_totals.get(age_class, 0) + count
+        # A joint employment × age × sex margin contains both the workforce
+        # and population age/sex distribution. Avoid replacing it with
+        # separate marginal constraints: those cannot enforce employment.
+        census_targets["employment_age_sex"] = dept_targets["employment"]
 
-        census_targets["sex"] = sex_totals
-        census_targets["age_class"] = age_totals
+        # 2. Household category constraints (household-level)
+        census_targets["household_category"] = dept_targets["household_size_capped"]
 
-        # 2. Household size constraints (household-level)
-        census_targets["household_size_capped"] = dept_targets["household_size"]
-
-        # Include total constraints if present
-        if "total_households" in dept_targets:
-            census_targets["total_households"] = dept_targets["total_households"]
-        if "total_population" in dept_targets:
-            census_targets["total_population"] = dept_targets["total_population"]
 
         # Run IPU
         # OPTION 1: Use Global Seed (Recommended for small zones)
@@ -189,7 +177,7 @@ def process_ipu_batch(context, arguments):
 
             # Debug: check weight distribution after raking
             hh_weights = weighted_df.groupby("household_id")["weight"].first()
-            target_hh = sum(dept_targets["household_size"].values())
+            target_hh = sum(dept_targets["household_size_capped"].values())
             if dept_id in ["011", "101"]:  # Sample small and large departments
                 print(f"\nDept {dept_id} raking output:")
                 print(f"  Target HH: {target_hh}")
@@ -204,13 +192,31 @@ def process_ipu_batch(context, arguments):
                     f"  HH with weight < 0.1: {(hh_weights < 0.1).sum()} ({(hh_weights < 0.1).sum() / len(hh_weights) * 100:.1f}%)"
                 )
 
+
+            # The household-weighted and person-weighted rates must now use
+            # the same household weights; each person still contributes once.
+            weighted_employment = np.average(
+                weighted_df["employed"].astype(float),
+                weights=weighted_df["weight"],
+            )
+            target_employed = sum(float(v) for (sex, age, employed), v
+                                  in dept_targets["employment"].items() if employed)
+            target_people = sum(float(v) for (sex, age), v
+                                in dept_targets["age_sex"].items())
+            print(f"IPU area {dept_id}: census employed "
+                  f"{target_employed / target_people:.2%}, "
+                  f"weighted IPU {weighted_employment:.2%}")
+
             # Integerize (Create Synthetic Population)
             if apply_trs:
                 final_df = synthesizer.integerize_weights(
                     weighted_df, department_id=dept_id
                 )
+                final_employment = final_df["employed"].astype(float).mean()
+                print(f"IPU area {dept_id}: final integerized employed "
+                      f"{final_employment:.2%}")
                 # Debug: check TRS output
-                target_hh = sum(dept_targets["household_size"].values())
+                target_hh = sum(dept_targets["household_size_capped"].values())
                 actual_hh = final_df["household_id"].nunique()
                 if actual_hh < target_hh * 0.5:  # Less than 50% of target
                     print(

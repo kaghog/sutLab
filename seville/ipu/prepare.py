@@ -70,13 +70,17 @@ def execute(context):
         60: 60,
         65: 65,
         70: 70,     # 70–74 → 70+
-        75: 70,
-        80: 70,
-        85: 70,
-        90: 70,
-        95: 70,
-        100: 70
     }
+    # clip 70+ population to 70+ age class
+    df_population["age_class"] = df_population["age_class"].clip(upper=70)
+
+    df_population = (
+        df_population
+        .groupby(list(set(df_population.columns) - {"weight"}))["weight"]
+        .sum()
+        .reset_index()
+    )
+
     # add empty rows of employment for persons younger than 15
     df_employment_young = df_employment[df_employment['age_class'] == 16].copy()
     df_employment_young['weight'] = 0
@@ -123,7 +127,7 @@ def execute(context):
             k: v * sampling_rate for k, v in household_size_targets.items()
         }
 
-        targets_by_aggregation_area[aggregation_area_id]["household_size"] = household_size_targets
+        targets_by_aggregation_area[aggregation_area_id]["household_size_capped"] = household_size_targets
 
         # --------------------------------------------------------------
         # Employment targets

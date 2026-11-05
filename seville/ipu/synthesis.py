@@ -7,6 +7,8 @@ from typing import Dict, List, Optional, Tuple
 import numpy as np
 import pandas as pd
 
+from .household_raking import fit_household_weights
+
 
 class PopulationSynthesis:
     """
@@ -133,122 +135,22 @@ class PopulationSynthesis:
         census_targets: Dict[str, Dict[str, int]],
         initial_weight_col: str = "household_weight",
     ) -> pd.DataFrame:
-        """
-        Iterative Proportional Updating (IPU)
+        """Calibrate ONE weight per household using household member-count margins.
+
+        Unlike the old implementation this cannot assign different IPU weights
+        to different people in the same household, so whole-household TRS
+        preserves the fitted marginals in expectation.
         """
         self._validate_inputs(df, census_targets)
-
-        df_work = df.copy()
-
-        if initial_weight_col in df_work.columns:
-            total_target_hh = 0
-            for var in self.household_vars:
-                if var in census_targets:
-                    total_target_hh = sum(census_targets[var].values())
-                    break
-
-            hh_weights = df_work.groupby(self.household_id_col)[
-                initial_weight_col
-            ].first()
-            current_total_hh = hh_weights.sum()
-
-            scale_factor = (
-                (total_target_hh / current_total_hh)
-                if (total_target_hh > 0 and current_total_hh > 0)
-                else 1.0
-            )
-
-            df_work["weight"] = (
-                df_work[self.household_id_col].map(hh_weights) * scale_factor
-            )
-        else:
-            df_work["weight"] = 1.0
-
-        masks = self._create_category_masks(df_work, census_targets)
-        weights = df_work["weight"].values
-
-        if self.verbose:
-            print(
-                f"Starting IPU. Max Iter: {self.max_iterations}. Household Vars: {self.household_vars}"
-            )
-
-        current_lr = 0.2
-
-        for iteration in range(1, self.max_iterations + 1):
-            max_adjustment = 0.0
-
-            if iteration > 1 and iteration % 25 == 0:
-                current_lr = min(1.0, current_lr + 0.1)
-
-            for var_name, target_categories in census_targets.items():
-                if var_name not in masks and var_name not in [
-                    "total_households",
-                    "total_population",
-                ]:
-                    continue
-
-                is_household_var = var_name in self.household_vars
-
-                for category, target_count in target_categories.items():
-                    # Handle special total constraints
-                    if var_name == "total_households":
-                        # Use sum of household weights, not count of households
-                        # Fast approach: get first occurrence of each household
-                        df_work["_temp_weight"] = weights
-                        hh_first = df_work.drop_duplicates(
-                            subset=self.household_id_col, keep="first"
-                        )
-                        current_sum = hh_first["_temp_weight"].sum()
-                        mask = None
-                    elif var_name == "total_population":
-                        current_sum = weights.sum()
-                        mask = None
-                    else:
-                        if category not in masks[var_name]:
-                            continue
-                        mask = masks[var_name][category]
-
-                        if is_household_var:
-                            subset_ids = df_work.loc[mask, self.household_id_col]
-                            unique_mask = ~subset_ids.duplicated()
-                            current_sum = weights[mask][unique_mask].sum()
-                        else:
-                            current_sum = weights[mask].sum()
-
-                    if current_sum == 0:
-                        continue
-
-                    adjustment_factor = (target_count / current_sum) ** current_lr
-
-                    if abs(adjustment_factor - 1.0) > 1e-7:
-                        # Total constraints: adjust all weights uniformly
-                        if var_name in ["total_households", "total_population"]:
-                            weights[:] *= adjustment_factor
-                        elif is_household_var:
-                            affected_hh_ids = df_work.loc[
-                                mask, self.household_id_col
-                            ].unique()
-                            affected_rows_mask = df_work[self.household_id_col].isin(
-                                affected_hh_ids
-                            )
-                            weights[affected_rows_mask] *= adjustment_factor
-                        else:
-                            weights[mask] *= adjustment_factor
-
-                        max_adjustment = max(
-                            max_adjustment, abs(adjustment_factor - 1.0)
-                        )
-
-            if self.verbose and iteration % 100 == 0:
-                print(f"Iteration {iteration}: max adj {max_adjustment:.6f}")
-
-            if max_adjustment < self.tolerance:
-                if self.verbose:
-                    print(f"Converged at iteration {iteration}")
-                break
-
-        df_work["weight"] = weights
-        return df_work
+        return fit_household_weights(
+            df, census_targets,
+            household_id_col=self.household_id_col,
+            household_vars=self.household_vars,
+            initial_weight_col=initial_weight_col,
+            max_iterations=self.max_iterations,
+            tolerance=self.tolerance,
+            verbose=self.verbose,
+        )
 
     def generalized_raking(
         self,
@@ -378,80 +280,81 @@ class PopulationSynthesis:
     def household_aware_trs(
         self, weighted_df: pd.DataFrame, department_id: str = None
     ) -> pd.DataFrame:
-        """Size-stratified household-aware TRS that replicates by household size."""
+        """Category-stratified household-aware TRS that replicates by household category."""
         start_time = time.time()
 
         if self.verbose:
             print("\nConverting household weights to integers (stratified by size)...")
 
-        # Calculate household sizes
+        # Get household category
         df_work = weighted_df.copy()
-        hh_sizes = df_work.groupby(self.household_id_col).size()
-        df_work["household_size"] = df_work[self.household_id_col].map(hh_sizes)
-
-        # Get unique household data with weights and sizes
-        hh_data = df_work[
-            [self.household_id_col, "weight", "household_size"]
-        ].drop_duplicates(subset=[self.household_id_col])
-
-        # Cap household size for stratification (6+ = 6)
-        hh_data["size_capped"] = hh_data["household_size"].apply(lambda x: min(x, 5))
+        # Integerization requires one weight per complete household. Do not
+        # silently discard person-level raking adjustments.
+        weight_range = df_work.groupby(self.household_id_col)["weight"].agg(["min", "max"])
+        if (weight_range["max"] - weight_range["min"] > 1e-7).any():
+            raise ValueError("TRS received inconsistent person weights within households")
+        hh_data = (
+            df_work.groupby(self.household_id_col, as_index=False)
+                   .first()[[self.household_id_col, "weight", "household_category"]]
+        )
 
         total_target_hh = int(np.round(hh_data["weight"].sum()))
 
         if self.verbose:
             print(f"   Starting households: {len(hh_data):,}")
             print(f"   Target households: {total_target_hh:,}")
-            print("   Applying size-stratified TRS...")
+            print("   Applying category-stratified TRS...")
 
-        # Process each household size stratum separately
+        # Process each household category stratum separately
         all_replicated = []
 
         # Use department ID in household IDs to ensure uniqueness across departments
         dept_prefix = f"{department_id}_" if department_id else ""
         replica_counter = 0
 
-        # Calculate target for each size stratum proportionally
+        # Calculate target for each category stratum proportionally
         # This ensures sum of targets equals total_target_hh
-        size_weights = {}
-        for size in sorted(hh_data["size_capped"].unique()):
-            size_hhs_temp = hh_data[hh_data["size_capped"] == size]
-            size_weights[size] = size_hhs_temp["weight"].sum()
+        category_weights = {}
+        for category in sorted(hh_data["household_category"].unique()):
+            category_hhs_temp = hh_data[hh_data["household_category"] == category]
+            category_weights[category] = category_hhs_temp["weight"].sum()
 
-        total_weight = sum(size_weights.values())
-        size_targets = {}
+        total_weight = sum(category_weights.values())
+        category_targets = {}
         allocated_so_far = 0
 
-        for size in sorted(size_weights.keys()):
-            if size == max(size_weights.keys()):
-                # Last size gets remainder to ensure exact total
-                size_targets[size] = total_target_hh - allocated_so_far
+        categories = sorted(category_weights.keys())
+
+        for i, category in enumerate(categories):
+            if i == len(categories) - 1:
+                # Last category gets remainder to ensure exact total
+                category_targets[category] = total_target_hh - allocated_so_far
             else:
                 # Proportional allocation
-                size_targets[size] = int(
-                    np.round(size_weights[size] / total_weight * total_target_hh)
+                category_targets[category] = int(
+                    np.round(category_weights[category] / total_weight * total_target_hh)
                 )
-                allocated_so_far += size_targets[size]
+                allocated_so_far += category_targets[category]
 
-        for size in sorted(hh_data["size_capped"].unique()):
-            # Get households of this size
-            size_hhs = hh_data[hh_data["size_capped"] == size].copy()
+        for category in sorted(hh_data["household_category"].unique()):
+            # Get households of this category
+            category_hhs = hh_data[hh_data["household_category"] == category].copy()
 
-            if len(size_hhs) == 0:
+            if len(category_hhs) == 0:
                 continue
 
             # Use pre-calculated proportional target
-            target_for_size = size_targets[size]
+            target_for_category = category_targets[category]
 
             # Integer and fractional parts
-            size_hhs["int_weight"] = np.floor(size_hhs["weight"]).astype(int)
-            size_hhs["frac_weight"] = size_hhs["weight"] - size_hhs["int_weight"]
+            category_hhs["int_weight"] = np.floor(category_hhs["weight"]).astype(int)
+            category_hhs["frac_weight"] = category_hhs["weight"] - category_hhs["int_weight"]
 
             # Replicate integer part
-            size_hh_ids = size_hhs[self.household_id_col].tolist()
-            size_int_weights = size_hhs["int_weight"].tolist()
+            category_hh_ids = category_hhs[self.household_id_col].tolist()
+            category_int_weights = category_hhs["int_weight"].tolist()
 
-            for hh_id, int_weight in zip(size_hh_ids, size_int_weights):
+            for hh_id, int_weight in zip(category_hh_ids, category_int_weights):
                 if int_weight > 0:
                     hh_persons = df_work[df_work[self.household_id_col] == hh_id].copy()
                     for rep in range(int_weight):
@@ -463,11 +366,11 @@ class PopulationSynthesis:
                         all_replicated.append(hh_rep)
 
             # Handle fractional part
-            current_count = size_hhs["int_weight"].sum()
-            needed_count = target_for_size - current_count
+            current_count = category_hhs["int_weight"].sum()
+            needed_count = target_for_category - current_count
 
             if needed_count > 0:
-                candidates = size_hhs[size_hhs["frac_weight"] > 0].copy()
+                candidates = category_hhs[category_hhs["frac_weight"] > 0].copy()
                 if not candidates.empty:
                     # Probability proportional to fractional weight
                     probs = candidates["frac_weight"] / candidates["frac_weight"].sum()
@@ -491,12 +394,12 @@ class PopulationSynthesis:
                         all_replicated.append(hh_persons)
 
             if self.verbose:
-                size_label = f"{size}+" if size == 6 else str(size)
+                category_label = str(category)
                 actual_count = current_count + min(
-                    needed_count, len(size_hhs[size_hhs["frac_weight"] > 0])
+                    needed_count, len(category_hhs[category_hhs["frac_weight"] > 0])
                 )
                 print(
-                    f"     Size {size_label}: target={target_for_size:>6,}, seed={len(size_hhs):>5,}, output={actual_count:>6,}"
+                    f"     category {category_label}: target={target_for_category}, seed={len(category_hhs):>5,}, output={actual_count:>6,}"
                 )
 
         # Combine all strata
@@ -520,7 +423,7 @@ class PopulationSynthesis:
             print(f"   Final population: {len(replicated_df):,}")
             print(f"   Average household size: {final_hh_sizes.mean():.2f}")
 
-        self._log_performance("Size-Stratified TRS", start_time)
+        self._log_performance("Category-Stratified TRS", start_time)
         return replicated_df
 
     def run_pipeline(
@@ -543,10 +446,9 @@ class PopulationSynthesis:
         if method == "ipu":
             weighted_df = self.ipu_raking(df, census_targets)
             final_df = self.integerize_weights(weighted_df)
-            return weighted_df, final_df
-
-        weighted_df = self.generalized_raking(df, census_targets, area_id)
-        final_df = self.household_aware_trs(weighted_df)
+        else:
+            weighted_df = self.generalized_raking(df, census_targets, area_id)
+            final_df = self.household_aware_trs(weighted_df)
 
         print(
             f"Household-aware pipeline complete in {time.time() - pipeline_start:.2f}s"
