@@ -88,7 +88,6 @@ aliases:
   data.spatial.codes: seville.entd_codes
 
   synthesis.population.spatial.primary.locations: seville.locations.synthesis.replacement
-  synthesis.population.enriched: seville.synthesis.population.enriched
  
   data.hts.entd.raw: seville.data.hts.entd.raw
   data.hts.entd.filtered: seville.data.hts.entd.filtered
