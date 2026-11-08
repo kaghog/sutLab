@@ -19,6 +19,7 @@ def configure(context):
     context.stage("seville.data.census.population")
     context.stage("seville.data.census.households")
     context.stage("seville.data.census.employment")
+    context.stage("seville.data.census.licenses")
     context.config("sampling_rate", 1.0)
     context.config("IPU_aggregation_level")
 
@@ -31,6 +32,7 @@ def execute(context):
     df_population = context.stage("seville.data.census.population")
     df_households = context.stage("seville.data.census.households")
     df_employment = context.stage("seville.data.census.employment")
+    df_licenses = context.stage("seville.data.census.licenses").copy()
 
     sampling_rate = context.config("sampling_rate")
 
@@ -43,36 +45,15 @@ def execute(context):
         "province_id": "departement_id",
         "census_section_id": "commune_id"
     }
-    for df in [df_population, df_employment, df_households]:
+    for df in [df_population, df_employment, df_households, df_licenses]:
         df.rename(MAP_COLUMNS, axis=1, inplace=True)
 
 
     aggregation_areas = sorted(df_population[aggregation_level].unique())
 
-    print(f"Preparing IPU targets for {len(aggregation_areas)} {aggregation_level[:-3]}s...")
-
-    # ------------------------------------------------------------------
-    # Population → employment age-bin mapping (lower bound representation)
-    # ------------------------------------------------------------------
-    AGE_BIN_MAPPING = {
-        0: 0,
-        5: 0,
-        10: 0,
-        15: 16,     # 15–19 → 16–19
-        20: 20,
-        25: 25,
-        30: 30,
-        35: 35,
-        40: 40,
-        45: 45,
-        50: 50,
-        55: 55,
-        60: 60,
-        65: 65,
-        70: 70,     # 70–74 → 70+
-    }
+    # Cap population to 80+ age class
     # clip 70+ population to 70+ age class
-    df_population["age_class"] = df_population["age_class"].clip(upper=70)
+    df_population["age_class"] = df_population["age_class"].clip(upper=80)
 
     df_population = (
         df_population
@@ -81,15 +62,8 @@ def execute(context):
         .reset_index()
     )
 
-    # add empty rows of employment for persons younger than 15
-    df_employment_young = df_employment[df_employment['age_class'] == 16].copy()
-    df_employment_young['weight'] = 0
-    df_employment_young['age_class'] = 0
 
-    print(df_employment_young)
-    df_employment = pd.concat([df_employment, df_employment_young])
-
-    # ------------------------------------------------------------------------
+    print(f"Preparing IPU targets for {len(aggregation_areas)} {aggregation_level[:-3]}s...")
 
     targets_by_aggregation_area = {}
 
@@ -99,6 +73,7 @@ def execute(context):
         df_pop = df_population[df_population[aggregation_level] == aggregation_area_id]
         df_hh = df_households[df_households[aggregation_level] == aggregation_area_id]
         df_emp = df_employment[df_employment[aggregation_level] == aggregation_area_id]
+        df_lic = df_licenses[df_licenses[aggregation_level] == aggregation_area_id]
 
         # --------------------------------------------------------------
         # Person targets: age × sex
@@ -132,65 +107,28 @@ def execute(context):
         # --------------------------------------------------------------
         # Employment targets
         # --------------------------------------------------------------
-        # Coarse employment totals (sex × employment age bin)
-        emp_coarse = (
-            df_emp.groupby(["sex", "age_class"])["weight"]
+
+        df_emp["employed"] = True
+        employment_targets = (
+            df_emp.groupby(["sex", "age_class", "employed"])["weight"]
             .sum()
             .mul(sampling_rate)
+            .to_dict()
         )
-
-        # Map population ages to employment bins
-        df_pop_emp = df_pop.copy()
-        df_pop_emp["emp_age_bin"] = df_pop_emp["age_class"].map(AGE_BIN_MAPPING)
-
-        # Population per coarse + fine bin
-        pop_by_coarse_and_fine = (
-            df_pop_emp
-            .groupby(["sex", "emp_age_bin", "age_class"])["weight"]
-            .sum()
-            .reset_index()
-        )
-
-        # Total population per coarse employment bin
-        pop_totals = (
-            df_pop_emp
-            .groupby(["sex", "emp_age_bin"])["weight"]
-            .sum()
-            .reset_index()
-            .rename(columns={"weight": "total_pop"})
-        )
-
-        pop_by_coarse_and_fine = pop_by_coarse_and_fine.merge(
-            pop_totals, on=["sex", "emp_age_bin"]
-        )
-
-        pop_by_coarse_and_fine["proportion"] = (
-            pop_by_coarse_and_fine["weight"] /
-            pop_by_coarse_and_fine["total_pop"]
-        )
-
-        # Disaggregate employment to fine age bins
-        employment_targets = {}
-
-        for _, row in pop_by_coarse_and_fine.iterrows():
-            sex = row["sex"]
-            emp_age_bin = row["emp_age_bin"]
-            age_class = row["age_class"]
-            proportion = row["proportion"]
-
-            if (sex, emp_age_bin) in emp_coarse.index:
-                emp_total = emp_coarse[(sex, emp_age_bin)]
-                employed = emp_total * proportion
-
-                employment_targets[(sex, age_class, True)] = int(round(employed))
-
-        # Unemployed as residual
-        for (sex, age_class), pop_total in age_sex_targets.items():
-            employed = employment_targets.get((sex, age_class, True), 0)
-            unemployed = pop_total - employed
-            employment_targets[(sex, age_class, False)] = max(0, unemployed)
-
         targets_by_aggregation_area[aggregation_area_id]["employment"] = employment_targets
+
+        #--------------------------------------------------------------
+        # License targets
+        #--------------------------------------------------------------
+        
+        df_lic["has_license"] = True
+        license_targets = (
+            df_lic.groupby(["sex", "age_class", "has_license"])["weight"]
+            .sum()
+            .mul(sampling_rate)
+            .to_dict()
+        )
+        targets_by_aggregation_area[aggregation_area_id]["license"] = license_targets
 
     print(f"✓ Prepared targets for {len(targets_by_aggregation_area)} {aggregation_level[:-3]}s")
 

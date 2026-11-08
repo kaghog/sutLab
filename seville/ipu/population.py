@@ -22,10 +22,18 @@ def configure(context):
 
     context.config("IPU_aggregation_level")
 
-POP_AGE_CLASSES = [
-    0, 5, 10, 15, 20, 25, 30, 35, 40, 45,
+POPULATION_POP_AGE_CLASSES = list(range(0,82,5))
+
+EMPLOYMENT_POP_AGE_CLASSES = [
+    0, 5, 10, 16, 20, 25, 30, 35, 40, 45,
     50, 55, 60, 65, 70
 ]
+
+LICENSES_POP_AGE_CLASSES = [
+    0, 15, 18, 21, 25, 30, 35, 40, 45,
+    50, 55, 60, 65, 70, 74
+]
+
 
 def execute(context):
     census_targets_by_dept = context.stage("seville.ipu.prepare")
@@ -35,16 +43,27 @@ def execute(context):
 
     # Prepare HTS seed data
     hts_df = df_persons_hts.merge(
-        df_households_hts[["household_id", "household_size", "income_class", "number_of_cars", "number_of_bikes", "income_class", "household_weight"]],
+        df_households_hts[["household_id", "household_size", "income_class", "number_of_cars", "number_of_bikes", "household_weight"]],
         on="household_id",
         how="left",
     )
 
-    # Map HTS ages to Sevilla census population age bins
+
     hts_df["age_class"] = pd.cut(
         hts_df["age"],
-        bins=POP_AGE_CLASSES + [np.inf],
-        labels=POP_AGE_CLASSES,
+        bins=POPULATION_POP_AGE_CLASSES + [np.inf],
+        labels=POPULATION_POP_AGE_CLASSES,
+        right=False,
+    ).astype(int)
+
+    hts_df["age_sex"] = list(zip(hts_df["sex"], hts_df["age_class"]))
+
+
+    # Map HTS ages to Sevilla census population age bins
+    hts_df["employment_age_class"] = pd.cut(
+        hts_df["age"],
+        bins=EMPLOYMENT_POP_AGE_CLASSES + [np.inf],
+        labels=EMPLOYMENT_POP_AGE_CLASSES,
         right=False,
     ).astype(int)
 
@@ -54,8 +73,22 @@ def execute(context):
 
     # Must match prepare.py's (sex, age_class, employed) target keys.
     hts_df["employment_age_sex"] = list(
-        zip(hts_df["sex"], hts_df["age_class"], hts_df["employed"].astype(bool))
+        zip(hts_df["sex"], hts_df["employment_age_class"], hts_df["employed"].astype(bool))
     )
+
+    # Map HTS ages to Sevilla census license age bins
+    hts_df["license_age_class"] = pd.cut(
+        hts_df["age"],
+        bins=LICENSES_POP_AGE_CLASSES + [np.inf],
+        labels=LICENSES_POP_AGE_CLASSES,
+        right=False,
+    ).astype(int)
+
+    hts_df["license_age_sex"] = list(
+        zip(hts_df["sex"], hts_df["license_age_class"], hts_df["has_license"].astype(bool))
+    )
+
+    # match license numbers
 
     hts_df["household_category"] = hts_df["household_size"].clip(upper=5).astype(int)
 
@@ -156,10 +189,17 @@ def process_ipu_batch(context, arguments):
         # We need a dictionary: {'age_class': {0: 50, 6: 30...}, 'household_category': {1: 20...}}
         census_targets = {}
 
+
+        # age x sex
+        census_targets["age_sex"] = dept_targets["age_sex"]
+
         # A joint employment × age × sex margin contains both the workforce
         # and population age/sex distribution. Avoid replacing it with
         # separate marginal constraints: those cannot enforce employment.
         census_targets["employment_age_sex"] = dept_targets["employment"]
+
+        # similarly license
+        census_targets["license_age_sex"] = dept_targets["license"]
 
         # 2. Household category constraints (household-level)
         census_targets["household_category"] = dept_targets["household_size_capped"]
