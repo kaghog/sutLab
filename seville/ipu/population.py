@@ -31,7 +31,7 @@ EMPLOYMENT_POP_AGE_CLASSES = [
 
 LICENSES_POP_AGE_CLASSES = [
     0, 15, 18, 21, 25, 30, 35, 40, 45,
-    50, 55, 60, 65, 70, 74
+    50, 55, 60, 65, 70, 75
 ]
 
 

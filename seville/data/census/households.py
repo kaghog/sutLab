@@ -11,6 +11,7 @@ def configure(context):
     context.stage("seville.data.census.population")
     context.config("data_path")
     context.config("seville.household_data", "households.xlsx")
+    context.stage("seville.data.census.population_growth_rate")
 
     if context.config("seville_census_area_selection") == 'agglomeration':
         context.stage("seville.data.select_agglomeration")
@@ -21,7 +22,7 @@ def execute(context):
     EXCEL_PATH = "{}/{}".format(context.config("data_path"),context.config("seville.household_data"))
     SHEET_NAME = "tabla-59543"
 
-    print(f"Loading licenses data from {EXCEL_PATH}")
+    print(f"Loading household data from {EXCEL_PATH}")
     df_households = pd.read_excel(EXCEL_PATH, sheet_name=SHEET_NAME, skiprows=8)
     household_cols = [
         "municipality_id",
@@ -43,9 +44,6 @@ def execute(context):
     df_households = df_households[df_households["departement_id"] == "41"]
 
     assert len(df_households) != 0
-
-    print(df_households.head())    
-
     
     # =============== Census section level household =============================
     df_population = context.stage("seville.data.census.population").copy()
@@ -64,8 +62,6 @@ def execute(context):
             .transform('sum')
     )    
 
-    print(df_population_grouped.info())
-    print(df_population_grouped.head())
 
     df_households = df_households.merge(
         df_population_grouped[['municipality_id', 'census_section_id', 'proportion']],
@@ -83,7 +79,7 @@ def execute(context):
     for column in columns:
         df_households[column] = df_households[column] * df_households['proportion']
 
-    df_households.drop(columns=['proportion'])
+    df_households = df_households.drop(columns=['proportion'])
 
     
     result_df = df_households
@@ -101,6 +97,15 @@ def execute(context):
     else:
         raise NotImplementedError
 
+
+    # Rescale households from year 2021 to year 2022 using population growth rate
+    df_population_growth = context.stage("seville.data.census.population_growth_rate")
+    from .population_growth_rate import add_scaling_factor_between_years
+    result_df = add_scaling_factor_between_years(result_df, df_population_growth, year_from=2021, year_to=2022, matching_attributes=['municipality_id'])
+    for col in ["total_households", "households_1_person", "households_2_persons", "households_3_persons", "households_4_persons", "households_5plus_persons"]:
+        result_df[col] = result_df[col] * result_df["scaling_factor"]
+
+    result_df = result_df.drop(columns=["scaling_factor"])
 
     return result_df
 

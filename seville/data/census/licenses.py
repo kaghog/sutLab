@@ -2,6 +2,10 @@
 import pandas as pd
 import numpy as np
 import os
+from .population_growth_rate import (
+    add_scaling_factor_between_years,
+    population_to_license_age_classes
+)
 
 """
 This stage loads the driving license data for Seville provided at municipality level.
@@ -11,7 +15,8 @@ This stage loads the driving license data for Seville provided at municipality l
 def configure(context):
     context.config("data_path")
     context.config("seville.licenses_path1", "licenses_2024.xlsx")
-    context.config("seville.licenses_path2", "censo_conductores202510.txt")
+    context.config("seville.licenses_path2", "conductores_censo_2023_censo_prov_sexo_clase_edad_2023.txt")
+    context.stage("seville.data.census.population_growth_rate")
 
     context.stage("seville.data.census.population")
 
@@ -40,29 +45,9 @@ def scale_to_census_section(context, df_municipality_expanded):
 
     # Expand 5-year population bins into individual ages
     # Assume uniform population distribution within each 5-year bin
-    df_pop = df_population.copy()
-    df_pop["age_class"] = df_pop["age_class"].astype(int)
 
-    df_pop = df_pop.loc[df_pop.index.repeat(5)].copy()
-    df_pop["age"] = df_pop["age_class"].to_numpy() + np.tile(
-        np.arange(5), len(df_population)
-    )
-    df_pop["weight"] = df_pop["weight"] / 5
-
-    # Map individual ages to driving license age classes
-    # The final class (74) represents ages 74+
-    license_age_classes = np.array([
-        0, 15, 18, 21, 25, 30, 35, 40, 45,
-        50, 55, 60, 65, 70, 74
-    ])
-
-    df_pop["age_class"] = license_age_classes[
-        np.searchsorted(
-            license_age_classes,
-            df_pop["age"],
-            side="right"
-        ) - 1
-    ]
+    # Map population age classes to driving license age classes
+    df_pop = population_to_license_age_classes(df_population)
 
     # Aggregate population by municipality, census section, age and sex
     df_population_grouped = (
@@ -94,7 +79,6 @@ def scale_to_census_section(context, df_municipality_expanded):
     )
 
     # Check that all license groups have matching population data
-#    print(f"Unmatched age-sex groups: {df_municipality_expanded.loc[df_municipality_expanded['proportion'].isna(), ['municipality_id', 'sex', 'age_class']]}")
     assert df_commune_expanded["proportion"].notna().all(), \
         "Some age-sex groups could not be matched to census population"
 
@@ -175,6 +159,7 @@ def execute(context):
     df_province = pd.read_csv(FILE_PATH, sep="|", 
                               usecols=['COD_PROVINCIA', 'IND_SEXO', 'EDAD', 'NUM_LICENCIAS_PERMISOS'], 
                               dtype = {"COD_PROVINCIA":str},
+                              encoding="latin-1"
                               )
     colnames = [
         "province_id", 
@@ -191,8 +176,8 @@ def execute(context):
     df_province['sex'] = df_province['sex'].astype("category")
 
     df_province = df_province[df_province["age_class"]!= "Se desconoce"] # remove rows with unknown age, these are insignificant
-    condition = df_province["age_class"].str.startswith("Mas")
-    df_province.loc[condition, "age_class"] = 74 # extracts upper bound from "More than 74 years"
+    condition = df_province["age_class"] == "Más de 74 años"
+    df_province.loc[condition, "age_class"] = 75 # extracts upper bound from "More than 74 years"
     df_province.loc[~condition, "age_class"] = df_province.loc[~condition, "age_class"].str[0:2] 
     df_province["age_class"] = df_province["age_class"].astype("int64")
 
@@ -222,6 +207,30 @@ def execute(context):
         raise NotImplementedError
 
     result_df = scale_to_census_section(context, result_df)
+
+    # ========== Rescale licenses from 2024 to 2022 ==========
+
+    df_population_growth = context.stage("seville.data.census.population_growth_rate").copy()
+
+    # Harmonize population age bins with license age bins
+    df_population_growth = population_to_license_age_classes(df_population_growth)
+
+    # Calculate scaling factors by municipality, age and sex
+    result_df = add_scaling_factor_between_years(
+        result_df,
+        df_population_growth,
+        year_from=2024,
+        year_to=2022,
+        matching_attributes=["municipality_id", "sex", "age_class"]
+    )
+
+    # Check for invalid scaling factors
+    assert np.isfinite(result_df["scaling_factor"]).all(), \
+        "Missing or invalid age-sex population scaling factors"
+
+    # Apply temporal scaling
+    result_df["weight"] = (result_df["weight"] * result_df["scaling_factor"])
+    result_df = result_df.drop(columns=["scaling_factor"])
 
     return result_df
 

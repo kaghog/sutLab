@@ -40,7 +40,7 @@ def extrapolate_age_group(context, census_path, municipality_path, province_path
     # ========== Load municipality-level data (>= 500 inhabitants) ==========
 
     FILE_PATH = "{}/{}".format(context.config("data_path"),context.config(municipality_path))
-    print(f"Loading census data from {FILE_PATH}")
+    print(f"Loading census employment data from {FILE_PATH}")
     mun_df = pd.read_csv(FILE_PATH, sep="\t", dtype={"Total": str})
     colnames = ["municipality_id", "age_class", "sex", "shared_variable", "year", "count"]
     mun_df.columns = colnames
@@ -70,7 +70,7 @@ def extrapolate_age_group(context, census_path, municipality_path, province_path
     # ========== Load census-section-level data ==========
 
     FILE_PATH = "{}/{}".format(context.config("data_path"),context.config(census_path))
-    print(f"Loading census data from {FILE_PATH}")
+    print(f"Loading census employment data from {FILE_PATH}")
     census_df = pd.read_csv(FILE_PATH, sep="\t", dtype={"Total": str})
     colnames = ["province_id", "municipality_id", "census_section_id", "sex", "shared_variable", "year", "count"]
     census_df.columns = colnames
@@ -111,7 +111,7 @@ def extrapolate_age_group(context, census_path, municipality_path, province_path
     
     # province total df
     FILE_PATH = "{}/{}".format(context.config("data_path"),context.config(province_path))
-    print(f"Loading census data from {FILE_PATH}")
+    print(f"Loading census employment data from {FILE_PATH}")
     province_df = pd.read_csv(FILE_PATH, sep="\t", dtype={"Total": str})
     # Present columns: National Total;Autonomous Communities and Cities;Provinces;Employment;Age;Sex;Periodo;Total;
     province_df = province_df.iloc[:, [2,3,4,5,6,7]]

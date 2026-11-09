@@ -12,9 +12,7 @@ def configure(context):
     if context.config("seville_census_area_selection") == 'agglomeration':
         context.stage("seville.data.select_agglomeration")
 
-def execute(context):
-
-
+def parse_population_data(context, year):
     # Load data
     FILE_PATH = "{}/{}".format(context.config("data_path"), context.config("seville.population"))
     print(f"Loading population data from {FILE_PATH}")
@@ -22,8 +20,9 @@ def execute(context):
     colnames = ["province_id", "municipality_id", "census_section_id", "sex", "age_class", "year", "weight"]
     population_df.columns = colnames
 
+
     # Filter
-    population_df = population_df[population_df["year"] == 2022]
+    population_df = population_df[population_df["year"] == year]
     population_df = population_df[population_df["province_id"].str.startswith("41")]
     population_df = population_df[population_df["census_section_id"] != ""]
     population_df = population_df[population_df["municipality_id"] != ""]
@@ -41,16 +40,18 @@ def execute(context):
     population_df = population_df[~population_df["weight"].isna()]
     population_df['weight'] = pd.to_numeric(population_df['weight'], errors='coerce')
 
-
-    # Normalize age groups
-    population_df = population_df[~(population_df["age_class"].str.startswith("16"))] # remove "16 and more years" age range
+    # Clean age groups
     condition = population_df["age_class"].str.startswith("From")
-    population_df.loc[condition, "age_class"] = population_df.loc[condition, "age_class"].str[5:7] # extracts lower bound from "From 16 to 19 years" like string
+    population_df.loc[condition, "age_class"] = population_df.loc[condition, "age_class"].str[5:7] # extracts lower bound from "From 15 to 19 years" like string
     condition = population_df["age_class"].str.startswith("100") 
     population_df.loc[condition, "age_class"] = 100 # sets category 100 and more years
     population_df["age_class"] = population_df["age_class"].astype("int64")
 
-    result_df = population_df
+    return population_df
+
+def execute(context):
+
+    result_df = parse_population_data(context, year=2022)
 
     selected_area = context.config("seville_census_area_selection")
     if selected_area == 'province':
