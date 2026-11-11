@@ -16,9 +16,27 @@ def execute(context):
     _, population_centroids, employment_centroids = context.stage("seville.gravity.od_zones")
         
     assert len(population_centroids) == len(employment_centroids)
-    
+
+    # The existing metres-to-kilometres conversion requires EPSG:25830.
+    if population_centroids.crs is None or employment_centroids.crs is None:
+        raise ValueError("Population and employment centroids must have a CRS")
+    if (population_centroids.crs != employment_centroids.crs
+            or population_centroids.crs.to_epsg() != 25830):
+        raise ValueError("Both centroid tables must use EPSG:25830 (metres)")
+
     pop_locations = population_centroids.sort_values('macrozone_id')
     emplo_locations = employment_centroids.sort_values('macrozone_id')
+
+    # Equal lengths do not guarantee that the same zones are aligned.
+    for name, locations in (("Population", pop_locations),
+                            ("Employment", emplo_locations)):
+        if locations["macrozone_id"].isna().any() or locations["macrozone_id"].duplicated().any():
+            raise ValueError(f"{name} macrozone IDs are missing or duplicated")
+        if locations.geometry.isna().any() or locations.geometry.is_empty.any():
+            raise ValueError(f"{name} centroids have missing or empty geometry")
+    if not np.array_equal(pop_locations["macrozone_id"].values,
+                          emplo_locations["macrozone_id"].values):
+        raise ValueError("Population and employment centroid macrozone IDs do not match")
 
     municipalities = pop_locations["macrozone_id"].values
 

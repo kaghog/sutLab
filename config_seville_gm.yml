@@ -6,10 +6,7 @@ working_directory: cache
 
 # This section defines which parts of the pipeline should be run
 run:
-#  - seville.gravity.primary_locations
-  - analysis.seville.ivt_style.analysis
-#  - analysis.seville.ivt_style.analysis_education
-  - analysis.seville.ivt_style.analysis_education_2
+  - synthesis.output
 
 
 config:
@@ -26,21 +23,38 @@ config:
 
   # Paths to the input data and where the output should be stored
   data_path: ../raw_data/Seville
-  output_path: output
+  output_path: output/seville_output
   output_prefix: seville_1pct_
   seville.population_shp: shapefiles/census_district_shapefiles/SECC_CE_20220101.shp
   seville.buildings_path: catastre_buildings/all_buildings.gpkg
   osm_path_seville: osm/andalucia-latest.osm.pbf
   check_spatial_codes: True
-  analysis_path: output/analysis
+  analysis_path: output/seville_output/analysis
   osmconvert_binary: "/cluster/scratch/snekula/sutlab/sutLab/osmconvert"
   #osmconvert_binary: "/home/xnekul/windir/ETH_SUTlab/sutLab/osmconvert"
 
-  simulation_output_dir: output/simulation
+  simulation_output_dir: output/seville_output/simulation
   # Only interesting if you run the simulation
   java_memory: 6G
 
   debug: False
+
+  # Gravity calibration / legacy-notebook comparison
+  gravity_parameters_source: calibrated  # alternatives: legacy / calibrated
+  gravity_intra_km: 0.1
+  # Only city-to-city Seville districts (7-digit IDs 41091xx) are used
+  # for HTS OD calibration; gravity application remains metropolitan.
+  gravity_calibration_municipality_id: '41091'
+  gravity_run_name: seville_ppml
+  gravity_calibration_stage: seville.gravity.calibrate
+  gravity_od_stage: seville.gravity.model_new
+  # To use production-constrained, change these to the corresponding
+  # seville.gravity.calibrate_production_constrained / model_production_constrained
+  # stages and also change `data.od.weighted` in aliases below.
+  # Doubly constrained uses calibrate_doubly_constrained / model_doubly_constrained.
+  gravity_model_type: power_law
+  run_description: "Seville municipality HTS fit; metropolitan gravity application"
+  config_file: config_seville_gm.yml
 
   # Defaults for seville
   
@@ -62,7 +76,7 @@ config:
   seville_locations_area_selection: 'agglomeration'
   seville_census_area_selection: 'agglomeration' 
 
-  IPU_aggregation_level: "departement_id"
+  IPU_aggregation_level: "commune_id"
   weighted_trips: True
 
   missing_trips_for_young_people: False
