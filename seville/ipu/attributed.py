@@ -89,11 +89,10 @@ def execute(context):
     if "education_outside_region" not in df.columns:
         df["education_outside_region"] = False
 
-    # Vehicle availability
-    if "number_of_cars" not in df.columns:
-        df["number_of_cars"] = 1
-    if "number_of_bikes" not in df.columns:
-        df["number_of_bikes"] = 1
+    if "any_cars" not in df.columns:
+        df["any_cars"] = df["number_of_cars"] > 0
+    if "any_bikes" not in df.columns:
+        df["any_bikes"] = df["number_of_bikes"] > 0
 
     if "commute_mode" not in df.columns:
         df["commute_mode"] = np.nan

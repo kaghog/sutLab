@@ -29,9 +29,9 @@ def execute(context):
     aggregation_level = context.config("IPU_aggregation_level")
 
 
-    df_population = context.stage("seville.data.census.population")
-    df_households = context.stage("seville.data.census.households")
-    df_employment = context.stage("seville.data.census.employment")
+    df_population = context.stage("seville.data.census.population").copy()
+    df_households = context.stage("seville.data.census.households").copy()
+    df_employment = context.stage("seville.data.census.employment").copy()
     df_licenses = context.stage("seville.data.census.licenses").copy()
 
     sampling_rate = context.config("sampling_rate")
@@ -62,6 +62,9 @@ def execute(context):
         .reset_index()
     )
 
+
+    df_employment["employed"] = True
+    df_licenses["has_license"] = True
 
     print(f"Preparing IPU targets for {len(aggregation_areas)} {aggregation_level[:-3]}s...")
 
@@ -108,7 +111,6 @@ def execute(context):
         # Employment targets
         # --------------------------------------------------------------
 
-        df_emp["employed"] = True
         employment_targets = (
             df_emp.groupby(["sex", "age_class", "employed"])["weight"]
             .sum()
@@ -121,7 +123,6 @@ def execute(context):
         # License targets
         #--------------------------------------------------------------
         
-        df_lic["has_license"] = True
         license_targets = (
             df_lic.groupby(["sex", "age_class", "has_license"])["weight"]
             .sum()

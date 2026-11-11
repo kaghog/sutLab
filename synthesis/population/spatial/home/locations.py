@@ -26,11 +26,7 @@ def _sample_locations(context, args):
     home_count = len(df_homes)
     location_count = len(df_locations)  
 
-    print("="*10)
-    print(f"location_count {location_count}")
-    print(f"home_count {home_count}")
-    print(df_homes)
-    print(df_locations)
+    print(f"iris_id {iris_id}: home_count-{home_count}; location_count-{location_count}")
     assert location_count > 0, f"{df_locations} \n {df_homes}"
     assert home_count > 0
 

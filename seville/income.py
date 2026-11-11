@@ -14,9 +14,11 @@ def configure(context):
 def execute(context):
     # Load data
     df = context.stage("synthesis.population.sampled")[["household_id"]]
-    
-    # Format
     df = df.drop_duplicates("household_id")
-    df["household_income"] = 0.0
+    # Format
+    if "income_class" in df.columns and "household_income" not in df.columns:
+        df["household_income"] = df["income_class"]
+    elif "household_income" not in df.columns:        
+        df["household_income"] = 0.0
     
     return df
