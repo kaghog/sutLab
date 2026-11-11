@@ -7,6 +7,9 @@ working_directory: cache
 # This section defines which parts of the pipeline should be run
 run:
   - synthesis.output
+  - analysis.seville.seville_validate_population
+  - analysis.seville.population_diagnostics
+  - analysis.seville.spatial_population_analysis
 
 
 config:
