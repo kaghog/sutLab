@@ -28,7 +28,10 @@ def execute(context):
 
 
     if "departement_id" not in df.columns and "commune_id" in df.columns:
-        df["departement_id"] = df["commune_id"].str[:3]
+        df["commune_id"] = (
+            df["commune_id"].astype(str).str.zfill(4)
+        )
+        df["departement_id"] = df["commune_id"].str[:2]
 
 
     # Spatial identifiers: departement -> commune -> iris

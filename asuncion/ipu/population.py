@@ -35,14 +35,14 @@ def execute(context):
 
     # Prepare HTS seed data
     hts_df = df_persons_hts.merge(
-        df_households_hts[["household_id", "household_category", "income_class", "household_income", "number_of_cars", "number_of_motorbikes", "household_weight"]],
+        df_households_hts[["household_id", "household_size", "hts_household_district_id", "income_class", "household_income", "number_of_cars", "number_of_motorbikes", "household_weight"]],
         on="household_id",
         how="left",
     )
     hts_df = hts_df.rename(columns={"departement_id":"departement_id_hts"})
 
-    if hts_df["household_category"].isna().any():
-        raise ValueError("Some HTS households have no household_category.")
+    if hts_df["household_size"].isna().any():
+        raise ValueError("Some HTS households have no household_size.")
     if hts_df["income_class"].isna().any():
         raise ValueError("Some HTS households have no income_class.")
 
@@ -62,6 +62,9 @@ def execute(context):
     hts_df["employment_age_sex"] = list(
         zip(hts_df["sex"], hts_df["age_class"], hts_df["employed"].astype(bool))
     )
+
+    hts_df["aggregation_unit"] = hts_df["hts_household_district_id"]
+    hts_df["household_category"] = hts_df["household_size"].apply(lambda x: x if x < 6 else 6)
 
     print(
         f"HTS seed population: {len(hts_df):,} persons from {len(df_households_hts):,} households"
@@ -142,7 +145,7 @@ def process_ipu_batch(context, arguments):
 
     # Initialize synthesis engine
     # Define which variables are Household level vs Person level
-    household_vars = ["household_category", "income_class"]
+    household_vars = ["household_category", "aggregation_unit"]
 
     synthesizer = PopulationSynthesis(
         max_iterations=max_iterations,
@@ -170,7 +173,13 @@ def process_ipu_batch(context, arguments):
 
         # 2. Household category constraints (household-level)
         census_targets["household_category"] = dept_targets["household_category"]
-        census_targets["income_class"] = dept_targets["income_class"]
+
+        census_targets["aggregation_unit"] = dept_targets["aggregation_unit"]
+
+        # Explicitly constrain total residents
+        census_targets["total_population"] = {
+            "all": sum(dept_targets["age_sex"].values())
+        }
 
         # Include total constraints if present
         if "total_households" in dept_targets:
@@ -225,6 +234,25 @@ def process_ipu_batch(context, arguments):
                 final_df = synthesizer.integerize_weights(
                     weighted_df, department_id=dept_id
                 )
+                target_pop = sum(dept_targets["age_sex"].values())
+                target_hh = sum(dept_targets["household_category"].values())
+
+                weighted_pop = weighted_df["weight"].sum()
+                weighted_hh = (
+                    weighted_df.groupby("household_id")["weight"].first().sum()
+                )
+
+                final_pop = len(final_df)
+                final_hh = final_df["household_id"].nunique()
+
+                print(f"\nDepartment {dept_id}")
+                print(f"{'':20s} {'Census':>12s} {'IPU':>12s} {'Final':>12s}")
+                print(f"{'Population':20s} {target_pop:12.0f} {weighted_pop:12.0f} {final_pop:12d}")
+                print(f"{'Households':20s} {target_hh:12.0f} {weighted_hh:12.0f} {final_hh:12d}")
+
+                print(f"IPU population error: {(weighted_pop / target_pop - 1) * 100:+.2f}%")
+                print(f"Final population error: {(final_pop / target_pop - 1) * 100:+.2f}%")
+
                 final_employment = final_df["employed"].astype(float).mean()
                 print(f"IPU area {dept_id}: final integerized employed "
                       f"{final_employment:.2%}")

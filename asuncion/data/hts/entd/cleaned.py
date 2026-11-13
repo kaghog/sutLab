@@ -13,6 +13,7 @@ This stage cleans the national HTS.
 def configure(context):
     context.stage("data.hts.entd.raw")
     context.stage("asuncion.data.census.income")
+    context.config("income_type", "job_only")  # "job_only" or "total_income"
 
 
 
@@ -66,31 +67,19 @@ def execute(context):
 
     df_households["household_weight"] = df_households["household_weight"].astype(float)
     
-    df_households["number_of_vehicles"] = (
-        df_households["number_of_vehicles_car_1"].astype(int)
-        + df_households["number_of_vehicles_car_2"].astype(int)
-        + df_households["number_of_vehicles_car_3"].astype(int)
-        + df_households["number_of_vehicles_motorbike_1"].astype(int)
-        + df_households["number_of_vehicles_motorbike_2"].astype(int)
-        + df_households["number_of_vehicles_motorbike_3"].astype(int)
-    )
-    df_households["number_of_cars"] = (
-        df_households["number_of_vehicles_car_1"].astype(int)
-        + df_households["number_of_vehicles_car_2"].astype(int)
-        + df_households["number_of_vehicles_car_3"].astype(int)
-    )
-    df_households["number_of_motorbikes"] = (
-        df_households["number_of_vehicles_motorbike_1"].astype(int)
-        + df_households["number_of_vehicles_motorbike_2"].astype(int)
-        + df_households["number_of_vehicles_motorbike_3"].astype(int)
-    )
+    df_households["number_of_cars"] = df_households["number_of_cars"].astype(int)
+    df_households["number_of_motorbikes"] = df_households["number_of_motorbikes"].astype(int)
 
+    df_households["number_of_vehicles"] = df_households["number_of_cars"] + df_households["number_of_motorbikes"]
     # Clean urban type
     df_households['urban_type'] = "urban"
     df_households["urban_type"] = df_households["urban_type"].astype("category")
 
     # Clean district_id
     df_households.loc[df_households["hts_household_district_id"]=="0", "hts_household_district_id"] = "0000" 
+
+    df_households['household_category'] = df_households["hts_household_district_id"] 
+
 
     # ========== Clean Persons Data ==========
 
@@ -128,25 +117,26 @@ def execute(context):
 
 
 
+    if context.config("income_type") == "job_only":
+        df_persons["primary_job_income"] = df_persons["primary_job_income"].apply(clean_income).astype(float)
+        df_persons["secondary_job_income"] = df_persons["secondary_job_income"].apply(clean_income).astype(float)
 
-    df_persons["primary_job_income"] = df_persons["primary_job_income"].apply(clean_income).astype(float)
-    df_persons["secondary_job_income"] = df_persons["secondary_job_income"].apply(clean_income).astype(float)
+        df_persons.loc[df_persons["primary_job_income"].isna(), "primary_job_income"] = 0.0
+        df_persons.loc[df_persons["secondary_job_income"].isna(), "secondary_job_income"] = 0.0 
+
+
+
+        df_persons["job_income"] = (df_persons["primary_job_income"] + df_persons["secondary_job_income"])
+        df_persons["job_income"] = df_persons["job_income"] / 1000
     
-    df_persons.loc[df_persons["primary_job_income"].isna(), "primary_job_income"] = 0.0
-    df_persons.loc[df_persons["secondary_job_income"].isna(), "secondary_job_income"] = 0.0 
-
-    
-
-    df_persons["job_income"] = (df_persons["primary_job_income"] + df_persons["secondary_job_income"])
-    df_persons["job_income"] = df_persons["job_income"] / 1000
-  
-    df_income = df_persons.groupby("household_id", as_index=False).agg({"job_income":"sum"})
-    df_households = df_households.merge(df_income, on="household_id", how="left")
-      # Clean income class
-
-    df_households["household_income"] = df_households["job_income"]
+        df_income = df_persons.groupby("household_id", as_index=False).agg({"job_income":"sum"})
+        df_households = df_households.merge(df_income, on="household_id", how="left")
+        
+        df_households["household_income"] = df_households["job_income"]
+    else:
+        df_households["household_income"] = df_households["household_income"].apply(clean_income).astype(float) / 1000
     df_households["income_class"] = pd.cut(
-        df_households["job_income"],
+        df_households["household_income"],
         bins=ASUNCION_INCOME_CLASS_BINS,
         labels=ASUNCION_INCOME_CLASS_LABELS,
         right=False

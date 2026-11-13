@@ -16,18 +16,14 @@ MAP_HOUSEHOLDS_COLUMNS = {
     'Fex': 'household_weight',
     'Personas': 'household_size',
     #'number_of_vehicles is made of following columns
-    'AutoCamionetaCamionPropio': 'number_of_vehicles_car_1',
-    'AutoCamionetaCamionNoPropio': 'number_of_vehicles_car_2',
-    'MotoMotoCarroPropio': 'number_of_vehicles_motorbike_1',
-    'MotoMotocarroNoPropio': 'number_of_vehicles_motorbike_2',
-    'AutooEquivalente': 'number_of_vehicles_car_3',
-    'Moto': 'number_of_vehicles_motorbike_3',
+    'AutooEquivalente': 'number_of_cars',
+    'Moto': 'number_of_motorbikes',
 
     'NBicicletas': 'number_of_bikes', 
     "IdDepartamento": 'departement_id',
 #    '': 'consumption_units', # calculated in cleaned.py
 #    '': 'urban_type' # unknown - default set to urban_center
-    'IngresoTotal': 'income_class', # income class
+    'IngresoTotal': 'household_income', # income class is then calculated from household_income
     'IdDepartamentoDistrito': 'hts_household_district_id'
 }
 
@@ -40,8 +36,7 @@ MAP_PERSONS_COLUMNS = {
     'ActLaboralReciente' :'employed', # can be deduced from a) worked last week b) if the person has income from primary work
     "IngresoTrabPrincipal": 'primary_job_income', 
     "IngresoTrabSecundarios": 'secondary_job_income',
-    #'???': 'studies',  # is mapped from 'IdNoTrabajo' == 1 ???, alternatively can be deduced from trips whether person traveled to school
-    #                   However, I dont think the "studies" parameter is actually used?? so depends how we want to approach this
+    'AsistenciaActualEducacion': 'studies',
     'LicenciaConducir': 'has_license',
     # '': 'has_pt_subscription', # no data - we idicate as NaN
     "Viajes": 'number_of_trips',
@@ -118,11 +113,6 @@ def execute(context):
 # --------------------------------------------------------------------------
     # Set missing columns
     df_persons['trip_weight'] = df_persons['person_weight']
-
-
-    # TODO: remove this
-    df_persons['studies'] = False
-    df_households['household_category'] = 1
 
     # Social progessional class
     #   - we have no data

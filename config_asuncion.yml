@@ -6,13 +6,13 @@ working_directory: cache
 
 # This section defines which parts of the pipeline should be run
 run:
-#  - synthesis.output
+  - synthesis.output
 #  - asuncion.synthesis.population.matched
 
 
 #  - analysis.asuncion.ivt_style.compare_ipu
 #  - analysis.asuncion.ivt_style.analysis_gravity
-  - analysis.asuncion.ivt_style.analysis_distance_distribution
+#  - analysis.asuncion.ivt_style.analysis_distance_distribution
 ##  - analysis.asuncion.asuncion_archive
 ##  - analysis.asuncion.asuncion_compare_models
 #
@@ -50,17 +50,17 @@ config:
 
   # Paths to the input data and where the output should be stored
   data_path: ../raw_data/Asuncion
-  output_path: output
+  output_path: output/asuncion_output
   output_prefix: asuncion_1pct_
   asuncon.population_shp: shapefiles/census_district_shapefiles/SECC_CE_20220101.shp
   asuncion.buildings_path: catastre_buildings/all_buildings.gpkg
   osm_path_asuncion: osm/paraguay-260810.osm.pbf
   check_spatial_codes: True
-  analysis_path: output/analysis
+  analysis_path: output/asuncion_output/analysis
   osmconvert_binary: "/cluster/scratch/snekula/sutlab/sutLab/osmconvert"
   #osmconvert_binary: "/home/xnekul/windir/ETH_SUTlab/sutLab/osmconvert"
 
-  simulation_output_dir: output/simulation
+  simulation_output_dir: output/asuncion_output/simulation
   # Only interesting if you run the simulation
   java_memory: 6G
 
@@ -70,10 +70,11 @@ config:
   pipeline_crs: "EPSG:32721"
   home_location_sampling: weighted
   mode_choice: False
-  matching_attributes: ["sex", "any_vehicles", "has_license", "age_class", "district_id"]
+  matching_attributes: ["age_class", "employed", "sex", "any_vehicles", "has_license", "district_id"]
   # supported matching attributes ["sex", "any_vehicles", "has_license", "age_class", "income_class", "district_id"]
   age_matching_bins: [4, 14, 20, 29, 44, 59, 74, 1000]
-  matching_minimum_observations: 20
+  matching_minimum_observations: 5
+  income_type: "job_only"  # "job_only" or "total_income"
 
 
 

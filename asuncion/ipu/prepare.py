@@ -7,6 +7,7 @@ def configure(context):
     context.stage("asuncion.data.census.population")
     context.stage("asuncion.data.census.households")
     context.stage("asuncion.data.census.employment")
+    context.stage("asuncion.data.census.households")
     context.stage("asuncion.data.census.income")
     context.config("sampling_rate", 1.0)
     context.config("IPU_aggregation_level")
@@ -84,15 +85,22 @@ def execute(context):
         targets_by_aggregation_area[aggregation_area_id]["age_sex"] = age_sex_targets
 
         # --------------------------------------------------------------
-        # Household category targets
+        # Household category targets - we use district id
         # --------------------------------------------------------------
-        household_category_targets = {
-            1: df_hh["weight"].sum(),
+        household_aggregation_unit_targets = {
+            aggregation_area_id: 0.90 * df_hh["weight"].sum()
+            * sampling_rate
         }
+        targets_by_aggregation_area[aggregation_area_id]["aggregation_unit"] = household_aggregation_unit_targets
 
-        household_category_targets = {
-            k: v * sampling_rate for k, v in household_category_targets.items()
-        }
+
+        household_category_targets = (
+            df_hh.groupby("household_size")["weight"]
+            .sum()
+            .mul(sampling_rate)
+            .to_dict()
+        )
+
 
         targets_by_aggregation_area[aggregation_area_id]["household_category"] = household_category_targets
 
@@ -167,12 +175,16 @@ def execute(context):
         # Non-employed as residual. Keep exactly the same population totals as
         # the age×sex census targets, including 0–4, 5–9 and 10–14.
         for (sex, age_class), pop_total in age_sex_targets.items():
-            # max employment = population
-            # min unemployment = 0 (cannot go negative)
-            employed = min(pop_total, employment_targets.get((sex, age_class, True), 0))
-            unemployed = pop_total - employed
-            employment_targets[(sex, age_class, False)] = max(0, unemployed)
+            key_true = (sex, age_class, True)
+            key_false = (sex, age_class, False)
 
+            employed = employment_targets.get(key_true, 0.0)
+
+            # Employment cannot exceed census population
+            employed = max(0.0, min(float(employed), float(pop_total)))
+
+            employment_targets[key_true] = employed
+            employment_targets[key_false] = float(pop_total) - employed
         targets_by_aggregation_area[aggregation_area_id]["employment"] = employment_targets
 
     print(f"✓ Prepared targets for {len(targets_by_aggregation_area)} {aggregation_level[:-3]}s")

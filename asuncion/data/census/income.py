@@ -8,6 +8,7 @@ def configure(context):
     context.config("data_path")
     context.config("asuncion.income_survey", "census/income/INGREFAM_EPHC_ANUAL_2022.csv")
     context.stage("asuncion.data.census.households")
+    context.config("income_type", "job_only")  # "job_only" or "total_income"
 
 def weighted_quantile(values, weights, quantiles):
     x, w = np.asarray(values), np.asarray(weights)
@@ -50,10 +51,13 @@ def execute(context):
     df = df[df["departement_id"].isin(["00", "11"])].copy()
     df = df[df["urban_type"] == "1"].copy()  # only urban households, because AMA area covers mostly only urban areas
 
-    for c in ["weight", "person_count", "primary_job_income", "secondary_job_income", "other_job_income"]:
+    for c in ["weight", "person_count", "income", "primary_job_income", "secondary_job_income", "other_job_income"]:
         df[c] = df[c].str.replace(",", ".", regex=False).astype(float)
 
-    df["income"] = (df["primary_job_income"] + df["secondary_job_income"] + df["other_job_income"]) / 1000
+    if context.config("income_type") == "job_only":
+        df["income"] = (df["primary_job_income"] + df["secondary_job_income"] + df["other_job_income"]) / 1000
+    else:
+        df["income"] = df["income"] / 1000
     df = df[(df["weight"] > 0) & (df["person_count"] > 0)].copy()
 
 
