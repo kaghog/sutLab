@@ -25,6 +25,7 @@ def execute(context):
     # Select population columns
     df_population = context.stage("synthesis.population.sampled")[[
         "person_id", "household_id",
+        "departement_id", "commune_id",
         "census_person_id", "census_household_id",
         "age", "sex", "employed", "studies",
         "household_size", "consumption_units",

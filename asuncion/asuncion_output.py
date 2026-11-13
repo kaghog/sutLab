@@ -64,11 +64,12 @@ def execute(context):
 
     # Prepare persons
     df_persons = context.stage("synthesis.population.enriched").rename(
-        columns = { "has_license": "has_driving_license" }
+        columns = { "has_license": "has_driving_license", "commune_id": "district_id"}
     )
 
     df_persons = df_persons[[
         "person_id", "household_id",
+        "departement_id", "district_id",
         "age", "employed", "sex", "socioprofessional_class",
         "has_driving_license", "has_pt_subscription",
         "census_person_id", "hts_id"
@@ -122,7 +123,7 @@ def execute(context):
 
     # Prepare households
     df_households = context.stage("synthesis.population.enriched").rename(
-        columns = { "household_income": "income" }
+        columns = { "household_income": "income", "commune_id": "district_id" }
     ).drop_duplicates("household_id")
 
 
@@ -130,6 +131,7 @@ def execute(context):
         ]].drop_duplicates("household_id"),how="left")
     df_households = df_households[[
         "household_id",
+        "departement_id", "district_id",
         "car_availability", "motorbike_availability", "bicycle_availability",
         "number_of_cars", "number_of_motorbikes", "number_of_bikes",
         "income",
