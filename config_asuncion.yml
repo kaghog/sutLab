@@ -90,7 +90,7 @@ config:
 
   osm_path: osm
   osmosis_binary: osmosis/bin
-  gtfs_path: gtfs/Line1
+  gtfs_path: gtfs
 
   eqasim_commit: f375a37
   eqasim_version: "2.0.0"
