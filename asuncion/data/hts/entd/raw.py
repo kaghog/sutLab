@@ -44,6 +44,19 @@ MAP_PERSONS_COLUMNS = {
     #'': 'trip_weight', - same as person_weight
     # '': 'is_passenger', # we calculate from trips
     # '': 'socioprofessional_class' # we use nan
+
+    # For other income calculation purposes:
+    "IngresoAlquilerRenta": "other_income_rent",
+    "IngresoInteresDividendos": "other_income_interest_dividends",
+    "IngresoAyudaFamiliar": "other_income_family_assistance",
+    "IngresoAyudaFamiliarExt": "other_income_family_assistance_abroad",
+    "IngresoDivorcioCuidadoHijos": "other_income_child_support",
+    "IngresoJubilacion": "other_income_retirement",
+    "IngresoTekopora": "other_income_tekopora",
+    "IngresoPension": "other_income_pension",
+    "IngresoAdultoMayor": "other_income_older_adult_benefit",
+    "IngresoOtros": "other_income_other",
+
 }
 
 MAP_TRIPS_COLUMNS = {

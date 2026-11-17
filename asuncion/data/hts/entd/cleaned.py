@@ -14,6 +14,7 @@ def configure(context):
     context.stage("data.hts.entd.raw")
     context.stage("asuncion.data.census.income")
     context.config("income_type", "job_only")  # "job_only" or "total_income"
+    context.stage("asuncion.data.hts.entd.fix_income")
 
 
 
@@ -104,37 +105,33 @@ def execute(context):
 
     df_persons["employed"] = df_persons["employed"] == "1"
 
-    def clean_income(x):
-        if pd.isna(x):
-            return 0
-        x = int(x)
-        if x == 0:
-            return 0
-        if x == 99999999999:
-            return 0
-        # if x is na then return 0
-        return x
+    # Income repair must run after cleaning sex, age, employment and car count.
+    # fix_income works in PYG, preserves NaN for unresolved non-job income.
+    df_households, df_persons = context.stage(
+        "asuncion.data.hts.entd.fix_income"
+    )(df_households, df_persons)
+
+    income_type = context.config("income_type")
+    if income_type not in ("job_only", "total_income"):
+        raise ValueError(f"Unknown income_type={income_type!r}")
+
+    income_column = {
+        "job_only": "job_income_pyg",
+        "total_income": "total_income_pyg",
+    }[income_type]
+
+    # The original pipeline expresses household_income in THOUSANDS of PYG.
+    df_households["household_income"] = df_households[income_column] / 1000.0
+    df_persons["job_income"] = df_persons["job_income_pyg"] / 1000.0
+
+    if income_type == "total_income":
+        missing = int(df_households["household_income"].isna().sum())
+        if missing:
+            print(f"[cleaned] WARNING: {missing} households have unresolved "
+                  "non-job income; household_income/income_class remain NaN. "
+                  "The downstream pipeline must handle these explicitly.")
 
 
-
-    if context.config("income_type") == "job_only":
-        df_persons["primary_job_income"] = df_persons["primary_job_income"].apply(clean_income).astype(float)
-        df_persons["secondary_job_income"] = df_persons["secondary_job_income"].apply(clean_income).astype(float)
-
-        df_persons.loc[df_persons["primary_job_income"].isna(), "primary_job_income"] = 0.0
-        df_persons.loc[df_persons["secondary_job_income"].isna(), "secondary_job_income"] = 0.0 
-
-
-
-        df_persons["job_income"] = (df_persons["primary_job_income"] + df_persons["secondary_job_income"])
-        df_persons["job_income"] = df_persons["job_income"] / 1000
-    
-        df_income = df_persons.groupby("household_id", as_index=False).agg({"job_income":"sum"})
-        df_households = df_households.merge(df_income, on="household_id", how="left")
-        
-        df_households["household_income"] = df_households["job_income"]
-    else:
-        df_households["household_income"] = df_households["household_income"].apply(clean_income).astype(float) / 1000
     df_households["income_class"] = pd.cut(
         df_households["household_income"],
         bins=ASUNCION_INCOME_CLASS_BINS,
