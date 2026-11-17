@@ -1166,13 +1166,21 @@ def create_validation(filtered,reweighted,employment,income,od_zones,codes,
         sel_s=starts.loc[ispurpose(starts.purpose_key)]
         reference=_weighted(sel_h,'zone_id','trip_weight')
         synthetic=sel_s.dropna(subset=['zone_id']).groupby('zone_id').size().astype(float)
-        _paired_geo(zones,_pct(reference),_pct(synthetic),
-            'Education activity destinations' if name=='education' else 'Secondary activity destinations',
-            f'{num}_{name}_destination_shares',out,percent=True,
-            note='Trip-origin locations where preceding purpose is '+
-              ('education.' if kind=='education' else 'neither home, work, education nor unknown.')+
-              ' Denominator: all such activity exits in the modeled AMA; NOT number of facilities.',
-            share_label='Share of all AMA '+name+' activity exits (%)')
+        _paired_geo(
+            zones,
+            _pct(reference),
+            _pct(synthetic),
+            'Spatial distribution of education activities',
+            '01_education_destination_shares',
+            out,
+            percent=True,
+            note=(
+                'Distribution of education activity locations '
+                'inferred from trips departing from education '
+                'activities within the modeled metropolitan area.'
+            ),
+            share_label='Share of all education activity departures (%)'
+        )
         quality['coverage'][name+'_hts_weight_in_study_zones']=float(reference.sum())
         quality['coverage'][name+'_synthetic_exits_in_zones']=int(synthetic.sum())
         quality['coverage'][name+'_hts_weight_outside_zones']=float(sel_h.loc[sel_h.zone_id.isna(),'trip_weight'].sum())

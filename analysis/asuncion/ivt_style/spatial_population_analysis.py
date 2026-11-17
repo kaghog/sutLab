@@ -203,8 +203,8 @@ def _read_export(context):
         return pd.read_csv(folder / f"{prefix}{name}.csv", sep=";", encoding="latin1")
     def geo(name):
         return gpd.read_file(folder / f"{prefix}{name}.gpkg")
-    persons = csv("persons")
-    households = csv("households")
+    persons = csv("persons").drop(columns=["district_id"])
+    households = csv("households").drop(columns=["district_id"])
     homes = geo("homes")
     acts = geo("activities")
     import json

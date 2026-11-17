@@ -17,9 +17,9 @@ run:
 ##  - analysis.asuncion.asuncion_compare_models
 #
 #  - analysis.asuncion.asuncion_validate_population
-#
-##  - analysis.asuncion.ivt_style.final_population_plots
+#  - analysis.asuncion.ivt_style.final_population_plots
 #  - analysis.asuncion.ivt_style.spatial_population_analysis
+#   - analysis.asuncion.ivt_style.asuncion_validate_activity_chains
 #  - analysis.asuncion.ivt_style.population_diagnostics
 
 config:
