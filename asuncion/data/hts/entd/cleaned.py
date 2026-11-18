@@ -106,7 +106,7 @@ def execute(context):
     df_persons["employed"] = df_persons["employed"] == "1"
 
     # Income repair must run after cleaning sex, age, employment and car count.
-    # fix_income works in PYG, preserves NaN for unresolved non-job income.
+    # fix_income works in PYG; unresolved non-job components count as zero in the total.
     df_households, df_persons = context.stage(
         "asuncion.data.hts.entd.fix_income"
     )(df_households, df_persons)
@@ -122,15 +122,11 @@ def execute(context):
 
     # The original pipeline expresses household_income in THOUSANDS of PYG.
     df_households["household_income"] = df_households[income_column] / 1000.0
+    df_households["household_job_income"] = df_households["job_income_pyg"] / 1000.0
+    df_households["household_total_income"] = df_households["total_income_pyg"] / 1000.0
+    df_households["is_total_income_complete"] = df_households["is_total_income_complete"].astype(bool)
+    
     df_persons["job_income"] = df_persons["job_income_pyg"] / 1000.0
-
-    if income_type == "total_income":
-        missing = int(df_households["household_income"].isna().sum())
-        if missing:
-            print(f"[cleaned] WARNING: {missing} households have unresolved "
-                  "non-job income; household_income/income_class remain NaN. "
-                  "The downstream pipeline must handle these explicitly.")
-
 
     df_households["income_class"] = pd.cut(
         df_households["household_income"],

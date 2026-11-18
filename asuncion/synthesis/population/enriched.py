@@ -69,7 +69,7 @@ def execute(context):
     # Attach income
     df_income = context.stage("synthesis.population.income.selected")
     df_population = pd.merge(df_population, df_income[[
-        "household_id", "household_income"
+        "household_id", "household_income", "household_job_income", "household_total_income", "is_total_income_complete"
     ]], on = "household_id")
 
     # Check consistency

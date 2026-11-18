@@ -116,7 +116,7 @@ def _observed_hts(raw, cleaned):
     hc, pc, *_ = cleaned
     _require(hr, ["household_id", "departement_id", "household_weight", "household_income"], "raw HTS households")
     _require(pr, ["household_id"] + list(INCOME_COLUMNS), "raw HTS persons")
-    _require(hc, ["household_id", "job_income_pyg", "total_income_pyg"], "cleaned HTS households")
+    _require(hc, ["household_id", "job_income_pyg", "total_income_pyg", "is_total_income_complete"], "cleaned HTS households")
     hr = hr.copy(); pr = pr.copy(); hc = hc.copy()
     for frame in (hr, pr, hc):
         frame["household_id"] = frame["household_id"].astype("string").str.strip().str.replace(r"\.0$", "", regex=True)
@@ -143,14 +143,20 @@ def _observed_hts(raw, cleaned):
     hr["nonjob_unknown"] = hr.household_id.map(flags.nonjob_unknown).fillna(False).astype(bool)
 
     merged = hr.merge(
-        hc[["household_id", "job_income_pyg", "total_income_pyg"]],
+        hc[["household_id", "job_income_pyg", "total_income_pyg", "is_total_income_complete"]],
         on="household_id", how="left", validate="one_to_one",
     )
     merged["fixed_job_pyg"] = _number(merged.job_income_pyg)
     merged["fixed_total_pyg"] = _number(merged.total_income_pyg)
-    bad = merged.loc[merged.nonjob_unknown & merged.fixed_total_pyg.notna()]
-    if len(bad):
-        raise ValueError(f"{len(bad)} HTS households have unknown non-job income but non-NaN repaired total")
+    # Estimated total is now numeric: unresolved components contributed zero.
+    # Preserve the pre-zero-fill completeness flag, rather than inferring
+    # completeness from total_income_pyg.notna().
+    flag = merged["is_total_income_complete"].astype("string").str.strip().str.lower()
+    if not flag.isin(["true", "false", "1", "0"]).all():
+        raise ValueError("Cleaned is_total_income_complete must contain nonmissing booleans")
+    merged["is_total_income_complete"] = flag.isin(["true", "1"])
+    if (merged.nonjob_unknown & merged.is_total_income_complete).any():
+        raise ValueError("Cleaned total marked complete despite a source unknown non-job component")
     if merged.fixed_job_pyg.isna().any():
         warnings.warn(f"Repaired job income unresolved in {merged.fixed_job_pyg.isna().sum()} HTS households", stacklevel=2)
 
@@ -169,8 +175,10 @@ def _observed_hts(raw, cleaned):
         "weighted_unknown_any_share_pct": float(100 * _number(merged.loc[merged.any_unknown, "household_weight"]).sum() / _number(merged.household_weight).sum()),
         "fixed_job_missing_households": int(merged.fixed_job_pyg.isna().sum()),
         "fixed_total_missing_households": int(merged.fixed_total_pyg.isna().sum()),
+        "fixed_total_incomplete_households": int((~merged.is_total_income_complete).sum()),
+        "weighted_fixed_total_incomplete_share_pct": float(100 * _number(merged.loc[~merged.is_total_income_complete, "household_weight"]).sum() / _number(merged.household_weight).sum()),
     }
-    diag = merged[["household_id", "departement_id", "household_weight", "any_unknown", "job_unknown", "nonjob_unknown", "raw_job_pyg", "fixed_job_pyg", "raw_total_pyg", "fixed_total_pyg"]]
+    diag = merged[["household_id", "departement_id", "household_weight", "any_unknown", "job_unknown", "nonjob_unknown", "raw_job_pyg", "fixed_job_pyg", "raw_total_pyg", "fixed_total_pyg", "is_total_income_complete"]]
     return frames, missing, diag
 
 
@@ -507,10 +515,11 @@ def _missing_table_and_plot(diag, out):
         before_any = 100 * w[d.any_unknown].sum() / w.sum()
         after_job_na = 100 * w[d.fixed_job_pyg.isna()].sum() / w.sum()
         after_total_na = 100 * w[d.fixed_total_pyg.isna()].sum() / w.sum()
+        after_total_incomplete = 100 * w[~d.is_total_income_complete].sum() / w.sum()
         label = 'Asunción + Central' if dep == 'ALL' else DEPARTMENTS[dep]
-        rows.append([label, f"{before_job:.1f}%", f"{before_nonjob:.1f}%", f"{before_any:.1f}%", f"{after_job_na:.1f}%", f"{after_total_na:.1f}%"])
-        plot_rows.append((label, [before_job, before_nonjob, before_any, after_job_na, after_total_na]))
-    df = pd.DataFrame(rows, columns=["Department", "Before repair: missing job", "Before repair: missing non-job", "Before repair: any missing component", "After repair: NA job income", "After repair: NA total income"])
+        rows.append([label, f"{before_job:.1f}%", f"{before_nonjob:.1f}%", f"{before_any:.1f}%", f"{after_job_na:.1f}%", f"{after_total_na:.1f}%", f"{after_total_incomplete:.1f}%"])
+        plot_rows.append((label, [before_job, before_nonjob, before_any, after_job_na, after_total_na, after_total_incomplete]))
+    df = pd.DataFrame(rows, columns=["Department", "Before repair: missing job", "Before repair: missing non-job", "Before repair: any missing component", "After repair: NA job income", "After repair: NA total income", "After repair: estimated incomplete total"])
     df.to_csv(out / "07_missing_income_table.csv", index=False)
     df.to_markdown(out / "07_missing_income_table.md", index=False)
     table_view = df.rename(columns={
@@ -520,18 +529,20 @@ def _missing_table_and_plot(diag, out):
         "Before repair: any missing component": "Before: any\nunknown",
         "After repair: NA job income": "After: job\nNA",
         "After repair: NA total income": "After: total\nNA",
+        "After repair: estimated incomplete total": "After: total\nincomplete*",
     })
-    _figure_table(table_view, "Missing-income exposure before and after repair · weighted HTS household share", out / "07_missing_income_table", font_size=9, col_width=1.0)
+    _figure_table(table_view, "Missing-income exposure before and after repair · weighted HTS household share\n*Incomplete total = best-guess estimate with unresolved income components treated as zero", out / "07_missing_income_table", font_size=9, col_width=1.0)
 
-    fig, ax = plt.subplots(figsize=(12.0, 5.6), layout='constrained')
-    kinds = ["Before: missing job", "Before: missing non-job", "Before: any missing", "After: NA job", "After: NA total"]
+    fig, ax = plt.subplots(figsize=(13.6, 5.6), layout='constrained')
+    kinds = ["Before: missing job", "Before: missing non-job", "Before: any missing", "After: NA job", "After: NA total", "After: incomplete total*"]
     xs = np.arange(len(kinds)); wd = .22
     palette = ['#4C78A8', '#F28E2B', '#9C755F']
     for i, (label, vals) in enumerate(plot_rows):
         ax.bar(xs + (i - (len(plot_rows)-1)/2) * wd, vals, width=wd * .9, label=label, color=palette[i])
-    ax.set_xticks(xs, kinds)
+    ax.set_xticks(xs, kinds, rotation=12, ha='right')
     ax.set_ylabel("Weighted share of HTS households (%)")
-    ax.set_title("Missing-income exposure before repair and remaining NA after repair", weight='bold', loc='left')
+    ax.set_title("Missing-income exposure: remaining NA versus best-guess incomplete totals", weight='bold', loc='left')
+    ax.text(0, -0.22, "*Incomplete total is numeric; remaining unknown components were treated as zero.", transform=ax.transAxes, fontsize=9, color="#536474")
     ax.legend(frameon=False, ncol=3)
     ax.grid(axis='y', alpha=.15)
     _save(fig, out / "07_missing_income_plot")
@@ -553,7 +564,7 @@ Raw total = original HTS household total. Repaired values come directly from `as
 EPHC job-only = `e01aimde + e01bimde + e01cimde`. EPHC total = `ingrem`.
 
 **Missingness:** sentinel codes {list(MISSING_CODES)} are treated as unknown. Fixed job-income missing households: {missing['fixed_job_missing_households']}.
-Fixed total-income missing households: {missing['fixed_total_missing_households']}. Unknown non-job components are intentionally kept as `NA` after repair, so repaired total income remains `NA` for those households.
+Fixed total-income missing households: {missing['fixed_total_missing_households']}. Households with estimated but incomplete repaired total income: {missing['fixed_total_incomplete_households']} ({missing['weighted_fixed_total_incomplete_share_pct']:.2f}% weighted). Unresolved non-job components remain `NA` individually, but are treated as zero when computing the numeric best-guess total. `is_total_income_complete` is `False` for households with unresolved components. The flag measures component completeness, not the reliability of hot-deck-imputed job income.
 
 **Important limitation:** this stage does **not** include quantile-mapped HTS income. It compares raw HTS, complete-case HTS,
 repaired HTS, EPHC, and the synthetic population only.
@@ -625,6 +636,7 @@ def create_income_report(raw, cleaned, synthetic_root, prefix, analysis_path,
         "synthetic_file": str(synthetic_path),
         "warnings": [
             "HTS complete cases selects only households with no unknown income fields.",
+            "Repaired HTS total is a numeric best guess; any unresolved components contribute zero. Use is_total_income_complete to identify incomplete estimates.",
             "EPHC total includes imputed rent and is not fully conceptually identical to HTS total.",
             "Synthetic results are shown only for the configured income_type.",
             "No quantile-mapped HTS income is included in this report."

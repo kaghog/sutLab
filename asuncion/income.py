@@ -18,8 +18,7 @@ def execute(context):
 
     # Format
 
-    if "household_income" not in df.columns:
-        df["household_income"] = 0.0
+    assert "household_income" in df.columns
 
     
     return df

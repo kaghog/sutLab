@@ -1,21 +1,22 @@
-"""HTS income repair stage for asuncion.
+"""HTS income repair stage for asuncion (synpp / eqasim).
 
-returns a pickleable callable object serving as 
-function(households, persons) -> (households, persons) that:
+`execute(context)` returns a pickleable callable:
+
+    df_households, df_persons = context.stage(
+        'asuncion.data.hts.entd.fix_income'
+    )(df_households, df_persons)
+
+The callable:
   * converts income components to numeric and converts special missing codes to NaN;
   * replaces blank components for children <15 with structural zeros, but NEVER
     replaces a special missing code with a structural zero;
   * imputes only missing PRIMARY and SECONDARY employment-income components,
     by weighted, conditional hot-deck sampling from observed HTS respondents;
   * recalculates person and household job-only income and total income in PYG;
-  * preserves NaN for a total if ANY non-employment component is unresolved;
+  * treats unresolved non-job components as zero when estimating total income;
+  * marks whether the total was complete before zero-filling;
   * retains a report of which persons/households were imputed or remain missing.
 
-This hot-deck is stochastic and conditional on the observed respondents. It is 
-not a model-based imputation, and it does not attempt to predict income for a person 
-with no observed donors. It is intended to repair the HTS data for use in synthetic 
-population generation, not to produce a statistically valid estimate of the true income distribution.
-The callable requires both dataframes in the intermediate format from `raw.py`, with
 """
 
 from functools import partial
@@ -205,17 +206,21 @@ def fix_income(households, persons, *, seed=1234, min_donors=10):
         p[f"{col}_imputed"], counts = _impute_column(p, col, rng, min_donors)
         total_counts[col] = counts
 
-    # Person totals: sum(min_count=N) means ANY still-missing component -> NaN.
+    # Unknown non-job income contributes zero to the best-guess total.
+    # Keep the completeness flag based on the original missing values.
     p["job_income_pyg"] = p[JOB_COLUMNS].sum(axis=1, min_count=len(JOB_COLUMNS))
-    p["total_income_pyg"] = p[INCOME_COLUMNS].sum(axis=1, min_count=len(INCOME_COLUMNS))
+    p["is_total_income_complete"] = p[INCOME_COLUMNS].notna().all(axis=1)
+    p["total_income_pyg"] = p[INCOME_COLUMNS].fillna(0).sum(axis=1)
     p["income_nonjob_unresolved"] = p[OTHER_COLUMNS].isna().any(axis=1)
     p["income_job_unresolved"] = p[JOB_COLUMNS].isna().any(axis=1)
 
     job_by_hh = _strict_household_sum(p, "job_income_pyg")
     total_by_hh = _strict_household_sum(p, "total_income_pyg")
+    complete_by_hh = p.groupby("household_id")["is_total_income_complete"].all()
     h["income_reported_total_pyg"] = _to_money(h["household_income"]) if "household_income" in h else np.nan
     h["job_income_pyg"] = h.household_id.map(job_by_hh)
     h["total_income_pyg"] = h.household_id.map(total_by_hh)
+    h["is_total_income_complete"] = h.household_id.map(complete_by_hh).fillna(False).astype(bool)
     h["income_job_imputed"] = h.household_id.map(
         p.assign(_did=p[[f"{c}_imputed" for c in JOB_COLUMNS]].any(axis=1))
         .groupby("household_id")["_did"].any()
@@ -223,12 +228,12 @@ def fix_income(households, persons, *, seed=1234, min_donors=10):
     h["income_nonjob_unresolved"] = h.household_id.map(
         p.groupby("household_id")["income_nonjob_unresolved"].any()
     ).fillna(False)
-    h["income_total_unresolved"] = h["total_income_pyg"].isna()
+    h["income_total_unresolved"] = ~h["is_total_income_complete"]
 
     print("[fix_income] Job imputation:", total_counts)
     print(f"[fix_income] Children under 15: {blank_minor_count} structural blank fields -> 0")
     print(f"[fix_income] Household job income unresolved: {h.job_income_pyg.isna().sum()} / {len(h)}")
-    print(f"[fix_income] Household total income unresolved: {h.total_income_pyg.isna().sum()} / {len(h)}")
+    print(f"[fix_income] Household total income incomplete (estimated with zeros): {(~h.is_total_income_complete).sum()} / {len(h)}")
 
     # Drop only temporary matching columns; keep income provenance flags.
     p = p.drop(columns=["_employed", "_sex", "_age_group", "_department", "_car", "_donor_weight"])

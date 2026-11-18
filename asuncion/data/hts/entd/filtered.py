@@ -15,7 +15,19 @@ def execute(context):
     df_households, df_persons, df_trips = context.stage("asuncion.data.hts.entd.cleaned")
     
     # Finish up
-    df_households = df_households[hts.HOUSEHOLD_COLUMNS + ["urban_type", "income_class", "household_income", "household_category", "number_of_cars", "number_of_motorbikes", "hts_household_district_id"]]
+    df_households = df_households[hts.HOUSEHOLD_COLUMNS + 
+                                  [
+                                      "urban_type", 
+                                      "income_class", 
+                                      "household_income", 
+                                      "household_category", 
+                                      "number_of_cars", 
+                                      "number_of_motorbikes", 
+                                      "hts_household_district_id",
+                                      "household_job_income",
+                                      "household_total_income",
+                                      "is_total_income_complete"
+                                      ]]
     df_persons = df_persons[hts.PERSON_COLUMNS]
     df_trips = df_trips[hts.TRIP_COLUMNS + ["euclidean_distance", "routed_distance", "origin_district_id", "destination_district_id"]]
 
