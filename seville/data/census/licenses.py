@@ -234,15 +234,19 @@ def execute(context):
 
     return result_df
 
+
 def validate(context):
+    filenames = [
+        "seville.licenses_path1",
+        "seville.licenses_path2",
+    ]
 
-    CSV_FILE1 = f"{context.config('data_path')}/{context.config('seville.licenses_path1')}"
-    if not os.path.exists(CSV_FILE1):
-        raise RuntimeError(f"Driving license data is not available at location {CSV_FILE1}")
+    FILE_LIST = [f"{context.config('data_path')}/{context.config(filename)}" for filename in filenames]
 
-    CSV_FILE2 = f"{context.config('data_path')}/{context.config('seville.licenses_path2')}"
-    if not os.path.exists(CSV_FILE2):
-        raise RuntimeError(f"Driving license data is not available at location {CSV_FILE2}")
+    for FILE in FILE_LIST:
+        if not os.path.exists(FILE):
+            raise RuntimeError(f"Census driving license data is not available at location {FILE}")
 
+    size_list = [os.path.getsize(FILE) for FILE in FILE_LIST]
 
-    return os.path.getsize(CSV_FILE1), os.path.getsize(CSV_FILE2)
+    return size_list
