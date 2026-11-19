@@ -84,7 +84,9 @@ def process_edu_locations(context):
             (p.x, p.y) for p in people["home_location"]
         ])
 
-        _, idx = tree.query(person_xy, k=1)
+        # choose one of the 3 closest schools randomly
+        _, idx = tree.query(person_xy, k=3)
+        idx = np.random.choice(idx, size=len(idx))
 
         people["commune_id"] = schools.iloc[idx]["commune_id"].values
         people["location_id"] = schools.iloc[idx]["location_id"].values
@@ -105,7 +107,7 @@ def process_edu_locations(context):
     df_university_people = df_persons[df_persons["age"] > max_school_age].copy()
 
     # assign university locations
-    df_university_people["location_id"] = np.random.choice(
+    df_university_people["location_id"] = random.choice(
         university_weights["location_id"],
         size=len(df_university_people),
         p=university_weights["weight"]
