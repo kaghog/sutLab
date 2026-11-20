@@ -43,7 +43,7 @@ def execute(context):
 
     # Prepare HTS seed data
     hts_df = df_persons_hts.merge(
-        df_households_hts[["household_id", "household_size", "income_class", "number_of_cars", "number_of_bikes", "household_weight"]],
+        df_households_hts[["household_id", "household_size", "income_class", "household_income", "number_of_cars", "any_vehicles", "number_of_bikes", "household_weight"]],
         on="household_id",
         how="left",
     )

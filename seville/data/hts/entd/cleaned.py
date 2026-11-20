@@ -146,6 +146,7 @@ def execute(context):
     # Number of cars
     df_households["number_of_vehicles"] = df_households["number_of_vehicles"].astype(int)
     df_households["number_of_cars"] = df_households["number_of_vehicles"].astype(int)
+    df_households["any_vehicles"] = (df_households["number_of_vehicles"] > 0).astype(int)
     df_households["number_of_bikes"] = df_households["number_of_bikes"].astype(int)
 
 
@@ -189,6 +190,7 @@ def execute(context):
     df_households.loc[df_households["income_class"] == 99, "income_class"] = -1 # no values
     df_households.loc[df_households["income_class"] == ' ', "income_class"] = -1 # no values
     df_households["income_class"] = df_households["income_class"].astype(int)
+    df_households["household_income"] = df_households["income_class"]
 
 
     # Trip purpose
